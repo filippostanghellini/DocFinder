@@ -10,3 +10,6 @@ dist/
 .DS_Store
 .env
 data/
+
+# Ignore GitHub metadata (keeps local edits/experiments out of commits)
+.github/
