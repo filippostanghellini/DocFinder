@@ -25,3 +25,6 @@ bandit-report.json
 .idea/
 *.swp
 *.swo
+
+# Local-only notes (do not commit)
+idea_and_info/
