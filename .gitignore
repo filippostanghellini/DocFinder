@@ -11,5 +11,17 @@ dist/
 .env
 data/
 
-# Ignore GitHub metadata (keeps local edits/experiments out of commits)
-.github/
+# Coverage reports
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+
+# Security reports
+bandit-report.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
