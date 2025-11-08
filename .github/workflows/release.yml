@@ -18,7 +18,7 @@ jobs:
     name: Build Distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -112,7 +112,7 @@ jobs:
     #   needs: build
     #   if: github.event_name == 'release'
     #   steps:
-    #     - uses: actions/checkout@v4
+    #     - uses: actions/checkout@v5
     #
     #     - name: Set up QEMU
     #       uses: docker/setup-qemu-action@v3
