@@ -41,5 +41,8 @@ def build_chunks(path: Path, *, max_chars: int = 1200, overlap: int = 200) -> It
             document_path=path,
             index=idx,
             text=chunk,
-            metadata={"page_span": meta.get("page_count", ""), "title": meta.get("title", path.stem)},
+            metadata={
+                "page_span": meta.get("page_count", ""),
+                "title": meta.get("title", path.stem),
+            },
         )

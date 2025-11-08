@@ -1,0 +1,65 @@
+name: 📚 Documentation
+description: Report missing or incorrect documentation
+title: "[Docs]: "
+labels: ["documentation"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve our documentation!
+
+  - type: dropdown
+    id: doc-type
+    attributes:
+      label: Documentation Type
+      description: What type of documentation issue is this?
+      options:
+        - Missing documentation
+        - Incorrect/outdated documentation
+        - Unclear documentation
+        - Typo/grammar
+        - Code example doesn't work
+    validations:
+      required: true
+
+  - type: textarea
+    id: location
+    attributes:
+      label: Location
+      description: Where is the documentation issue located?
+      placeholder: |
+        - File: README.md, section "Installation"
+        - URL: https://github.com/filippostanghellini/DocFinder#usage
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current Documentation
+      description: What does the current documentation say?
+      placeholder: The current docs state that...
+
+  - type: textarea
+    id: suggested
+    attributes:
+      label: Suggested Change
+      description: What should the documentation say instead?
+      placeholder: It should explain that...
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context or examples
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I would be willing to submit a PR to fix this

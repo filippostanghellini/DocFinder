@@ -10,14 +10,14 @@ import sys
 from pathlib import Path
 from typing import Any, List
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from docfinder.config import AppConfig
 from docfinder.embedding.encoder import EmbeddingConfig, EmbeddingModel
 from docfinder.index.indexer import Indexer
-from docfinder.index.search import SearchResult, Searcher
+from docfinder.index.search import Searcher, SearchResult
 from docfinder.index.storage import SQLiteVectorStore
 from docfinder.web.frontend import router as frontend_router
 

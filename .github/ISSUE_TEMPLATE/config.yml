@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discussions
+    url: https://github.com/filippostanghellini/DocFinder/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: 🔒 Security Issue
+    url: https://github.com/filippostanghellini/DocFinder/security/advisories/new
+    about: Report a security vulnerability (private)

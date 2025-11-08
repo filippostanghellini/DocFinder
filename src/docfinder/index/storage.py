@@ -6,7 +6,7 @@ import json
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterable, Iterator, List, Sequence
+from typing import Iterator, List, Sequence
 
 import numpy as np
 
@@ -90,9 +90,7 @@ class SQLiteVectorStore:
             conn.execute("DROP TABLE IF EXISTS chunk_index_data")
             conn.execute("DROP TABLE IF EXISTS chunk_index_index")
 
-            columns = {
-                row["name"] for row in conn.execute("PRAGMA table_info(chunks)")
-            }
+            columns = {row["name"] for row in conn.execute("PRAGMA table_info(chunks)")}
             if "embedding" not in columns:
                 conn.execute("ALTER TABLE chunks ADD COLUMN embedding BLOB")
 
@@ -167,9 +165,7 @@ class SQLiteVectorStore:
         if not rows:
             return []
 
-        embeddings = np.vstack(
-            [np.frombuffer(row["embedding"], dtype="float32") for row in rows]
-        )
+        embeddings = np.vstack([np.frombuffer(row["embedding"], dtype="float32") for row in rows])
         scores = embeddings @ query
 
         if top_k < len(scores):
