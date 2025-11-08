@@ -5,6 +5,7 @@
 [![License](https://img.shields.io/github/license/filippostanghellini/DocFinder)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![Stars](https://img.shields.io/github/stars/filippostanghellini/DocFinder?style=social)](https://github.com/filippostanghellini/DocFinder/stargazers)
 
 DocFinder is a local-first CLI for indexing and searching PDF documents using semantic embeddings stored in SQLite. Everything runs on your machine—no external services required.
 
