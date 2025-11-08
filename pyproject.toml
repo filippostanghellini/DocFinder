@@ -56,8 +56,10 @@ app = "docfinder.cli:app"
 
 [tool.ruff]
 line-length = 100
-select = ["E", "F", "W", "I"]
 target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
 
 [tool.ruff.format]
 quote-style = "double"

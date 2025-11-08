@@ -10,7 +10,7 @@ from typing import Iterable, List
 from docfinder.embedding.encoder import EmbeddingModel
 from docfinder.index.storage import SQLiteVectorStore
 from docfinder.ingestion.pdf_loader import build_chunks
-from docfinder.models import ChunkRecord, DocumentMetadata
+from docfinder.models import DocumentMetadata
 from docfinder.utils.files import compute_sha256, iter_pdf_paths
 
 LOGGER = logging.getLogger(__name__)
@@ -65,9 +65,7 @@ class Indexer:
         return stats
 
     def _index_single(self, path: Path) -> str:
-        chunk_records = list(
-            build_chunks(path, max_chars=self.chunk_chars, overlap=self.overlap)
-        )
+        chunk_records = list(build_chunks(path, max_chars=self.chunk_chars, overlap=self.overlap))
         if not chunk_records:
             LOGGER.warning("No text extracted from %s", path)
             return "skipped"

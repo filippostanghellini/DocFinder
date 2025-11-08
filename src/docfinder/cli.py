@@ -18,7 +18,6 @@ from docfinder.index.storage import SQLiteVectorStore
 from docfinder.utils.files import iter_pdf_paths
 from docfinder.web.app import app as web_app
 
-
 console = Console()
 app = typer.Typer(help="DocFinder - local semantic search for PDFs")
 
@@ -34,9 +33,7 @@ def _ensure_db_parent(db_path: Path) -> None:
 
 @app.command()
 def index(
-    inputs: List[Path] = typer.Argument(
-        ..., help="Paths with PDFs to index.", resolve_path=True
-    ),
+    inputs: List[Path] = typer.Argument(..., help="Paths with PDFs to index.", resolve_path=True),
     db: Path = typer.Option(None, "--db", help="SQLite database path"),
     model: str = typer.Option(AppConfig().model_name, help="Sentence-transformer model name"),
     chunk_chars: int = typer.Option(AppConfig().chunk_chars, help="Chunk size in characters"),
@@ -107,7 +104,9 @@ def search(
 
     for result in results:
         snippet = result.text.replace("\n", " ")
-        table.add_row(f"{result.score:.4f}", str(result.path), str(result.chunk_index), snippet[:180])
+        table.add_row(
+            f"{result.score:.4f}", str(result.path), str(result.chunk_index), snippet[:180]
+        )
 
     console.print(table)
     store.close()
@@ -119,7 +118,10 @@ def prune(
     model: Optional[str] = typer.Option(None, help="Optional, kept for interface parity"),
 ) -> None:
     """Remove documents that no longer exist on disk."""
-    config = AppConfig(db_path=db if db is not None else AppConfig().db_path, model_name=model or AppConfig().model_name)
+    config = AppConfig(
+        db_path=db if db is not None else AppConfig().db_path,
+        model_name=model or AppConfig().model_name,
+    )
     resolved_db = config.resolve_db_path(Path.cwd())
 
     if not resolved_db.exists():
@@ -144,7 +146,8 @@ def web(
         import uvicorn
     except ImportError as exc:  # pragma: no cover - defensive
         raise typer.BadParameter(
-            "uvicorn is not installed. Install the web extras with \"python -m pip install '.[web]'\""
+            "uvicorn is not installed. "
+            "Install the web extras with \"python -m pip install '.[web]'\""
         ) from exc
 
     config = AppConfig(db_path=db if db is not None else AppConfig().db_path)
@@ -152,9 +155,7 @@ def web(
     if not resolved_db.exists():
         console.print("[yellow]Warning: database not found, searches might fail.[/yellow]")
 
-    console.print(
-        f"Starting web interface on http://{host}:{port} (database: {resolved_db})"
-    )
+    console.print(f"Starting web interface on http://{host}:{port} (database: {resolved_db})")
     uvicorn.run(
         web_app,
         host=host,
