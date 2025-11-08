@@ -16,7 +16,6 @@ from docfinder.index.indexer import Indexer
 from docfinder.index.search import Searcher
 from docfinder.index.storage import SQLiteVectorStore
 from docfinder.utils.files import iter_pdf_paths
-from docfinder.web.app import app as web_app
 
 console = Console()
 app = typer.Typer(help="DocFinder - local semantic search for PDFs")
@@ -144,6 +143,8 @@ def web(
     """Start the web interface."""
     try:
         import uvicorn
+
+        from docfinder.web.app import app as web_app
     except ImportError as exc:  # pragma: no cover - defensive
         raise typer.BadParameter(
             "uvicorn is not installed. "
