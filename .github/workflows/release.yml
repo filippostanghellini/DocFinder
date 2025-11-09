@@ -58,7 +58,7 @@ jobs:
     #     url: https://test.pypi.org/p/docfinder
     #   steps:
     #     - name: Download artifacts
-    #       uses: actions/download-artifact@v4
+    #       uses: actions/download-artifact@v6
     #       with:
     #         name: release-dist
     #         path: dist/
@@ -78,7 +78,7 @@ jobs:
     #     url: https://pypi.org/p/docfinder
     #   steps:
     #     - name: Download artifacts
-    #       uses: actions/download-artifact@v4
+    #       uses: actions/download-artifact@v6
     #       with:
     #         name: release-dist
     #         path: dist/
@@ -93,7 +93,7 @@ jobs:
     if: github.event_name == 'release'
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: release-dist
           path: dist/
