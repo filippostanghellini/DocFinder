@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **ONNX Runtime Backend Support**: Automatic backend detection with ONNX optimization
+  - 1.5x-1.7x performance improvement on Apple Silicon with quantized ONNX models
+  - Full GPU support: NVIDIA CUDA, AMD ROCm, Apple Silicon (CoreML/MPS)
+  - Automatic platform and GPU detection with intelligent fallback
+  - Configurable backend selection via `EmbeddingConfig`
+- GPU detection functions: `_check_gpu_availability()`, `_check_onnx_providers()`
+- Added `optimum` dependency for ONNX model support
+- **New optional dependency group `[gpu]`** for easy NVIDIA GPU support installation
+- Comprehensive test suite for backend detection and GPU support
+
+### Changed
+- `EmbeddingModel` auto-detects optimal backend based on platform and GPU availability
+- `detect_optimal_backend()` extended with CUDA and ROCm GPU support
+- `EmbeddingConfig` extended with `backend`, `onnx_model_file`, and `device` parameters
+- Improved logging for backend and execution provider information
+
+### Performance
+- Apple Silicon: ~1.7x faster, 4x smaller models (quantized)
+- NVIDIA GPU: 2-5x faster for large batches
+- AMD GPU: Optimized inference with ROCm provider
+- Intel Mac: ~1.5x faster with ONNX
+
 ## [0.1.0] - 2025-11-08
 
 ### Added

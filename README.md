@@ -16,6 +16,7 @@ DocFinder is a local-first CLI for indexing and searching PDF documents using se
 - Generates local embeddings via `sentence-transformers` and `onnxruntime`.
 - Performs top-k semantic search backed by SQLite BLOB storage and cosine similarity.
 - Ships with an optional FastAPI web interface that lets you trigger indexing and open PDFs with one click.
+- **Auto-detects hardware** (Apple Silicon, NVIDIA GPU, AMD GPU, CPU) and optimizes performance automatically.
 
 ## Requirements
 - Python 3.10 or newer.
@@ -31,17 +32,31 @@ pip install --upgrade pip
 pip install .
 ```
 
+For **NVIDIA GPU acceleration** (Linux/Windows):
+
+```bash
+pip install '.[gpu]'
+```
+
 Development extras:
 
 ```bash
-python -m pip install '.[dev]'
+pip install '.[dev]'
 ```
 
 Web interface extras:
 
 ```bash
-python -m pip install '.[web]'
+pip install '.[web]'
 ```
+
+All extras combined:
+
+```bash
+pip install '.[dev,web,gpu]'
+```
+
+> **Note**: DocFinder automatically detects your hardware (Apple Silicon, NVIDIA GPU, AMD GPU, or CPU) and uses the optimal backend. GPU support on NVIDIA requires the `gpu` extra above.
 
 ## Usage
 
