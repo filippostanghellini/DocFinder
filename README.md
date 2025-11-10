@@ -96,7 +96,3 @@ Search results list the file path, similarity score, and an excerpt from the mat
 - `src/docfinder/index`: SQLite vector storage and search.
 - `src/docfinder/utils`: hashing, chunking, and file helpers.
 - `tests`: automated checks.
-
-## Roadmap
-- Add a real-time watcher based on `watchdog`.
-- Enrich documents with custom metadata.
