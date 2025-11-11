@@ -66,27 +66,27 @@ class Indexer:
             return IndexStats()
 
         stats = IndexStats()
-        
+
         # Processa solo 2 file alla volta per ridurre memoria
         batch_size = 2
-        
+
         for i in range(0, len(pdf_files), batch_size):
             batch = pdf_files[i:i + batch_size]
-            
+
             for path in batch:
                 try:
                     LOGGER.info(f"Processing: {path}")
                     status = self._index_single(path)
                     stats.increment(status, path)
-                    
+
                 except Exception as e:
                     LOGGER.error(f"Failed to process {path}: {e}")
                     stats.failed += 1
                     stats.processed_files.append(path)
-            
+
             # Libera memoria dopo ogni batch
             gc.collect()
-        
+
         return stats
 
     def _index_single(self, path: Path) -> str:

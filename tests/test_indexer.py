@@ -6,8 +6,8 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
-from docfinder.index.indexer import IndexStats, Indexer
-from docfinder.models import ChunkRecord, DocumentMetadata
+from docfinder.index.indexer import Indexer, IndexStats
+from docfinder.models import ChunkRecord
 
 
 class TestIndexStats:
@@ -26,9 +26,9 @@ class TestIndexStats:
         """Test incrementing inserted count."""
         stats = IndexStats()
         path = Path("/tmp/test.pdf")
-        
+
         stats.increment("inserted", path)
-        
+
         assert stats.inserted == 1
         assert stats.updated == 0
         assert stats.skipped == 0
@@ -39,9 +39,9 @@ class TestIndexStats:
         """Test incrementing updated count."""
         stats = IndexStats()
         path = Path("/tmp/test.pdf")
-        
+
         stats.increment("updated", path)
-        
+
         assert stats.inserted == 0
         assert stats.updated == 1
         assert stats.skipped == 0
@@ -52,9 +52,9 @@ class TestIndexStats:
         """Test incrementing skipped count."""
         stats = IndexStats()
         path = Path("/tmp/test.pdf")
-        
+
         stats.increment("skipped", path)
-        
+
         assert stats.inserted == 0
         assert stats.updated == 0
         assert stats.skipped == 1
@@ -65,9 +65,9 @@ class TestIndexStats:
         """Test incrementing failed count for unknown status."""
         stats = IndexStats()
         path = Path("/tmp/test.pdf")
-        
+
         stats.increment("unknown_status", path)
-        
+
         assert stats.inserted == 0
         assert stats.updated == 0
         assert stats.skipped == 0
@@ -77,12 +77,12 @@ class TestIndexStats:
     def test_multiple_increments(self):
         """Test tracking multiple files."""
         stats = IndexStats()
-        
+
         stats.increment("inserted", Path("/tmp/a.pdf"))
         stats.increment("updated", Path("/tmp/b.pdf"))
         stats.increment("skipped", Path("/tmp/c.pdf"))
         stats.increment("failed", Path("/tmp/d.pdf"))
-        
+
         assert stats.inserted == 1
         assert stats.updated == 1
         assert stats.skipped == 1
@@ -115,7 +115,7 @@ class TestIndexer:
     def test_init(self, mock_embedder, mock_store):
         """Test Indexer initialization."""
         indexer = Indexer(mock_embedder, mock_store, chunk_chars=1000, overlap=100)
-        
+
         assert indexer.embedder is mock_embedder
         assert indexer.store is mock_store
         assert indexer.chunk_chars == 1000
@@ -124,7 +124,7 @@ class TestIndexer:
     def test_init_default_params(self, mock_embedder, mock_store):
         """Test default chunk parameters."""
         indexer = Indexer(mock_embedder, mock_store)
-        
+
         assert indexer.chunk_chars == 1200
         assert indexer.overlap == 200
 
@@ -136,24 +136,24 @@ class TestIndexer:
         # Setup
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_text("test")
-        
+
         mock_iter_pdfs.return_value = [pdf_path]
         mock_build_chunks.return_value = [
             ChunkRecord(document_path=pdf_path, index=0, text="Chunk 1", metadata={"title": "Test Doc"}),
             ChunkRecord(document_path=pdf_path, index=1, text="Chunk 2", metadata={})
         ]
         mock_sha256.return_value = "abc123"
-        
+
         # Execute
         stats = indexer.index([pdf_path])
-        
+
         # Verify
         assert stats.inserted == 1
         assert stats.updated == 0
         assert stats.skipped == 0
         assert stats.failed == 0
         assert pdf_path in stats.processed_files
-        
+
         # Verify calls
         mock_build_chunks.assert_called_once_with(pdf_path, max_chars=1200, overlap=200)
         mock_sha256.assert_called_once_with(pdf_path)
@@ -167,16 +167,16 @@ class TestIndexer:
         """Test indexing a file that gets updated."""
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_text("test")
-        
+
         mock_iter_pdfs.return_value = [pdf_path]
         mock_build_chunks.return_value = [
             ChunkRecord(document_path=pdf_path, index=0, text="Updated", metadata={})
         ]
         mock_sha256.return_value = "new_hash"
         indexer.store.upsert_document.return_value = "updated"
-        
+
         stats = indexer.index([pdf_path])
-        
+
         assert stats.updated == 1
         assert stats.inserted == 0
 
@@ -187,16 +187,16 @@ class TestIndexer:
         """Test indexing a file that gets skipped."""
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_text("test")
-        
+
         mock_iter_pdfs.return_value = [pdf_path]
         mock_build_chunks.return_value = [
             ChunkRecord(document_path=pdf_path, index=0, text="Same", metadata={})
         ]
         mock_sha256.return_value = "same_hash"
         indexer.store.upsert_document.return_value = "skipped"
-        
+
         stats = indexer.index([pdf_path])
-        
+
         assert stats.skipped == 1
         assert stats.inserted == 0
 
@@ -206,12 +206,12 @@ class TestIndexer:
         """Test indexing a document with no extractable text."""
         pdf_path = tmp_path / "empty.pdf"
         pdf_path.write_text("test")
-        
+
         mock_iter_pdfs.return_value = [pdf_path]
         mock_build_chunks.return_value = []  # No chunks
-        
+
         stats = indexer.index([pdf_path])
-        
+
         assert stats.skipped == 1
         assert stats.inserted == 0
         # Should not call embedder or store
@@ -224,12 +224,12 @@ class TestIndexer:
         """Test that exceptions are caught and logged."""
         pdf_path = tmp_path / "broken.pdf"
         pdf_path.write_text("test")
-        
+
         mock_iter_pdfs.return_value = [pdf_path]
         mock_build_chunks.side_effect = Exception("PDF parsing error")
-        
+
         stats = indexer.index([pdf_path])
-        
+
         assert stats.failed == 1
         assert stats.inserted == 0
         assert pdf_path in stats.processed_files
@@ -243,16 +243,16 @@ class TestIndexer:
         pdf2 = tmp_path / "doc2.pdf"
         pdf1.write_text("test1")
         pdf2.write_text("test2")
-        
+
         mock_iter_pdfs.return_value = [pdf1, pdf2]
         mock_build_chunks.return_value = [
             ChunkRecord(document_path=Path("/tmp/dummy.pdf"), index=0, text="Text", metadata={})
         ]
         mock_sha256.side_effect = ["hash1", "hash2"]
         indexer.store.upsert_document.side_effect = ["inserted", "inserted"]
-        
+
         stats = indexer.index([tmp_path])
-        
+
         assert stats.inserted == 2
         assert len(stats.processed_files) == 2
 
@@ -267,21 +267,21 @@ class TestIndexer:
         pdf1.write_text("new")
         pdf2.write_text("same")
         pdf3.write_text("broken")
-        
+
         mock_iter_pdfs.return_value = [pdf1, pdf2, pdf3]
-        
+
         # pdf1: new insert, pdf2: skipped, pdf3: exception
         def build_chunks_side_effect(path, **kwargs):
             if path == pdf3:
                 raise Exception("Error")
             return [ChunkRecord(document_path=path, index=0, text="Text", metadata={})]
-        
+
         mock_build_chunks.side_effect = build_chunks_side_effect
         mock_sha256.side_effect = ["hash1", "hash2"]
         indexer.store.upsert_document.side_effect = ["inserted", "skipped"]
-        
+
         stats = indexer.index([tmp_path])
-        
+
         assert stats.inserted == 1
         assert stats.skipped == 1
         assert stats.failed == 1
@@ -294,16 +294,16 @@ class TestIndexer:
         """Test that document title is extracted from first chunk metadata."""
         pdf_path = tmp_path / "document.pdf"
         pdf_path.write_text("test")
-        
+
         mock_iter_pdfs.return_value = [pdf_path]
         mock_build_chunks.return_value = [
             ChunkRecord(document_path=pdf_path, index=0, text="Text", metadata={"title": "Custom Title"}),
             ChunkRecord(document_path=pdf_path, index=1, text="More", metadata={})
         ]
         mock_sha256.return_value = "abc123"
-        
+
         indexer.index([pdf_path])
-        
+
         # Verify document metadata
         call_args = indexer.store.upsert_document.call_args
         document = call_args[0][0]
@@ -316,15 +316,15 @@ class TestIndexer:
         """Test that filename is used when no title in metadata."""
         pdf_path = tmp_path / "my_document.pdf"
         pdf_path.write_text("test")
-        
+
         mock_iter_pdfs.return_value = [pdf_path]
         mock_build_chunks.return_value = [
             ChunkRecord(document_path=pdf_path, index=0, text="Text", metadata={})  # No title
         ]
         mock_sha256.return_value = "abc123"
-        
+
         indexer.index([pdf_path])
-        
+
         # Verify uses filename stem
         call_args = indexer.store.upsert_document.call_args
         document = call_args[0][0]
@@ -337,15 +337,15 @@ class TestIndexer:
         """Test that file stats (mtime, size) are captured."""
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_text("test content")
-        
+
         mock_iter_pdfs.return_value = [pdf_path]
         mock_build_chunks.return_value = [
             ChunkRecord(document_path=pdf_path, index=0, text="Text", metadata={})
         ]
         mock_sha256.return_value = "abc123"
-        
+
         indexer.index([pdf_path])
-        
+
         # Verify document metadata includes stats
         call_args = indexer.store.upsert_document.call_args
         document = call_args[0][0]

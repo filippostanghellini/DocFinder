@@ -2,7 +2,6 @@
 
 import json
 import sqlite3
-import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -27,9 +26,9 @@ class TestSQLiteVectorStore:
     def test_init_creates_database(self, tmp_path):
         db_path = tmp_path / "new.db"
         assert not db_path.exists()
-        
+
         store = SQLiteVectorStore(db_path, dimension=384)
-        
+
         assert db_path.exists()
         assert store.db_path == db_path
         assert store.dimension == 384
@@ -38,15 +37,15 @@ class TestSQLiteVectorStore:
     def test_schema_creation(self, temp_db):
         """Test that schema is properly created."""
         conn = temp_db.connection
-        
+
         # Check documents table
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='documents'")
         assert cursor.fetchone() is not None
-        
+
         # Check chunks table
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chunks'")
         assert cursor.fetchone() is not None
-        
+
         # Check index
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_chunks_document_id'")
         assert cursor.fetchone() is not None
@@ -54,12 +53,12 @@ class TestSQLiteVectorStore:
     def test_pragma_settings(self, temp_db):
         """Test that PRAGMA settings are applied."""
         conn = temp_db.connection
-        
+
         # Check WAL mode
         cursor = conn.execute("PRAGMA journal_mode")
         result = cursor.fetchone()
         assert result[0].lower() == "wal"
-        
+
         # Check synchronous mode
         cursor = conn.execute("PRAGMA synchronous")
         result = cursor.fetchone()
@@ -74,9 +73,9 @@ class TestSQLiteVectorStore:
         db_path = tmp_path / "close_test.db"
         store = SQLiteVectorStore(db_path, dimension=384)
         conn = store.connection
-        
+
         store.close()
-        
+
         # After closing, operations should fail
         with pytest.raises(sqlite3.ProgrammingError):
             conn.execute("SELECT 1")
@@ -92,7 +91,7 @@ class TestTransaction:
                 "INSERT INTO documents(path, title, sha256, mtime, size) VALUES (?, ?, ?, ?, ?)",
                 ("/tmp/test.pdf", "Test", "abc123", 1234567890.0, 1000)
             )
-        
+
         # Verify commit
         cursor = temp_db.connection.execute("SELECT COUNT(*) FROM documents")
         assert cursor.fetchone()[0] == 1
@@ -108,7 +107,7 @@ class TestTransaction:
                 raise ValueError("Test error")
         except ValueError:
             pass
-        
+
         # Verify rollback
         cursor = temp_db.connection.execute("SELECT COUNT(*) FROM documents")
         assert cursor.fetchone()[0] == 0
@@ -131,18 +130,18 @@ class TestUpsertDocument:
             ChunkRecord(document_path=doc.path, index=1, text="Second chunk", metadata={"page": 2})
         ]
         embeddings = np.random.rand(2, 384).astype("float32")
-        
+
         status = temp_db.upsert_document(doc, chunks, embeddings)
-        
+
         assert status == "inserted"
-        
+
         # Verify document
         cursor = temp_db.connection.execute("SELECT * FROM documents WHERE path = ?", (str(doc.path),))
         row = cursor.fetchone()
         assert row is not None
         assert row["title"] == "Test Document"
         assert row["sha256"] == "abc123"
-        
+
         # Verify chunks
         cursor = temp_db.connection.execute("SELECT COUNT(*) FROM chunks WHERE document_id = ?", (row["id"],))
         assert cursor.fetchone()[0] == 2
@@ -158,15 +157,15 @@ class TestUpsertDocument:
         )
         chunks = [ChunkRecord(document_path=doc.path, index=0, text="Chunk", metadata={})]
         embeddings = np.random.rand(1, 384).astype("float32")
-        
+
         # First insert
         status1 = temp_db.upsert_document(doc, chunks, embeddings)
         assert status1 == "inserted"
-        
+
         # Second insert with same sha256
         status2 = temp_db.upsert_document(doc, chunks, embeddings)
         assert status2 == "skipped"
-        
+
         # Verify only one document
         cursor = temp_db.connection.execute("SELECT COUNT(*) FROM documents")
         assert cursor.fetchone()[0] == 1
@@ -182,11 +181,11 @@ class TestUpsertDocument:
         )
         chunks1 = [ChunkRecord(document_path=doc1.path, index=0, text="Old chunk", metadata={})]
         embeddings1 = np.random.rand(1, 384).astype("float32")
-        
+
         # First insert
         status1 = temp_db.upsert_document(doc1, chunks1, embeddings1)
         assert status1 == "inserted"
-        
+
         # Update with new sha256
         doc2 = DocumentMetadata(
             path=Path("/tmp/test.pdf"),
@@ -200,16 +199,16 @@ class TestUpsertDocument:
             ChunkRecord(document_path=doc2.path, index=1, text="New chunk 2", metadata={})
         ]
         embeddings2 = np.random.rand(2, 384).astype("float32")
-        
+
         status2 = temp_db.upsert_document(doc2, chunks2, embeddings2)
         assert status2 == "updated"
-        
+
         # Verify document updated
         cursor = temp_db.connection.execute("SELECT * FROM documents WHERE path = ?", (str(doc2.path),))
         row = cursor.fetchone()
         assert row["sha256"] == "new_hash"
         assert row["title"] == "Test Updated"
-        
+
         # Verify chunks replaced
         cursor = temp_db.connection.execute("SELECT COUNT(*) FROM chunks WHERE document_id = ?", (row["id"],))
         assert cursor.fetchone()[0] == 2
@@ -225,7 +224,7 @@ class TestUpsertDocument:
         )
         chunks = [ChunkRecord(document_path=doc.path, index=0, text="Chunk", metadata={})]
         embeddings = np.random.rand(2, 384).astype("float32")  # Wrong size!
-        
+
         with pytest.raises(ValueError, match="Embeddings and chunks length mismatch"):
             temp_db.upsert_document(doc, chunks, embeddings)
 
@@ -240,9 +239,9 @@ class TestUpsertDocument:
         )
         chunks = [ChunkRecord(document_path=doc.path, index=0, text="Chunk", metadata={"page": 5, "section": "intro"})]
         embeddings = np.random.rand(1, 384).astype("float32")
-        
+
         temp_db.upsert_document(doc, chunks, embeddings)
-        
+
         cursor = temp_db.connection.execute("SELECT metadata FROM chunks")
         row = cursor.fetchone()
         metadata = json.loads(row["metadata"])
@@ -255,9 +254,9 @@ class TestSearch:
     def test_search_empty_database(self, temp_db):
         """Test search on empty database."""
         query = np.random.rand(384).astype("float32")
-        
+
         results = temp_db.search(query, top_k=5)
-        
+
         assert results == []
 
     def test_search_returns_top_k(self, temp_db):
@@ -274,10 +273,10 @@ class TestSearch:
             chunks = [ChunkRecord(document_path=doc.path, index=0, text=f"Text {i}", metadata={})]
             embeddings = np.random.rand(1, 384).astype("float32")
             temp_db.upsert_document(doc, chunks, embeddings)
-        
+
         query = np.random.rand(384).astype("float32")
         results = temp_db.search(query, top_k=5)
-        
+
         assert len(results) == 5
 
     def test_search_returns_all_when_top_k_larger(self, temp_db):
@@ -294,10 +293,10 @@ class TestSearch:
             chunks = [ChunkRecord(document_path=doc.path, index=0, text=f"Text {i}", metadata={})]
             embeddings = np.random.rand(1, 384).astype("float32")
             temp_db.upsert_document(doc, chunks, embeddings)
-        
+
         query = np.random.rand(384).astype("float32")
         results = temp_db.search(query, top_k=10)
-        
+
         assert len(results) == 3
 
     def test_search_result_structure(self, temp_db):
@@ -312,10 +311,10 @@ class TestSearch:
         chunks = [ChunkRecord(document_path=doc.path, index=0, text="Sample text", metadata={"page": 1})]
         embeddings = np.random.rand(1, 384).astype("float32")
         temp_db.upsert_document(doc, chunks, embeddings)
-        
+
         query = np.random.rand(384).astype("float32")
         results = temp_db.search(query, top_k=1)
-        
+
         assert len(results) == 1
         result = results[0]
         assert "path" in result
@@ -342,10 +341,10 @@ class TestSearch:
             chunks = [ChunkRecord(document_path=doc.path, index=0, text=f"Text {i}", metadata={})]
             embeddings = np.random.rand(1, 384).astype("float32")
             temp_db.upsert_document(doc, chunks, embeddings)
-        
+
         query = np.random.rand(384).astype("float32")
         results = temp_db.search(query, top_k=5)
-        
+
         # Verify scores are descending
         scores = [r["score"] for r in results]
         assert scores == sorted(scores, reverse=True)
@@ -364,7 +363,7 @@ class TestRemoveMissingFiles:
         # Create a real file
         real_file = tmp_path / "real.pdf"
         real_file.write_text("test")
-        
+
         # Insert documents with real and fake paths
         doc_real = DocumentMetadata(
             path=real_file,
@@ -380,27 +379,27 @@ class TestRemoveMissingFiles:
             mtime=1234567890.0,
             size=1000
         )
-        
+
         chunks_real = [ChunkRecord(document_path=doc_real.path, index=0, text="Text", metadata={})]
         chunks_fake = [ChunkRecord(document_path=doc_fake.path, index=0, text="Text", metadata={})]
         embeddings = np.random.rand(1, 384).astype("float32")
-        
+
         temp_db.upsert_document(doc_real, chunks_real, embeddings)
         temp_db.upsert_document(doc_fake, chunks_fake, embeddings)
-        
+
         # Verify 2 documents
         cursor = temp_db.connection.execute("SELECT COUNT(*) FROM documents")
         assert cursor.fetchone()[0] == 2
-        
+
         # Remove missing
         removed = temp_db.remove_missing_files()
-        
+
         assert removed == 1
-        
+
         # Verify only real document remains
         cursor = temp_db.connection.execute("SELECT COUNT(*) FROM documents")
         assert cursor.fetchone()[0] == 1
-        
+
         cursor = temp_db.connection.execute("SELECT path FROM documents")
         assert cursor.fetchone()["path"] == str(real_file)
 
@@ -418,16 +417,16 @@ class TestRemoveMissingFiles:
             ChunkRecord(document_path=doc.path, index=1, text="Chunk 2", metadata={})
         ]
         embeddings = np.random.rand(2, 384).astype("float32")
-        
+
         temp_db.upsert_document(doc, chunks, embeddings)
-        
+
         # Verify 2 chunks
         cursor = temp_db.connection.execute("SELECT COUNT(*) FROM chunks")
         assert cursor.fetchone()[0] == 2
-        
+
         # Remove missing
         temp_db.remove_missing_files()
-        
+
         # Verify chunks removed
         cursor = temp_db.connection.execute("SELECT COUNT(*) FROM chunks")
         assert cursor.fetchone()[0] == 0

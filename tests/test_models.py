@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from docfinder.models import ChunkRecord, DocumentMetadata
 
 
@@ -21,7 +19,7 @@ class TestDocumentMetadata:
             mtime=1234567890.0,
             size=1024,
         )
-        
+
         assert metadata.path == Path("/path/to/doc.pdf")
         assert metadata.title == "Test Document"
         assert metadata.sha256 == "abc123"
@@ -44,7 +42,7 @@ class TestDocumentMetadata:
             mtime=123.0,
             size=100,
         )
-        
+
         assert meta1 == meta2
 
     def test_metadata_inequality(self) -> None:
@@ -63,7 +61,7 @@ class TestDocumentMetadata:
             mtime=456.0,
             size=200,
         )
-        
+
         assert meta1 != meta2
 
 
@@ -78,7 +76,7 @@ class TestChunkRecord:
             text="This is a test chunk",
             metadata={"page": 1, "section": "intro"},
         )
-        
+
         assert chunk.document_path == Path("/path/to/doc.pdf")
         assert chunk.index == 0
         assert chunk.text == "This is a test chunk"
@@ -92,7 +90,7 @@ class TestChunkRecord:
             text="Chunk text",
             metadata={},
         )
-        
+
         assert chunk.metadata == {}
 
     def test_chunk_equality(self) -> None:
@@ -109,7 +107,7 @@ class TestChunkRecord:
             text="Text",
             metadata={"k": "v"},
         )
-        
+
         assert chunk1 == chunk2
 
     def test_chunk_different_index(self) -> None:
@@ -126,5 +124,5 @@ class TestChunkRecord:
             text="Same text",
             metadata={},
         )
-        
+
         assert chunk1 != chunk2

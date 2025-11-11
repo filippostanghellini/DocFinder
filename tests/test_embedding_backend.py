@@ -64,7 +64,7 @@ class TestBackendDetection:
         monkeypatch.setattr(sys, "platform", "darwin")
         monkeypatch.setattr(platform, "machine", lambda: "arm64")
         monkeypatch.setattr(platform, "processor", lambda: "arm")
-        
+
         backend, model_file = detect_optimal_backend()
         assert backend == "onnx"
         assert model_file == "onnx/model_qint8_arm64.onnx"
@@ -74,7 +74,7 @@ class TestBackendDetection:
         monkeypatch.setattr(sys, "platform", "darwin")
         monkeypatch.setattr(platform, "machine", lambda: "x86_64")
         monkeypatch.setattr(platform, "processor", lambda: "i386")
-        
+
         backend, model_file = detect_optimal_backend()
         assert backend == "onnx"
         assert model_file is None
@@ -89,7 +89,7 @@ class TestBackendDetection:
     ) -> None:
         """Should detect NVIDIA CUDA GPU and use ONNX with CUDA."""
         monkeypatch.setattr(sys, "platform", "linux")
-        
+
         backend, model_file = detect_optimal_backend()
         assert backend == "onnx"
         assert model_file is None
@@ -104,7 +104,7 @@ class TestBackendDetection:
     ) -> None:
         """Should detect AMD ROCm GPU and use ONNX with ROCm."""
         monkeypatch.setattr(sys, "platform", "linux")
-        
+
         backend, model_file = detect_optimal_backend()
         assert backend == "onnx"
         assert model_file is None
@@ -119,7 +119,7 @@ class TestBackendDetection:
     ) -> None:
         """Should detect Linux CPU and use ONNX."""
         monkeypatch.setattr(sys, "platform", "linux")
-        
+
         backend, model_file = detect_optimal_backend()
         assert backend == "onnx"
         assert model_file is None
@@ -134,7 +134,7 @@ class TestBackendDetection:
     ) -> None:
         """Should detect Windows and use ONNX."""
         monkeypatch.setattr(sys, "platform", "win32")
-        
+
         backend, model_file = detect_optimal_backend()
         assert backend == "onnx"
         assert model_file is None
@@ -228,7 +228,7 @@ class TestEmbeddingModel:
         """Should normalize embeddings when configured."""
         config_normalized = EmbeddingConfig(normalize=True)
         model_normalized = EmbeddingModel(config_normalized)
-        
+
         embeddings = model_normalized.embed(["test"])
         # Normalized embeddings should have L2 norm close to 1
         norm = np.linalg.norm(embeddings[0])
@@ -238,26 +238,26 @@ class TestEmbeddingModel:
         """Should produce consistent embeddings for same input."""
         model = EmbeddingModel()
         text = "consistency test"
-        
+
         emb1 = model.embed_query(text)
         emb2 = model.embed_query(text)
-        
+
         # Should be identical (or extremely close)
         np.testing.assert_array_almost_equal(emb1, emb2, decimal=5)
 
     def test_batch_size_effect(self) -> None:
         """Should handle different batch sizes."""
         texts = ["text"] * 100
-        
+
         # Small batch
         config_small = EmbeddingConfig(batch_size=8)
         model_small = EmbeddingModel(config_small)
         emb_small = model_small.embed(texts)
-        
+
         # Large batch
         config_large = EmbeddingConfig(batch_size=32)
         model_large = EmbeddingModel(config_large)
         emb_large = model_large.embed(texts)
-        
+
         # Results should be the same regardless of batch size
         np.testing.assert_array_almost_equal(emb_small, emb_large, decimal=5)
