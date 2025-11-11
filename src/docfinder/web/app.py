@@ -147,6 +147,12 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     resolved_db = config.resolve_db_path(Path.cwd())
     _ensure_db_parent(resolved_db)
 
+    # Security: Define safe base directory for path traversal protection
+    # User can only access directories within their home directory or an explicitly allowed path
+    # For now, we allow access to the entire filesystem as the user is expected to be trusted
+    # In production, you might want to restrict this to specific directories
+    safe_base_dir = Path.home()  # Restrict to user's home directory as a baseline
+
     # Validate and resolve paths safely
     resolved_paths = []
     for p in payload.paths:
@@ -155,19 +161,48 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
         if not clean_path:
             continue
 
+        # Security: Reject paths with null bytes or other dangerous characters
+        if "\0" in clean_path:
+            raise HTTPException(status_code=400, detail="Invalid path: contains null byte")
+
         try:
-            # Expand ~ and resolve to absolute path
-            # Use strict resolution to prevent path traversal attacks
-            try:
-                resolved = Path(clean_path).expanduser().resolve(strict=True)
-            except (FileNotFoundError, RuntimeError) as path_error:
-                raise HTTPException(
-                    status_code=404, detail="Path not found: %s" % clean_path
-                ) from path_error
+            # Expand user directory first
+            expanded_path = os.path.expanduser(clean_path)
+
+            # Use os.path.realpath for secure path resolution (prevents symlink attacks)
+            # This also resolves relative paths and removes .. components
+            real_path = os.path.realpath(expanded_path)
+
+            # Convert to Path object for further validation
+            resolved = Path(real_path)
+
+            # Verify path exists
+            if not resolved.exists():
+                raise HTTPException(status_code=404, detail="Path not found: %s" % clean_path)
 
             # Additional security check: verify it's an absolute path
             if not resolved.is_absolute():
                 raise HTTPException(status_code=400, detail="Invalid path: must be absolute")
+
+            # Security: Verify the resolved path is within the safe base directory
+            # This prevents path traversal attacks where an attacker tries to access
+            # files outside the allowed directory (e.g., /etc/passwd)
+            try:
+                # is_relative_to() is available in Python 3.9+
+                if not resolved.is_relative_to(safe_base_dir):
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Access denied: path is outside allowed directory",
+                    )
+            except AttributeError:
+                # Fallback for Python < 3.9 (though project requires 3.10+)
+                try:
+                    resolved.relative_to(safe_base_dir)
+                except ValueError:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Access denied: path is outside allowed directory",
+                    )
 
             # Verify it's a directory (not a file)
             if not resolved.is_dir():
