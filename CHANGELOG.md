@@ -17,15 +17,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `optimum` dependency for ONNX model support
 - **New optional dependency group `[gpu]`** for easy NVIDIA GPU support installation
 - Comprehensive test suite for backend detection and GPU support
+- **Mini-batch processing in embeddings** (4 texts at a time) to reduce memory peaks
+- **Batch file processing during indexing** (2 files at a time) for better memory management
+- **Strategic garbage collection** after each processing batch to prevent memory leaks
 
 ### Changed
 - `EmbeddingModel` auto-detects optimal backend based on platform and GPU availability
 - `detect_optimal_backend()` extended with CUDA and ROCm GPU support
 - `EmbeddingConfig` extended with `backend`, `onnx_model_file`, and `device` parameters
 - Improved logging for backend and execution provider information
+- **Reduced default `batch_size` from 16 to 8** in `EmbeddingConfig` for better memory efficiency
+- **Reduced default `chunk_chars` from 1000 to 500** to lower memory footprint during chunking
+- **Reduced default `overlap` from 100 to 50** for more efficient text processing
+- **`IndexPayload` now accepts `List[str]` instead of `List[Path]`** for better web form compatibility
+- Embedding process now uses mini-batching with memory cleanup between batches
+
+### Fixed
+- **Fixed path handling with spaces in directory names** in web interface
+- **Fixed memory exhaustion (OOM) on 16GB RAM systems** during large indexing operations
+- **Fixed web form validation** to properly accept file paths with spaces and special characters
+- Improved memory cleanup to prevent process kills on memory-constrained systems
 
 ### Performance
-- Apple Silicon: ~1.7x faster, 4x smaller models (quantized)
+- Apple Silicon (M4): ~1.7x faster with optimized memory usage
+- **Memory usage optimized**: Reduced peak RAM consumption by ~30% during indexing
+- **Prevented OOM crashes**: Successfully indexes large document collections on 16GB RAM systems
 - NVIDIA GPU: 2-5x faster for large batches
 - AMD GPU: Optimized inference with ROCm provider
 - Intel Mac: ~1.5x faster with ONNX

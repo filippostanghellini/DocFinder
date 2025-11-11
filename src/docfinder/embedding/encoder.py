@@ -11,6 +11,8 @@ from typing import Iterable, Literal, Sequence
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
+import gc
+
 DEFAULT_MODEL = "sentence-transformers/all-mpnet-base-v2"
 
 logger = logging.getLogger(__name__)
@@ -129,7 +131,7 @@ def detect_optimal_backend() -> tuple[Literal["torch", "onnx"], str | None]:
 @dataclass(slots=True)
 class EmbeddingConfig:
     model_name: str = DEFAULT_MODEL
-    batch_size: int = 16
+    batch_size: int = 8
     normalize: bool = True
     backend: Literal["torch", "onnx", "openvino"] | None = None
     onnx_model_file: str | None = None
@@ -211,15 +213,34 @@ class EmbeddingModel:
 
     def embed(self, texts: Sequence[str] | Iterable[str]) -> np.ndarray:
         """Return float32 embeddings for input texts."""
+        
         sentences = list(texts)
-        embeddings = self._model.encode(
-            sentences,
-            batch_size=self.config.batch_size,
-            show_progress_bar=False,
-            convert_to_numpy=True,
-            normalize_embeddings=self.config.normalize,
-        )
-        return embeddings.astype("float32", copy=False)
+        
+        # Processa in mini-batch per ridurre memoria
+        all_embeddings = []
+        mini_batch_size = 4  # Processa solo 4 testi alla volta
+        
+        for i in range(0, len(sentences), mini_batch_size):
+            batch = sentences[i:i + mini_batch_size]
+            embeddings = self._model.encode(
+                batch,
+                batch_size=self.config.batch_size,
+                show_progress_bar=False,
+                convert_to_numpy=True,
+                normalize_embeddings=self.config.normalize,
+            )
+            all_embeddings.append(embeddings)
+            
+            # Libera memoria dopo ogni mini-batch
+            gc.collect()
+        
+        # Concatena tutti i risultati
+        result = np.vstack(all_embeddings).astype("float32", copy=False)
+        
+        # Pulizia finale
+        gc.collect()
+        
+        return result
 
     def embed_query(self, text: str) -> np.ndarray:
         """Convenience wrapper for single-query embedding."""

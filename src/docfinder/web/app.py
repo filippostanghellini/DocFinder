@@ -44,8 +44,8 @@ class OpenRequest(BaseModel):
 
 
 class IndexPayload(BaseModel):
-    paths: List[Path]
-    db: Path | None = None
+    paths: List[str]
+    db: str | None = None
     model: str | None = None
     chunk_chars: int | None = None
     overlap: int | None = None
@@ -128,12 +128,16 @@ def _run_index_job(paths: List[Path], config: AppConfig, resolved_db: Path) -> d
 
 @app.post("/index")
 async def index_documents(payload: IndexPayload) -> dict[str, Any]:
+    logger = logging.getLogger(__name__)
+    logger.info(f"DEBUG: Received path = '{payload.paths}'")
+    logger.info(f"DEBUG: Path type = {type(payload.paths)}")
+
     if not payload.paths:
         raise HTTPException(status_code=400, detail="No path provided")
 
     config_defaults = AppConfig()
     config = AppConfig(
-        db_path=payload.db if payload.db is not None else config_defaults.db_path,
+        db_path=Path(payload.db) if payload.db is not None else config_defaults.db_path,
         model_name=payload.model or config_defaults.model_name,
         chunk_chars=payload.chunk_chars or config_defaults.chunk_chars,
         overlap=payload.overlap or config_defaults.overlap,
@@ -142,7 +146,7 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     resolved_db = config.resolve_db_path(Path.cwd())
     _ensure_db_parent(resolved_db)
 
-    resolved_paths = [path.expanduser() for path in payload.paths]
+    resolved_paths = [Path(p).expanduser() for p in payload.paths]
     missing = [str(path) for path in resolved_paths if not path.exists()]
     if missing:
         raise HTTPException(status_code=404, detail=f"Path not found: {', '.join(missing)}")
