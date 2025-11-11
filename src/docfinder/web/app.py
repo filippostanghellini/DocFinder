@@ -154,31 +154,31 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
         clean_path = p.strip().replace('\r', '').replace('\n', '')
         if not clean_path:
             continue
-        
+
         try:
             # Expand ~ and resolve to absolute path
             resolved = Path(clean_path).expanduser().resolve()
-            
+
             # Verify path exists
             if not resolved.exists():
                 raise HTTPException(
-                    status_code=404, 
+                    status_code=404,
                     detail=f"Path not found: '{clean_path}'"
                 )
-            
+
             # Verify it's a directory (not a file)
             if not resolved.is_dir():
                 raise HTTPException(
-                    status_code=400, 
+                    status_code=400,
                     detail=f"Path must be a directory: '{clean_path}'"
                 )
-            
+
             resolved_paths.append(resolved)
-            
+
         except (ValueError, OSError) as e:
             logger.error(f"Invalid path '{clean_path}': {e}")
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail=f"Invalid path: '{clean_path}'"
             )
 
