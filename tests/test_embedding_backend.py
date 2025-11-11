@@ -80,7 +80,10 @@ class TestBackendDetection:
         assert model_file is None
 
     @patch("docfinder.embedding.encoder._check_gpu_availability", return_value=(True, "cuda"))
-    @patch("docfinder.embedding.encoder._check_onnx_providers", return_value=["CUDAExecutionProvider", "CPUExecutionProvider"])
+    @patch(
+        "docfinder.embedding.encoder._check_onnx_providers",
+        return_value=["CUDAExecutionProvider", "CPUExecutionProvider"],
+    )
     def test_detect_cuda_gpu(
         self,
         mock_onnx_providers: MagicMock,
@@ -95,7 +98,10 @@ class TestBackendDetection:
         assert model_file is None
 
     @patch("docfinder.embedding.encoder._check_gpu_availability", return_value=(True, "rocm"))
-    @patch("docfinder.embedding.encoder._check_onnx_providers", return_value=["ROCMExecutionProvider", "CPUExecutionProvider"])
+    @patch(
+        "docfinder.embedding.encoder._check_onnx_providers",
+        return_value=["ROCMExecutionProvider", "CPUExecutionProvider"],
+    )
     def test_detect_rocm_gpu(
         self,
         mock_onnx_providers: MagicMock,
@@ -110,7 +116,9 @@ class TestBackendDetection:
         assert model_file is None
 
     @patch("docfinder.embedding.encoder._check_gpu_availability", return_value=(False, None))
-    @patch("docfinder.embedding.encoder._check_onnx_providers", return_value=["CPUExecutionProvider"])
+    @patch(
+        "docfinder.embedding.encoder._check_onnx_providers", return_value=["CPUExecutionProvider"]
+    )
     def test_detect_linux_cpu(
         self,
         mock_onnx_providers: MagicMock,
@@ -125,7 +133,9 @@ class TestBackendDetection:
         assert model_file is None
 
     @patch("docfinder.embedding.encoder._check_gpu_availability", return_value=(False, None))
-    @patch("docfinder.embedding.encoder._check_onnx_providers", return_value=["CPUExecutionProvider"])
+    @patch(
+        "docfinder.embedding.encoder._check_onnx_providers", return_value=["CPUExecutionProvider"]
+    )
     def test_detect_windows(
         self,
         mock_onnx_providers: MagicMock,

@@ -39,7 +39,9 @@ class TestSQLiteVectorStore:
         conn = temp_db.connection
 
         # Check documents table
-        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='documents'")
+        cursor = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='documents'"
+        )
         assert cursor.fetchone() is not None
 
         # Check chunks table
@@ -47,7 +49,9 @@ class TestSQLiteVectorStore:
         assert cursor.fetchone() is not None
 
         # Check index
-        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_chunks_document_id'")
+        cursor = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_chunks_document_id'"
+        )
         assert cursor.fetchone() is not None
 
     def test_pragma_settings(self, temp_db):
@@ -89,7 +93,7 @@ class TestTransaction:
         with temp_db.transaction() as conn:
             conn.execute(
                 "INSERT INTO documents(path, title, sha256, mtime, size) VALUES (?, ?, ?, ?, ?)",
-                ("/tmp/test.pdf", "Test", "abc123", 1234567890.0, 1000)
+                ("/tmp/test.pdf", "Test", "abc123", 1234567890.0, 1000),
             )
 
         # Verify commit
@@ -102,7 +106,7 @@ class TestTransaction:
             with temp_db.transaction() as conn:
                 conn.execute(
                     "INSERT INTO documents(path, title, sha256, mtime, size) VALUES (?, ?, ?, ?, ?)",
-                    ("/tmp/test.pdf", "Test", "abc123", 1234567890.0, 1000)
+                    ("/tmp/test.pdf", "Test", "abc123", 1234567890.0, 1000),
                 )
                 raise ValueError("Test error")
         except ValueError:
@@ -123,11 +127,11 @@ class TestUpsertDocument:
             title="Test Document",
             sha256="abc123",
             mtime=1234567890.0,
-            size=1000
+            size=1000,
         )
         chunks = [
             ChunkRecord(document_path=doc.path, index=0, text="First chunk", metadata={"page": 1}),
-            ChunkRecord(document_path=doc.path, index=1, text="Second chunk", metadata={"page": 2})
+            ChunkRecord(document_path=doc.path, index=1, text="Second chunk", metadata={"page": 2}),
         ]
         embeddings = np.random.rand(2, 384).astype("float32")
 
@@ -136,24 +140,24 @@ class TestUpsertDocument:
         assert status == "inserted"
 
         # Verify document
-        cursor = temp_db.connection.execute("SELECT * FROM documents WHERE path = ?", (str(doc.path),))
+        cursor = temp_db.connection.execute(
+            "SELECT * FROM documents WHERE path = ?", (str(doc.path),)
+        )
         row = cursor.fetchone()
         assert row is not None
         assert row["title"] == "Test Document"
         assert row["sha256"] == "abc123"
 
         # Verify chunks
-        cursor = temp_db.connection.execute("SELECT COUNT(*) FROM chunks WHERE document_id = ?", (row["id"],))
+        cursor = temp_db.connection.execute(
+            "SELECT COUNT(*) FROM chunks WHERE document_id = ?", (row["id"],)
+        )
         assert cursor.fetchone()[0] == 2
 
     def test_skip_unchanged_document(self, temp_db):
         """Test that unchanged documents are skipped."""
         doc = DocumentMetadata(
-            path=Path("/tmp/test.pdf"),
-            title="Test",
-            sha256="abc123",
-            mtime=1234567890.0,
-            size=1000
+            path=Path("/tmp/test.pdf"), title="Test", sha256="abc123", mtime=1234567890.0, size=1000
         )
         chunks = [ChunkRecord(document_path=doc.path, index=0, text="Chunk", metadata={})]
         embeddings = np.random.rand(1, 384).astype("float32")
@@ -177,7 +181,7 @@ class TestUpsertDocument:
             title="Test",
             sha256="old_hash",
             mtime=1234567890.0,
-            size=1000
+            size=1000,
         )
         chunks1 = [ChunkRecord(document_path=doc1.path, index=0, text="Old chunk", metadata={})]
         embeddings1 = np.random.rand(1, 384).astype("float32")
@@ -192,11 +196,11 @@ class TestUpsertDocument:
             title="Test Updated",
             sha256="new_hash",
             mtime=1234567891.0,
-            size=1100
+            size=1100,
         )
         chunks2 = [
             ChunkRecord(document_path=doc2.path, index=0, text="New chunk 1", metadata={}),
-            ChunkRecord(document_path=doc2.path, index=1, text="New chunk 2", metadata={})
+            ChunkRecord(document_path=doc2.path, index=1, text="New chunk 2", metadata={}),
         ]
         embeddings2 = np.random.rand(2, 384).astype("float32")
 
@@ -204,23 +208,23 @@ class TestUpsertDocument:
         assert status2 == "updated"
 
         # Verify document updated
-        cursor = temp_db.connection.execute("SELECT * FROM documents WHERE path = ?", (str(doc2.path),))
+        cursor = temp_db.connection.execute(
+            "SELECT * FROM documents WHERE path = ?", (str(doc2.path),)
+        )
         row = cursor.fetchone()
         assert row["sha256"] == "new_hash"
         assert row["title"] == "Test Updated"
 
         # Verify chunks replaced
-        cursor = temp_db.connection.execute("SELECT COUNT(*) FROM chunks WHERE document_id = ?", (row["id"],))
+        cursor = temp_db.connection.execute(
+            "SELECT COUNT(*) FROM chunks WHERE document_id = ?", (row["id"],)
+        )
         assert cursor.fetchone()[0] == 2
 
     def test_upsert_validation(self, temp_db):
         """Test validation of embeddings and chunks length."""
         doc = DocumentMetadata(
-            path=Path("/tmp/test.pdf"),
-            title="Test",
-            sha256="abc123",
-            mtime=1234567890.0,
-            size=1000
+            path=Path("/tmp/test.pdf"), title="Test", sha256="abc123", mtime=1234567890.0, size=1000
         )
         chunks = [ChunkRecord(document_path=doc.path, index=0, text="Chunk", metadata={})]
         embeddings = np.random.rand(2, 384).astype("float32")  # Wrong size!
@@ -231,13 +235,16 @@ class TestUpsertDocument:
     def test_chunks_metadata_serialization(self, temp_db):
         """Test that chunk metadata is properly serialized to JSON."""
         doc = DocumentMetadata(
-            path=Path("/tmp/test.pdf"),
-            title="Test",
-            sha256="abc123",
-            mtime=1234567890.0,
-            size=1000
+            path=Path("/tmp/test.pdf"), title="Test", sha256="abc123", mtime=1234567890.0, size=1000
         )
-        chunks = [ChunkRecord(document_path=doc.path, index=0, text="Chunk", metadata={"page": 5, "section": "intro"})]
+        chunks = [
+            ChunkRecord(
+                document_path=doc.path,
+                index=0,
+                text="Chunk",
+                metadata={"page": 5, "section": "intro"},
+            )
+        ]
         embeddings = np.random.rand(1, 384).astype("float32")
 
         temp_db.upsert_document(doc, chunks, embeddings)
@@ -268,7 +275,7 @@ class TestSearch:
                 title=f"Doc {i}",
                 sha256=f"hash{i}",
                 mtime=1234567890.0,
-                size=1000
+                size=1000,
             )
             chunks = [ChunkRecord(document_path=doc.path, index=0, text=f"Text {i}", metadata={})]
             embeddings = np.random.rand(1, 384).astype("float32")
@@ -288,7 +295,7 @@ class TestSearch:
                 title=f"Doc {i}",
                 sha256=f"hash{i}",
                 mtime=1234567890.0,
-                size=1000
+                size=1000,
             )
             chunks = [ChunkRecord(document_path=doc.path, index=0, text=f"Text {i}", metadata={})]
             embeddings = np.random.rand(1, 384).astype("float32")
@@ -306,9 +313,11 @@ class TestSearch:
             title="Test Doc",
             sha256="abc123",
             mtime=1234567890.0,
-            size=1000
+            size=1000,
         )
-        chunks = [ChunkRecord(document_path=doc.path, index=0, text="Sample text", metadata={"page": 1})]
+        chunks = [
+            ChunkRecord(document_path=doc.path, index=0, text="Sample text", metadata={"page": 1})
+        ]
         embeddings = np.random.rand(1, 384).astype("float32")
         temp_db.upsert_document(doc, chunks, embeddings)
 
@@ -336,7 +345,7 @@ class TestSearch:
                 title=f"Doc {i}",
                 sha256=f"hash{i}",
                 mtime=1234567890.0,
-                size=1000
+                size=1000,
             )
             chunks = [ChunkRecord(document_path=doc.path, index=0, text=f"Text {i}", metadata={})]
             embeddings = np.random.rand(1, 384).astype("float32")
@@ -366,18 +375,14 @@ class TestRemoveMissingFiles:
 
         # Insert documents with real and fake paths
         doc_real = DocumentMetadata(
-            path=real_file,
-            title="Real",
-            sha256="real_hash",
-            mtime=1234567890.0,
-            size=1000
+            path=real_file, title="Real", sha256="real_hash", mtime=1234567890.0, size=1000
         )
         doc_fake = DocumentMetadata(
             path=Path("/nonexistent/fake.pdf"),
             title="Fake",
             sha256="fake_hash",
             mtime=1234567890.0,
-            size=1000
+            size=1000,
         )
 
         chunks_real = [ChunkRecord(document_path=doc_real.path, index=0, text="Text", metadata={})]
@@ -410,11 +415,11 @@ class TestRemoveMissingFiles:
             title="Test",
             sha256="abc123",
             mtime=1234567890.0,
-            size=1000
+            size=1000,
         )
         chunks = [
             ChunkRecord(document_path=doc.path, index=0, text="Chunk 1", metadata={}),
-            ChunkRecord(document_path=doc.path, index=1, text="Chunk 2", metadata={})
+            ChunkRecord(document_path=doc.path, index=1, text="Chunk 2", metadata={}),
         ]
         embeddings = np.random.rand(2, 384).astype("float32")
 

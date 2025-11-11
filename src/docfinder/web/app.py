@@ -129,7 +129,7 @@ def _run_index_job(paths: List[Path], config: AppConfig, resolved_db: Path) -> d
 @app.post("/index")
 async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     logger = logging.getLogger(__name__)
-    sanitized_paths = [p.replace('\r', '').replace('\n', '') for p in payload.paths]
+    sanitized_paths = [p.replace("\r", "").replace("\n", "") for p in payload.paths]
     logger.info(f"DEBUG: Received paths = {sanitized_paths}")
     logger.info(f"DEBUG: Path type = {type(payload.paths)}")
 
@@ -151,7 +151,7 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     resolved_paths = []
     for p in payload.paths:
         # Sanitize input: remove newlines and carriage returns
-        clean_path = p.strip().replace('\r', '').replace('\n', '')
+        clean_path = p.strip().replace("\r", "").replace("\n", "")
         if not clean_path:
             continue
 
@@ -161,26 +161,19 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
 
             # Verify path exists
             if not resolved.exists():
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Path not found: '{clean_path}'"
-                )
+                raise HTTPException(status_code=404, detail=f"Path not found: '{clean_path}'")
 
             # Verify it's a directory (not a file)
             if not resolved.is_dir():
                 raise HTTPException(
-                    status_code=400,
-                    detail=f"Path must be a directory: '{clean_path}'"
+                    status_code=400, detail=f"Path must be a directory: '{clean_path}'"
                 )
 
             resolved_paths.append(resolved)
 
         except (ValueError, OSError) as e:
             logger.error(f"Invalid path '{clean_path}': {e}")
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid path: '{clean_path}'"
-            )
+            raise HTTPException(status_code=400, detail=f"Invalid path: '{clean_path}'")
 
     try:
         stats = await asyncio.to_thread(_run_index_job, resolved_paths, config, resolved_db)

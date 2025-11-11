@@ -64,6 +64,7 @@ def _check_onnx_providers() -> list[str]:
     """
     try:
         import onnxruntime as ort
+
         return ort.get_available_providers()
     except ImportError:
         return []
@@ -197,6 +198,7 @@ class EmbeddingModel:
             # Get ONNX Runtime providers if available
             try:
                 import onnxruntime as ort
+
                 providers = ort.get_available_providers()
                 info_parts.append(f"ONNX Providers: {', '.join(providers)}")
             except ImportError:
@@ -220,7 +222,7 @@ class EmbeddingModel:
         mini_batch_size = 4  # Processa solo 4 testi alla volta
 
         for i in range(0, len(sentences), mini_batch_size):
-            batch = sentences[i:i + mini_batch_size]
+            batch = sentences[i : i + mini_batch_size]
             embeddings = self._model.encode(
                 batch,
                 batch_size=self.config.batch_size,

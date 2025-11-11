@@ -71,7 +71,7 @@ class Indexer:
         batch_size = 2
 
         for i in range(0, len(pdf_files), batch_size):
-            batch = pdf_files[i:i + batch_size]
+            batch = pdf_files[i : i + batch_size]
 
             for path in batch:
                 try:

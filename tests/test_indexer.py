@@ -131,7 +131,9 @@ class TestIndexer:
     @patch("docfinder.index.indexer.iter_pdf_paths")
     @patch("docfinder.index.indexer.build_chunks")
     @patch("docfinder.index.indexer.compute_sha256")
-    def test_index_single_file(self, mock_sha256, mock_build_chunks, mock_iter_pdfs, indexer, tmp_path):
+    def test_index_single_file(
+        self, mock_sha256, mock_build_chunks, mock_iter_pdfs, indexer, tmp_path
+    ):
         """Test indexing a single file."""
         # Setup
         pdf_path = tmp_path / "test.pdf"
@@ -139,8 +141,10 @@ class TestIndexer:
 
         mock_iter_pdfs.return_value = [pdf_path]
         mock_build_chunks.return_value = [
-            ChunkRecord(document_path=pdf_path, index=0, text="Chunk 1", metadata={"title": "Test Doc"}),
-            ChunkRecord(document_path=pdf_path, index=1, text="Chunk 2", metadata={})
+            ChunkRecord(
+                document_path=pdf_path, index=0, text="Chunk 1", metadata={"title": "Test Doc"}
+            ),
+            ChunkRecord(document_path=pdf_path, index=1, text="Chunk 2", metadata={}),
         ]
         mock_sha256.return_value = "abc123"
 
@@ -163,7 +167,9 @@ class TestIndexer:
     @patch("docfinder.index.indexer.iter_pdf_paths")
     @patch("docfinder.index.indexer.build_chunks")
     @patch("docfinder.index.indexer.compute_sha256")
-    def test_index_updated_file(self, mock_sha256, mock_build_chunks, mock_iter_pdfs, indexer, tmp_path):
+    def test_index_updated_file(
+        self, mock_sha256, mock_build_chunks, mock_iter_pdfs, indexer, tmp_path
+    ):
         """Test indexing a file that gets updated."""
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_text("test")
@@ -183,7 +189,9 @@ class TestIndexer:
     @patch("docfinder.index.indexer.iter_pdf_paths")
     @patch("docfinder.index.indexer.build_chunks")
     @patch("docfinder.index.indexer.compute_sha256")
-    def test_index_skipped_file(self, mock_sha256, mock_build_chunks, mock_iter_pdfs, indexer, tmp_path):
+    def test_index_skipped_file(
+        self, mock_sha256, mock_build_chunks, mock_iter_pdfs, indexer, tmp_path
+    ):
         """Test indexing a file that gets skipped."""
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_text("test")
@@ -237,7 +245,9 @@ class TestIndexer:
     @patch("docfinder.index.indexer.iter_pdf_paths")
     @patch("docfinder.index.indexer.build_chunks")
     @patch("docfinder.index.indexer.compute_sha256")
-    def test_index_multiple_files(self, mock_sha256, mock_build_chunks, mock_iter_pdfs, indexer, tmp_path):
+    def test_index_multiple_files(
+        self, mock_sha256, mock_build_chunks, mock_iter_pdfs, indexer, tmp_path
+    ):
         """Test indexing multiple files."""
         pdf1 = tmp_path / "doc1.pdf"
         pdf2 = tmp_path / "doc2.pdf"
@@ -259,7 +269,9 @@ class TestIndexer:
     @patch("docfinder.index.indexer.iter_pdf_paths")
     @patch("docfinder.index.indexer.build_chunks")
     @patch("docfinder.index.indexer.compute_sha256")
-    def test_index_mixed_results(self, mock_sha256, mock_build_chunks, mock_iter_pdfs, indexer, tmp_path):
+    def test_index_mixed_results(
+        self, mock_sha256, mock_build_chunks, mock_iter_pdfs, indexer, tmp_path
+    ):
         """Test indexing with mixed success/skip/fail."""
         pdf1 = tmp_path / "new.pdf"
         pdf2 = tmp_path / "same.pdf"
@@ -290,15 +302,19 @@ class TestIndexer:
     @patch("docfinder.index.indexer.iter_pdf_paths")
     @patch("docfinder.index.indexer.build_chunks")
     @patch("docfinder.index.indexer.compute_sha256")
-    def test_index_uses_title_from_metadata(self, mock_sha256, mock_build_chunks, mock_iter_pdfs, indexer, tmp_path):
+    def test_index_uses_title_from_metadata(
+        self, mock_sha256, mock_build_chunks, mock_iter_pdfs, indexer, tmp_path
+    ):
         """Test that document title is extracted from first chunk metadata."""
         pdf_path = tmp_path / "document.pdf"
         pdf_path.write_text("test")
 
         mock_iter_pdfs.return_value = [pdf_path]
         mock_build_chunks.return_value = [
-            ChunkRecord(document_path=pdf_path, index=0, text="Text", metadata={"title": "Custom Title"}),
-            ChunkRecord(document_path=pdf_path, index=1, text="More", metadata={})
+            ChunkRecord(
+                document_path=pdf_path, index=0, text="Text", metadata={"title": "Custom Title"}
+            ),
+            ChunkRecord(document_path=pdf_path, index=1, text="More", metadata={}),
         ]
         mock_sha256.return_value = "abc123"
 
@@ -312,7 +328,9 @@ class TestIndexer:
     @patch("docfinder.index.indexer.iter_pdf_paths")
     @patch("docfinder.index.indexer.build_chunks")
     @patch("docfinder.index.indexer.compute_sha256")
-    def test_index_uses_filename_when_no_title(self, mock_sha256, mock_build_chunks, mock_iter_pdfs, indexer, tmp_path):
+    def test_index_uses_filename_when_no_title(
+        self, mock_sha256, mock_build_chunks, mock_iter_pdfs, indexer, tmp_path
+    ):
         """Test that filename is used when no title in metadata."""
         pdf_path = tmp_path / "my_document.pdf"
         pdf_path.write_text("test")
@@ -333,7 +351,9 @@ class TestIndexer:
     @patch("docfinder.index.indexer.iter_pdf_paths")
     @patch("docfinder.index.indexer.build_chunks")
     @patch("docfinder.index.indexer.compute_sha256")
-    def test_index_preserves_file_stats(self, mock_sha256, mock_build_chunks, mock_iter_pdfs, indexer, tmp_path):
+    def test_index_preserves_file_stats(
+        self, mock_sha256, mock_build_chunks, mock_iter_pdfs, indexer, tmp_path
+    ):
         """Test that file stats (mtime, size) are captured."""
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_text("test content")

@@ -37,7 +37,9 @@ class TestExtractText:
         assert metadata["page_count"] == "1"
 
     @patch("docfinder.ingestion.pdf_loader.PdfReader")
-    def test_extract_text_multiple_pages(self, mock_reader_class: MagicMock, tmp_path: Path) -> None:
+    def test_extract_text_multiple_pages(
+        self, mock_reader_class: MagicMock, tmp_path: Path
+    ) -> None:
         """Should extract text from multiple pages."""
         # Setup mock
         mock_page1 = MagicMock()
