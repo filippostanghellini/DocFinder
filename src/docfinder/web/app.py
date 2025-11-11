@@ -176,17 +176,14 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
             # Convert to Path object for further validation
             resolved = Path(real_path)
 
-            # Verify path exists
-            if not resolved.exists():
-                raise HTTPException(status_code=404, detail="Path not found: %s" % clean_path)
-
             # Additional security check: verify it's an absolute path
             if not resolved.is_absolute():
                 raise HTTPException(status_code=400, detail="Invalid path: must be absolute")
 
-            # Security: Verify the resolved path is within the safe base directory
+            # Security: Verify the resolved path is within the safe base directory FIRST
             # This prevents path traversal attacks where an attacker tries to access
             # files outside the allowed directory (e.g., /etc/passwd)
+            # IMPORTANT: This check must happen BEFORE any filesystem operations
             try:
                 # is_relative_to() is available in Python 3.9+
                 if not resolved.is_relative_to(safe_base_dir):
@@ -203,6 +200,10 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
                         status_code=403,
                         detail="Access denied: path is outside allowed directory",
                     )
+
+            # Now that path is validated to be within safe directory, check existence
+            if not resolved.exists():
+                raise HTTPException(status_code=404, detail="Path not found: %s" % clean_path)
 
             # Verify it's a directory (not a file)
             if not resolved.is_dir():
