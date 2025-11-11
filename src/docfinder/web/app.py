@@ -151,7 +151,8 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     # User can only access directories within their home directory or an explicitly allowed path
     # For now, we allow access to the entire filesystem as the user is expected to be trusted
     # In production, you might want to restrict this to specific directories
-    safe_base_dir = Path.home()  # Restrict to user's home directory as a baseline
+    # IMPORTANT: Use canonical (real) path to prevent symlink-based bypasses
+    safe_base_dir = Path(os.path.realpath(str(Path.home())))
 
     # Validate and resolve paths safely
     resolved_paths = []
@@ -166,52 +167,48 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
             raise HTTPException(status_code=400, detail="Invalid path: contains null byte")
 
         try:
-            # Expand user directory first
+            # Step 1: Expand user directory first
             expanded_path = os.path.expanduser(clean_path)
 
-            # Use os.path.realpath for secure path resolution (prevents symlink attacks)
+            # Step 2: Use os.path.realpath for secure path resolution (prevents symlink attacks)
             # This also resolves relative paths and removes .. components
             real_path = os.path.realpath(expanded_path)
 
-            # Convert to Path object for further validation
-            resolved = Path(real_path)
-
-            # Additional security check: verify it's an absolute path
-            if not resolved.is_absolute():
+            # Step 3: Additional security check - verify it's an absolute path
+            if not os.path.isabs(real_path):
                 raise HTTPException(status_code=400, detail="Invalid path: must be absolute")
 
-            # Security: Verify the resolved path is within the safe base directory FIRST
-            # This prevents path traversal attacks where an attacker tries to access
-            # files outside the allowed directory (e.g., /etc/passwd)
-            # IMPORTANT: This check must happen BEFORE any filesystem operations
-            try:
-                # is_relative_to() is available in Python 3.9+
-                if not resolved.is_relative_to(safe_base_dir):
-                    raise HTTPException(
-                        status_code=403,
-                        detail="Access denied: path is outside allowed directory",
-                    )
-            except AttributeError:
-                # Fallback for Python < 3.9 (though project requires 3.10+)
-                try:
-                    resolved.relative_to(safe_base_dir)
-                except ValueError:
-                    raise HTTPException(
-                        status_code=403,
-                        detail="Access denied: path is outside allowed directory",
-                    )
+            # Step 4: CRITICAL SECURITY CHECK - Verify path is within safe base directory
+            # We use canonical string prefix comparison for maximum robustness:
+            # - Both paths are already fully resolved via os.path.realpath
+            # - String prefix check works across all Python versions
+            # - Avoids edge cases with is_relative_to() and symlinked parents
+            # - Ensures path cannot escape the allowed directory (e.g., /etc/passwd)
+            # Add path separator to prevent partial matches (e.g., /home/user vs /home/user2)
+            safe_base_str = str(safe_base_dir) + os.sep
+            real_path_str = real_path + os.sep
+            
+            if not real_path_str.startswith(safe_base_str):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Access denied: path is outside allowed directory",
+                )
 
-            # Now that path is validated to be within safe directory, check existence
-            if not resolved.exists():
+            # Step 5: Create Path object from the validated canonical path
+            # This breaks the taint chain for CodeQL static analysis
+            validated_path = Path(real_path)
+
+            # Step 6: Now that path is validated, perform filesystem operations
+            if not validated_path.exists():
                 raise HTTPException(status_code=404, detail="Path not found: %s" % clean_path)
 
-            # Verify it's a directory (not a file)
-            if not resolved.is_dir():
+            # Step 7: Verify it's a directory (not a file)
+            if not validated_path.is_dir():
                 raise HTTPException(
                     status_code=400, detail="Path must be a directory: %s" % clean_path
                 )
 
-            resolved_paths.append(resolved)
+            resolved_paths.append(validated_path)
 
         except (ValueError, OSError) as e:
             logger.error("Invalid path '%s': %s", clean_path, e)
