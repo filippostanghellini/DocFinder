@@ -12,8 +12,8 @@ from docfinder.embedding.encoder import DEFAULT_MODEL
 class AppConfig:
     db_path: Path = Path("data/docfinder.db")
     model_name: str = DEFAULT_MODEL
-    chunk_chars: int = 1200
-    overlap: int = 200
+    chunk_chars: int = 500
+    overlap: int = 50
 
     def resolve_db_path(self, base_dir: Path | None = None) -> Path:
         if Path(self.db_path).is_absolute() or base_dir is None:

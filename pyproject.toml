@@ -15,6 +15,7 @@ dependencies = [
   "pypdf>=4.2.0",
   "sentence-transformers>=2.6.0",
   "onnxruntime>=1.17.0",
+  "optimum>=2.0.0",
   # pin numpy to <2 to avoid runtime errors with precompiled C-extensions
   # that may not yet be compatible with NumPy 2.x. Projects installing
   # DocFinder from scratch will get a NumPy 1.x compatible release.
@@ -38,6 +39,9 @@ web = [
   "uvicorn[standard]>=0.32.0",
   "pydantic>=2.9.0"
 ]
+gpu = [
+  "onnxruntime-gpu>=1.17.0"
+]
 
 [project.scripts]
 docfinder = "docfinder.cli:app"
@@ -60,6 +64,9 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]  # Ignore line-too-long in test files
 
 [tool.ruff.format]
 quote-style = "double"

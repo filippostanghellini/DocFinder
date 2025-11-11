@@ -44,8 +44,8 @@ class OpenRequest(BaseModel):
 
 
 class IndexPayload(BaseModel):
-    paths: List[Path]
-    db: Path | None = None
+    paths: List[str]
+    db: str | None = None
     model: str | None = None
     chunk_chars: int | None = None
     overlap: int | None = None
@@ -128,12 +128,17 @@ def _run_index_job(paths: List[Path], config: AppConfig, resolved_db: Path) -> d
 
 @app.post("/index")
 async def index_documents(payload: IndexPayload) -> dict[str, Any]:
+    logger = logging.getLogger(__name__)
+    sanitized_paths = [p.replace("\r", "").replace("\n", "") for p in payload.paths]
+    logger.info("DEBUG: Received paths = %s", sanitized_paths)
+    logger.info("DEBUG: Path type = %s", type(payload.paths))
+
     if not payload.paths:
         raise HTTPException(status_code=400, detail="No path provided")
 
     config_defaults = AppConfig()
     config = AppConfig(
-        db_path=payload.db if payload.db is not None else config_defaults.db_path,
+        db_path=Path(payload.db) if payload.db is not None else config_defaults.db_path,
         model_name=payload.model or config_defaults.model_name,
         chunk_chars=payload.chunk_chars or config_defaults.chunk_chars,
         overlap=payload.overlap or config_defaults.overlap,
@@ -142,10 +147,72 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     resolved_db = config.resolve_db_path(Path.cwd())
     _ensure_db_parent(resolved_db)
 
-    resolved_paths = [path.expanduser() for path in payload.paths]
-    missing = [str(path) for path in resolved_paths if not path.exists()]
-    if missing:
-        raise HTTPException(status_code=404, detail=f"Path not found: {', '.join(missing)}")
+    # Security: Define safe base directory for path traversal protection
+    # User can only access directories within their home directory or an explicitly allowed path
+    # For now, we allow access to the entire filesystem as the user is expected to be trusted
+    # In production, you might want to restrict this to specific directories
+    # IMPORTANT: Use canonical (real) path to prevent symlink-based bypasses
+    safe_base_dir = Path(os.path.realpath(str(Path.home())))
+
+    # Validate and resolve paths safely
+    resolved_paths = []
+    for p in payload.paths:
+        # Sanitize input: remove newlines and carriage returns
+        clean_path = p.strip().replace("\r", "").replace("\n", "")
+        if not clean_path:
+            continue
+
+        # Security: Reject paths with null bytes or other dangerous characters
+        if "\0" in clean_path:
+            raise HTTPException(status_code=400, detail="Invalid path: contains null byte")
+
+        try:
+            # Step 1: Expand user directory first
+            expanded_path = os.path.expanduser(clean_path)
+
+            # Step 2: Use os.path.realpath for secure path resolution (prevents symlink attacks)
+            # This also resolves relative paths and removes .. components
+            real_path = os.path.realpath(expanded_path)
+
+            # Step 3: Additional security check - verify it's an absolute path
+            if not os.path.isabs(real_path):
+                raise HTTPException(status_code=400, detail="Invalid path: must be absolute")
+
+            # Step 4: CRITICAL SECURITY CHECK - Verify path is within safe base directory
+            # We use canonical string prefix comparison for maximum robustness:
+            # - Both paths are already fully resolved via os.path.realpath
+            # - String prefix check works across all Python versions
+            # - Avoids edge cases with is_relative_to() and symlinked parents
+            # - Ensures path cannot escape the allowed directory (e.g., /etc/passwd)
+            # Add path separator to prevent partial matches (e.g., /home/user vs /home/user2)
+            safe_base_str = str(safe_base_dir) + os.sep
+            real_path_str = real_path + os.sep
+
+            if not real_path_str.startswith(safe_base_str):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Access denied: path is outside allowed directory",
+                )
+
+            # Step 5: Create Path object from the validated canonical path
+            # This breaks the taint chain for CodeQL static analysis
+            validated_path = Path(real_path)
+
+            # Step 6: Now that path is validated, perform filesystem operations
+            if not validated_path.exists():
+                raise HTTPException(status_code=404, detail="Path not found: %s" % clean_path)
+
+            # Step 7: Verify it's a directory (not a file)
+            if not validated_path.is_dir():
+                raise HTTPException(
+                    status_code=400, detail="Path must be a directory: %s" % clean_path
+                )
+
+            resolved_paths.append(validated_path)
+
+        except (ValueError, OSError) as e:
+            logger.error("Invalid path '%s': %s", clean_path, e)
+            raise HTTPException(status_code=400, detail="Invalid path: %s" % clean_path)
 
     try:
         stats = await asyncio.to_thread(_run_index_job, resolved_paths, config, resolved_db)
