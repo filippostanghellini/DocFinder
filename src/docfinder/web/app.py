@@ -130,8 +130,8 @@ def _run_index_job(paths: List[Path], config: AppConfig, resolved_db: Path) -> d
 async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     logger = logging.getLogger(__name__)
     sanitized_paths = [p.replace("\r", "").replace("\n", "") for p in payload.paths]
-    logger.info(f"DEBUG: Received paths = {sanitized_paths}")
-    logger.info(f"DEBUG: Path type = {type(payload.paths)}")
+    logger.info("DEBUG: Received paths = %s", sanitized_paths)
+    logger.info("DEBUG: Path type = %s", type(payload.paths))
 
     if not payload.paths:
         raise HTTPException(status_code=400, detail="No path provided")
@@ -157,23 +157,29 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
 
         try:
             # Expand ~ and resolve to absolute path
-            resolved = Path(clean_path).expanduser().resolve()
+            # Use strict resolution to prevent path traversal attacks
+            try:
+                resolved = Path(clean_path).expanduser().resolve(strict=True)
+            except (FileNotFoundError, RuntimeError) as path_error:
+                raise HTTPException(
+                    status_code=404, detail="Path not found: %s" % clean_path
+                ) from path_error
 
-            # Verify path exists
-            if not resolved.exists():
-                raise HTTPException(status_code=404, detail=f"Path not found: '{clean_path}'")
+            # Additional security check: verify it's an absolute path
+            if not resolved.is_absolute():
+                raise HTTPException(status_code=400, detail="Invalid path: must be absolute")
 
             # Verify it's a directory (not a file)
             if not resolved.is_dir():
                 raise HTTPException(
-                    status_code=400, detail=f"Path must be a directory: '{clean_path}'"
+                    status_code=400, detail="Path must be a directory: %s" % clean_path
                 )
 
             resolved_paths.append(resolved)
 
         except (ValueError, OSError) as e:
-            logger.error(f"Invalid path '{clean_path}': {e}")
-            raise HTTPException(status_code=400, detail=f"Invalid path: '{clean_path}'")
+            logger.error("Invalid path '%s': %s", clean_path, e)
+            raise HTTPException(status_code=400, detail="Invalid path: %s" % clean_path)
 
     try:
         stats = await asyncio.to_thread(_run_index_job, resolved_paths, config, resolved_db)

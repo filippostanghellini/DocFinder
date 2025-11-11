@@ -332,7 +332,7 @@ class TestSearch:
         assert "text" in result
         assert "metadata" in result
         assert "score" in result
-        assert result["path"] == "/tmp/test.pdf"
+        assert result["path"] == str(doc.path)
         assert result["title"] == "Test Doc"
         assert result["text"] == "Sample text"
 
