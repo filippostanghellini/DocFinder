@@ -129,7 +129,8 @@ def _run_index_job(paths: List[Path], config: AppConfig, resolved_db: Path) -> d
 @app.post("/index")
 async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     logger = logging.getLogger(__name__)
-    logger.info(f"DEBUG: Received path = '{payload.paths}'")
+    sanitized_paths = [p.replace('\r', '').replace('\n', '') for p in payload.paths]
+    logger.info(f"DEBUG: Received path = '{sanitized_paths}'")
     logger.info(f"DEBUG: Path type = {type(payload.paths)}")
 
     if not payload.paths:
