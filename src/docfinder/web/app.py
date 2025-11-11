@@ -129,13 +129,9 @@ def _run_index_job(paths: List[Path], config: AppConfig, resolved_db: Path) -> d
 @app.post("/index")
 async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     logger = logging.getLogger(__name__)
-<<<<<<< HEAD
-    logger.info(f"DEBUG: Received paths = {payload.paths}")
-=======
     sanitized_paths = [p.replace('\r', '').replace('\n', '') for p in payload.paths]
-    logger.info(f"DEBUG: Received path = '{sanitized_paths}'")
+    logger.info(f"DEBUG: Received paths = {sanitized_paths}")
     logger.info(f"DEBUG: Path type = {type(payload.paths)}")
->>>>>>> a2c610a8c054409db8e501d3732147c68179a849
 
     if not payload.paths:
         raise HTTPException(status_code=400, detail="No path provided")
