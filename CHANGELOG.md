@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-11-11
+
 ### Added
 - **ONNX Runtime Backend Support**: Automatic backend detection with ONNX optimization
   - 1.5x-1.7x performance improvement on Apple Silicon with quantized ONNX models
@@ -46,6 +48,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - AMD GPU: Optimized inference with ROCm provider
 - Intel Mac: ~1.5x faster with ONNX
 
+## Security
+- **🔒 CRITICAL: Fixed path traversal vulnerabilities** ([CWE-22](https://cwe.mitre.org/data/definitions/22.html))
+  - Implemented canonical path validation with `os.path.realpath()`
+  - Added string prefix check to ensure paths are within safe base directory
+  - Restricted file access to user's home directory by default
+  - Added null byte validation to prevent directory traversal attacks
+  - Protection against symlink attacks
+- **Fixed log injection vulnerability** by using safe format strings (`%s`) instead of f-strings with user input
+- All paths now validated before filesystem operations
+- Comprehensive security validation as suggested by GitHub CodeQL
+
 ## [0.1.0] - 2025-11-08
 
 ### Added
@@ -73,4 +86,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated ruff configuration to use non-deprecated settings
 
 [Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v0.1.0...HEAD
+[0.2.0]: https://github.com/filippostanghellini/DocFinder/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/filippostanghellini/DocFinder/releases/tag/v0.1.0
