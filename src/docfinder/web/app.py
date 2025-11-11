@@ -187,7 +187,7 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
             # Add path separator to prevent partial matches (e.g., /home/user vs /home/user2)
             safe_base_str = str(safe_base_dir) + os.sep
             real_path_str = real_path + os.sep
-            
+
             if not real_path_str.startswith(safe_base_str):
                 raise HTTPException(
                     status_code=403,
