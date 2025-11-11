@@ -201,7 +201,7 @@ class EmbeddingModel:
                 providers = ort.get_available_providers()
                 info_parts.append(f"ONNX Providers: {', '.join(providers)}")
             except ImportError:
-                pass
+                logger.debug("ONNX Runtime not available for provider info")
             
             if self.config.onnx_model_file:
                 info_parts.append(f"ONNX Model: {self.config.onnx_model_file}")

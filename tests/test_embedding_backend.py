@@ -147,7 +147,7 @@ class TestEmbeddingConfig:
         """Should create config with default values."""
         config = EmbeddingConfig()
         assert config.model_name == "sentence-transformers/all-mpnet-base-v2"
-        assert config.batch_size == 16
+        assert config.batch_size == 8
         assert config.normalize is True
         assert config.backend is None
         assert config.onnx_model_file is None

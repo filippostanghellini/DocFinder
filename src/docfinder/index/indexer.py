@@ -82,6 +82,7 @@ class Indexer:
                 except Exception as e:
                     LOGGER.error(f"Failed to process {path}: {e}")
                     stats.failed += 1
+                    stats.processed_files.append(path)
             
             # Libera memoria dopo ogni batch
             gc.collect()

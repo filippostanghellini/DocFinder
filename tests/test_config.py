@@ -15,11 +15,11 @@ class TestAppConfig:
     def test_default_config(self) -> None:
         """Should create config with default values."""
         config = AppConfig()
-        
+
         assert config.db_path == Path("data/docfinder.db")
         assert config.model_name == "sentence-transformers/all-mpnet-base-v2"
-        assert config.chunk_chars == 1200
-        assert config.overlap == 200
+        assert config.chunk_chars == 500
+        assert config.overlap == 50
 
     def test_custom_config(self) -> None:
         """Should create config with custom values."""
