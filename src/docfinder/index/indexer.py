@@ -91,8 +91,15 @@ class Indexer:
 
     def _index_single(self, path: Path) -> str:
         """Index a single PDF file."""
-        chunk_records = list(build_chunks(path, max_chars=self.chunk_chars, overlap=self.overlap))
-        if not chunk_records:
+        import itertools
+
+        # Create generator
+        chunk_gen = build_chunks(path, max_chars=self.chunk_chars, overlap=self.overlap)
+
+        # Peek at first chunk to get metadata and ensure we have content
+        try:
+            first_chunk = next(chunk_gen)
+        except StopIteration:
             LOGGER.warning("No text extracted from %s", path)
             return "skipped"
 
@@ -100,11 +107,36 @@ class Indexer:
         stat = path.stat()
         document = DocumentMetadata(
             path=path,
-            title=chunk_records[0].metadata.get("title", path.stem),
+            title=first_chunk.metadata.get("title", path.stem),
             sha256=sha256,
             mtime=stat.st_mtime,
             size=stat.st_size,
         )
 
-        embeddings = self.embedder.embed([chunk.text for chunk in chunk_records])
-        return self.store.upsert_document(document, chunk_records, embeddings)
+        # Use a transaction for the whole document update
+        with self.store.transaction():
+            doc_id, status = self.store.init_document(document)
+            if status == "skipped":
+                return status
+
+            # Process chunks in batches
+            batch_size = 32
+            current_batch = []
+
+            # Chain the first chunk back with the rest
+            for chunk in itertools.chain([first_chunk], chunk_gen):
+                current_batch.append(chunk)
+
+                if len(current_batch) >= batch_size:
+                    embeddings = self.embedder.embed([c.text for c in current_batch])
+                    self.store.insert_chunks(doc_id, current_batch, embeddings)
+                    current_batch = []
+                    gc.collect()
+
+            # Process remaining chunks
+            if current_batch:
+                embeddings = self.embedder.embed([c.text for c in current_batch])
+                self.store.insert_chunks(doc_id, current_batch, embeddings)
+                gc.collect()
+
+        return status
