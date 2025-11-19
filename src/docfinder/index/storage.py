@@ -94,57 +94,83 @@ class SQLiteVectorStore:
             if "embedding" not in columns:
                 conn.execute("ALTER TABLE chunks ADD COLUMN embedding BLOB")
 
+    def init_document(self, document: DocumentMetadata) -> tuple[int, str]:
+        """Initialize a document for insertion.
+        
+        Returns:
+            (doc_id, status) where status is 'inserted', 'updated', or 'skipped'.
+            If skipped, doc_id is -1.
+        """
+        # Note: This should be called within a transaction
+        conn = self._conn
+        
+        existing = conn.execute(
+            "SELECT id, sha256 FROM documents WHERE path = ?",
+            (str(document.path),),
+        ).fetchone()
+
+        if existing and existing["sha256"] == document.sha256:
+            return -1, "skipped"
+
+        if existing:
+            conn.execute("DELETE FROM chunks WHERE document_id = ?", (existing["id"],))
+            conn.execute("DELETE FROM documents WHERE id = ?", (existing["id"],))
+
+        doc_id = conn.execute(
+            """
+            INSERT INTO documents(path, title, sha256, mtime, size)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                str(document.path),
+                document.title,
+                document.sha256,
+                document.mtime,
+                document.size,
+            ),
+        ).lastrowid
+        
+        return doc_id, "updated" if existing else "inserted"
+
+    def insert_chunks(
+        self, 
+        doc_id: int, 
+        chunks: Sequence[ChunkRecord], 
+        embeddings: np.ndarray
+    ) -> None:
+        """Insert a batch of chunks for a document."""
+        if embeddings.shape[0] != len(chunks):
+            raise ValueError("Embeddings and chunks length mismatch")
+            
+        conn = self._conn
+        for chunk, vector in zip(chunks, embeddings):
+            conn.execute(
+                """
+                INSERT INTO chunks(document_id, chunk_index, text, metadata, embedding)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    doc_id,
+                    chunk.index,
+                    chunk.text,
+                    json.dumps(chunk.metadata, ensure_ascii=True),
+                    sqlite3.Binary(np.asarray(vector, dtype="float32").tobytes()),
+                ),
+            )
+
     def upsert_document(
         self,
         document: DocumentMetadata,
         chunks: Sequence[ChunkRecord],
         embeddings: np.ndarray,
     ) -> str:
-        if embeddings.shape[0] != len(chunks):
-            raise ValueError("Embeddings and chunks length mismatch")
-
-        with self.transaction() as conn:
-            existing = conn.execute(
-                "SELECT id, sha256 FROM documents WHERE path = ?",
-                (str(document.path),),
-            ).fetchone()
-
-            if existing and existing["sha256"] == document.sha256:
-                return "skipped"
-
-            if existing:
-                conn.execute("DELETE FROM chunks WHERE document_id = ?", (existing["id"],))
-                conn.execute("DELETE FROM documents WHERE id = ?", (existing["id"],))
-
-            doc_id = conn.execute(
-                """
-                INSERT INTO documents(path, title, sha256, mtime, size)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    str(document.path),
-                    document.title,
-                    document.sha256,
-                    document.mtime,
-                    document.size,
-                ),
-            ).lastrowid
-
-            for chunk, vector in zip(chunks, embeddings):
-                conn.execute(
-                    """
-                    INSERT INTO chunks(document_id, chunk_index, text, metadata, embedding)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                    (
-                        doc_id,
-                        chunk.index,
-                        chunk.text,
-                        json.dumps(chunk.metadata, ensure_ascii=True),
-                        sqlite3.Binary(np.asarray(vector, dtype="float32").tobytes()),
-                    ),
-                )
-        return "updated" if existing else "inserted"
+        with self.transaction():
+            doc_id, status = self.init_document(document)
+            if status == "skipped":
+                return status
+            
+            self.insert_chunks(doc_id, chunks, embeddings)
+            return status
 
     def search(self, embedding: np.ndarray, *, top_k: int = 10) -> List[dict]:
         query = np.asarray(embedding, dtype="float32")

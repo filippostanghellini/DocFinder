@@ -1,7 +1,7 @@
 """Tests for Indexer."""
 
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, call
 
 import numpy as np
 import pytest
@@ -104,7 +104,10 @@ class TestIndexer:
     def mock_store(self):
         """Create mock SQLiteVectorStore."""
         store = Mock()
-        store.upsert_document.return_value = "inserted"
+        store.init_document.return_value = (1, "inserted")
+        store.insert_chunks.return_value = None
+        store.transaction.return_value.__enter__ = Mock()
+        store.transaction.return_value.__exit__ = Mock()
         return store
 
     @pytest.fixture
@@ -140,12 +143,13 @@ class TestIndexer:
         pdf_path.write_text("test")
 
         mock_iter_pdfs.return_value = [pdf_path]
-        mock_build_chunks.return_value = [
+        # Must return an iterator
+        mock_build_chunks.return_value = iter([
             ChunkRecord(
                 document_path=pdf_path, index=0, text="Chunk 1", metadata={"title": "Test Doc"}
             ),
             ChunkRecord(document_path=pdf_path, index=1, text="Chunk 2", metadata={}),
-        ]
+        ])
         mock_sha256.return_value = "abc123"
 
         # Execute
@@ -161,8 +165,10 @@ class TestIndexer:
         # Verify calls
         mock_build_chunks.assert_called_once_with(pdf_path, max_chars=1200, overlap=200)
         mock_sha256.assert_called_once_with(pdf_path)
-        indexer.embedder.embed.assert_called_once_with(["Chunk 1", "Chunk 2"])
-        indexer.store.upsert_document.assert_called_once()
+        # Should be called once for the batch of 2 (since batch size is 32)
+        indexer.embedder.embed.assert_called_once()
+        indexer.store.init_document.assert_called_once()
+        indexer.store.insert_chunks.assert_called_once()
 
     @patch("docfinder.index.indexer.iter_pdf_paths")
     @patch("docfinder.index.indexer.build_chunks")
@@ -175,11 +181,11 @@ class TestIndexer:
         pdf_path.write_text("test")
 
         mock_iter_pdfs.return_value = [pdf_path]
-        mock_build_chunks.return_value = [
+        mock_build_chunks.return_value = iter([
             ChunkRecord(document_path=pdf_path, index=0, text="Updated", metadata={})
-        ]
+        ])
         mock_sha256.return_value = "new_hash"
-        indexer.store.upsert_document.return_value = "updated"
+        indexer.store.init_document.return_value = (1, "updated")
 
         stats = indexer.index([pdf_path])
 
@@ -197,16 +203,19 @@ class TestIndexer:
         pdf_path.write_text("test")
 
         mock_iter_pdfs.return_value = [pdf_path]
-        mock_build_chunks.return_value = [
+        mock_build_chunks.return_value = iter([
             ChunkRecord(document_path=pdf_path, index=0, text="Same", metadata={})
-        ]
+        ])
         mock_sha256.return_value = "same_hash"
-        indexer.store.upsert_document.return_value = "skipped"
+        indexer.store.init_document.return_value = (-1, "skipped")
 
         stats = indexer.index([pdf_path])
 
         assert stats.skipped == 1
         assert stats.inserted == 0
+        # Should not embed or insert chunks
+        indexer.embedder.embed.assert_not_called()
+        indexer.store.insert_chunks.assert_not_called()
 
     @patch("docfinder.index.indexer.iter_pdf_paths")
     @patch("docfinder.index.indexer.build_chunks")
@@ -216,7 +225,7 @@ class TestIndexer:
         pdf_path.write_text("test")
 
         mock_iter_pdfs.return_value = [pdf_path]
-        mock_build_chunks.return_value = []  # No chunks
+        mock_build_chunks.return_value = iter([])  # Empty iterator
 
         stats = indexer.index([pdf_path])
 
@@ -224,7 +233,7 @@ class TestIndexer:
         assert stats.inserted == 0
         # Should not call embedder or store
         indexer.embedder.embed.assert_not_called()
-        indexer.store.upsert_document.assert_not_called()
+        indexer.store.init_document.assert_not_called()
 
     @patch("docfinder.index.indexer.iter_pdf_paths")
     @patch("docfinder.index.indexer.build_chunks")
@@ -234,7 +243,12 @@ class TestIndexer:
         pdf_path.write_text("test")
 
         mock_iter_pdfs.return_value = [pdf_path]
-        mock_build_chunks.side_effect = Exception("PDF parsing error")
+        # Exception when iterating
+        def error_gen():
+            raise Exception("PDF parsing error")
+            yield # unreachable
+            
+        mock_build_chunks.return_value = error_gen()
 
         stats = indexer.index([pdf_path])
 
@@ -255,11 +269,15 @@ class TestIndexer:
         pdf2.write_text("test2")
 
         mock_iter_pdfs.return_value = [pdf1, pdf2]
-        mock_build_chunks.return_value = [
-            ChunkRecord(document_path=Path("/tmp/dummy.pdf"), index=0, text="Text", metadata={})
+        
+        # We need side_effect for build_chunks to return fresh iterators
+        mock_build_chunks.side_effect = [
+            iter([ChunkRecord(document_path=pdf1, index=0, text="Text1", metadata={})]),
+            iter([ChunkRecord(document_path=pdf2, index=0, text="Text2", metadata={})]),
         ]
+        
         mock_sha256.side_effect = ["hash1", "hash2"]
-        indexer.store.upsert_document.side_effect = ["inserted", "inserted"]
+        indexer.store.init_document.side_effect = [(1, "inserted"), (2, "inserted")]
 
         stats = indexer.index([tmp_path])
 
@@ -286,11 +304,11 @@ class TestIndexer:
         def build_chunks_side_effect(path, **kwargs):
             if path == pdf3:
                 raise Exception("Error")
-            return [ChunkRecord(document_path=path, index=0, text="Text", metadata={})]
+            return iter([ChunkRecord(document_path=path, index=0, text="Text", metadata={})])
 
         mock_build_chunks.side_effect = build_chunks_side_effect
         mock_sha256.side_effect = ["hash1", "hash2"]
-        indexer.store.upsert_document.side_effect = ["inserted", "skipped"]
+        indexer.store.init_document.side_effect = [(1, "inserted"), (-1, "skipped")]
 
         stats = indexer.index([tmp_path])
 
@@ -310,18 +328,19 @@ class TestIndexer:
         pdf_path.write_text("test")
 
         mock_iter_pdfs.return_value = [pdf_path]
-        mock_build_chunks.return_value = [
+        mock_build_chunks.return_value = iter([
             ChunkRecord(
                 document_path=pdf_path, index=0, text="Text", metadata={"title": "Custom Title"}
             ),
             ChunkRecord(document_path=pdf_path, index=1, text="More", metadata={}),
-        ]
+        ])
         mock_sha256.return_value = "abc123"
+        indexer.store.init_document.return_value = (1, "inserted")
 
         indexer.index([pdf_path])
 
-        # Verify document metadata
-        call_args = indexer.store.upsert_document.call_args
+        # Verify document metadata passed to init_document
+        call_args = indexer.store.init_document.call_args
         document = call_args[0][0]
         assert document.title == "Custom Title"
 
@@ -336,15 +355,16 @@ class TestIndexer:
         pdf_path.write_text("test")
 
         mock_iter_pdfs.return_value = [pdf_path]
-        mock_build_chunks.return_value = [
+        mock_build_chunks.return_value = iter([
             ChunkRecord(document_path=pdf_path, index=0, text="Text", metadata={})  # No title
-        ]
+        ])
         mock_sha256.return_value = "abc123"
+        indexer.store.init_document.return_value = (1, "inserted")
 
         indexer.index([pdf_path])
 
         # Verify uses filename stem
-        call_args = indexer.store.upsert_document.call_args
+        call_args = indexer.store.init_document.call_args
         document = call_args[0][0]
         assert document.title == "my_document"
 
@@ -359,15 +379,16 @@ class TestIndexer:
         pdf_path.write_text("test content")
 
         mock_iter_pdfs.return_value = [pdf_path]
-        mock_build_chunks.return_value = [
+        mock_build_chunks.return_value = iter([
             ChunkRecord(document_path=pdf_path, index=0, text="Text", metadata={})
-        ]
+        ])
         mock_sha256.return_value = "abc123"
+        indexer.store.init_document.return_value = (1, "inserted")
 
         indexer.index([pdf_path])
 
         # Verify document metadata includes stats
-        call_args = indexer.store.upsert_document.call_args
+        call_args = indexer.store.init_document.call_args
         document = call_args[0][0]
         assert document.mtime == pdf_path.stat().st_mtime
         assert document.size == pdf_path.stat().st_size
