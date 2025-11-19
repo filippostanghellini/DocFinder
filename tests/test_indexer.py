@@ -1,7 +1,7 @@
 """Tests for Indexer."""
 
 from pathlib import Path
-from unittest.mock import Mock, patch, call
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
@@ -247,7 +247,7 @@ class TestIndexer:
         def error_gen():
             raise Exception("PDF parsing error")
             yield # unreachable
-            
+
         mock_build_chunks.return_value = error_gen()
 
         stats = indexer.index([pdf_path])
@@ -269,13 +269,13 @@ class TestIndexer:
         pdf2.write_text("test2")
 
         mock_iter_pdfs.return_value = [pdf1, pdf2]
-        
+
         # We need side_effect for build_chunks to return fresh iterators
         mock_build_chunks.side_effect = [
             iter([ChunkRecord(document_path=pdf1, index=0, text="Text1", metadata={})]),
             iter([ChunkRecord(document_path=pdf2, index=0, text="Text2", metadata={})]),
         ]
-        
+
         mock_sha256.side_effect = ["hash1", "hash2"]
         indexer.store.init_document.side_effect = [(1, "inserted"), (2, "inserted")]
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from docfinder.ingestion.pdf_loader import build_chunks, iter_text_parts, get_pdf_metadata
+from docfinder.ingestion.pdf_loader import build_chunks, get_pdf_metadata, iter_text_parts
 from docfinder.models import ChunkRecord
 
 
@@ -21,7 +21,7 @@ class TestIterTextParts:
 
         mock_reader = MagicMock()
         mock_reader.pages = [mock_page]
-        
+
         mock_reader_class.return_value = mock_reader
 
         # Test
@@ -48,7 +48,7 @@ class TestIterTextParts:
 
         mock_reader = MagicMock()
         mock_reader.pages = [mock_page1, mock_page2, mock_page3]
-        
+
         mock_reader_class.return_value = mock_reader
 
         pdf_path = tmp_path / "multi.pdf"
@@ -78,7 +78,7 @@ class TestIterTextParts:
 
         mock_reader = MagicMock()
         mock_reader.pages = [mock_page1, mock_page2, mock_page3]
-        
+
         mock_reader_class.return_value = mock_reader
 
         pdf_path = tmp_path / "error.pdf"

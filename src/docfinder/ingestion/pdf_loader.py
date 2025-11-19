@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Dict, Iterable, List, Iterator
+from typing import Dict, Iterable, Iterator
+
 from pypdf import PdfReader
 
 from docfinder.models import ChunkRecord
@@ -48,12 +49,14 @@ def build_chunks(path: Path, *, max_chars: int = 1200, overlap: int = 200) -> It
         return
 
     text_stream = iter_text_parts(path)
-    
+
     # Use the streaming chunker
     # Note: chunk_text_stream needs to be imported or available
     from docfinder.utils.text import chunk_text_stream
 
-    for idx, chunk in enumerate(chunk_text_stream(text_stream, max_chars=max_chars, overlap=overlap)):
+    for idx, chunk in enumerate(
+        chunk_text_stream(text_stream, max_chars=max_chars, overlap=overlap)
+    ):
         yield ChunkRecord(
             document_path=path,
             index=idx,

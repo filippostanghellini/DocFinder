@@ -96,14 +96,14 @@ class SQLiteVectorStore:
 
     def init_document(self, document: DocumentMetadata) -> tuple[int, str]:
         """Initialize a document for insertion.
-        
+
         Returns:
             (doc_id, status) where status is 'inserted', 'updated', or 'skipped'.
             If skipped, doc_id is -1.
         """
         # Note: This should be called within a transaction
         conn = self._conn
-        
+
         existing = conn.execute(
             "SELECT id, sha256 FROM documents WHERE path = ?",
             (str(document.path),),
@@ -129,19 +129,19 @@ class SQLiteVectorStore:
                 document.size,
             ),
         ).lastrowid
-        
+
         return doc_id, "updated" if existing else "inserted"
 
     def insert_chunks(
-        self, 
-        doc_id: int, 
-        chunks: Sequence[ChunkRecord], 
+        self,
+        doc_id: int,
+        chunks: Sequence[ChunkRecord],
         embeddings: np.ndarray
     ) -> None:
         """Insert a batch of chunks for a document."""
         if embeddings.shape[0] != len(chunks):
             raise ValueError("Embeddings and chunks length mismatch")
-            
+
         conn = self._conn
         for chunk, vector in zip(chunks, embeddings):
             conn.execute(
@@ -168,7 +168,7 @@ class SQLiteVectorStore:
             doc_id, status = self.init_document(document)
             if status == "skipped":
                 return status
-            
+
             self.insert_chunks(doc_id, chunks, embeddings)
             return status
 

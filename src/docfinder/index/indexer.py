@@ -92,10 +92,10 @@ class Indexer:
     def _index_single(self, path: Path) -> str:
         """Index a single PDF file."""
         import itertools
-        
+
         # Create generator
         chunk_gen = build_chunks(path, max_chars=self.chunk_chars, overlap=self.overlap)
-        
+
         # Peek at first chunk to get metadata and ensure we have content
         try:
             first_chunk = next(chunk_gen)
@@ -122,17 +122,17 @@ class Indexer:
             # Process chunks in batches
             batch_size = 32
             current_batch = []
-            
+
             # Chain the first chunk back with the rest
             for chunk in itertools.chain([first_chunk], chunk_gen):
                 current_batch.append(chunk)
-                
+
                 if len(current_batch) >= batch_size:
                     embeddings = self.embedder.embed([c.text for c in current_batch])
                     self.store.insert_chunks(doc_id, current_batch, embeddings)
                     current_batch = []
                     gc.collect()
-            
+
             # Process remaining chunks
             if current_batch:
                 embeddings = self.embedder.embed([c.text for c in current_batch])
