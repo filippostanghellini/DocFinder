@@ -133,10 +133,7 @@ class SQLiteVectorStore:
         return doc_id, "updated" if existing else "inserted"
 
     def insert_chunks(
-        self,
-        doc_id: int,
-        chunks: Sequence[ChunkRecord],
-        embeddings: np.ndarray
+        self, doc_id: int, chunks: Sequence[ChunkRecord], embeddings: np.ndarray
     ) -> None:
         """Insert a batch of chunks for a document."""
         if embeddings.shape[0] != len(chunks):

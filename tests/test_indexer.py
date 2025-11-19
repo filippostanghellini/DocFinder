@@ -144,12 +144,14 @@ class TestIndexer:
 
         mock_iter_pdfs.return_value = [pdf_path]
         # Must return an iterator
-        mock_build_chunks.return_value = iter([
-            ChunkRecord(
-                document_path=pdf_path, index=0, text="Chunk 1", metadata={"title": "Test Doc"}
-            ),
-            ChunkRecord(document_path=pdf_path, index=1, text="Chunk 2", metadata={}),
-        ])
+        mock_build_chunks.return_value = iter(
+            [
+                ChunkRecord(
+                    document_path=pdf_path, index=0, text="Chunk 1", metadata={"title": "Test Doc"}
+                ),
+                ChunkRecord(document_path=pdf_path, index=1, text="Chunk 2", metadata={}),
+            ]
+        )
         mock_sha256.return_value = "abc123"
 
         # Execute
@@ -181,9 +183,9 @@ class TestIndexer:
         pdf_path.write_text("test")
 
         mock_iter_pdfs.return_value = [pdf_path]
-        mock_build_chunks.return_value = iter([
-            ChunkRecord(document_path=pdf_path, index=0, text="Updated", metadata={})
-        ])
+        mock_build_chunks.return_value = iter(
+            [ChunkRecord(document_path=pdf_path, index=0, text="Updated", metadata={})]
+        )
         mock_sha256.return_value = "new_hash"
         indexer.store.init_document.return_value = (1, "updated")
 
@@ -203,9 +205,9 @@ class TestIndexer:
         pdf_path.write_text("test")
 
         mock_iter_pdfs.return_value = [pdf_path]
-        mock_build_chunks.return_value = iter([
-            ChunkRecord(document_path=pdf_path, index=0, text="Same", metadata={})
-        ])
+        mock_build_chunks.return_value = iter(
+            [ChunkRecord(document_path=pdf_path, index=0, text="Same", metadata={})]
+        )
         mock_sha256.return_value = "same_hash"
         indexer.store.init_document.return_value = (-1, "skipped")
 
@@ -243,10 +245,11 @@ class TestIndexer:
         pdf_path.write_text("test")
 
         mock_iter_pdfs.return_value = [pdf_path]
+
         # Exception when iterating
         def error_gen():
             raise Exception("PDF parsing error")
-            yield # unreachable
+            yield  # unreachable
 
         mock_build_chunks.return_value = error_gen()
 
@@ -328,12 +331,14 @@ class TestIndexer:
         pdf_path.write_text("test")
 
         mock_iter_pdfs.return_value = [pdf_path]
-        mock_build_chunks.return_value = iter([
-            ChunkRecord(
-                document_path=pdf_path, index=0, text="Text", metadata={"title": "Custom Title"}
-            ),
-            ChunkRecord(document_path=pdf_path, index=1, text="More", metadata={}),
-        ])
+        mock_build_chunks.return_value = iter(
+            [
+                ChunkRecord(
+                    document_path=pdf_path, index=0, text="Text", metadata={"title": "Custom Title"}
+                ),
+                ChunkRecord(document_path=pdf_path, index=1, text="More", metadata={}),
+            ]
+        )
         mock_sha256.return_value = "abc123"
         indexer.store.init_document.return_value = (1, "inserted")
 
@@ -355,9 +360,11 @@ class TestIndexer:
         pdf_path.write_text("test")
 
         mock_iter_pdfs.return_value = [pdf_path]
-        mock_build_chunks.return_value = iter([
-            ChunkRecord(document_path=pdf_path, index=0, text="Text", metadata={})  # No title
-        ])
+        mock_build_chunks.return_value = iter(
+            [
+                ChunkRecord(document_path=pdf_path, index=0, text="Text", metadata={})  # No title
+            ]
+        )
         mock_sha256.return_value = "abc123"
         indexer.store.init_document.return_value = (1, "inserted")
 
@@ -379,9 +386,9 @@ class TestIndexer:
         pdf_path.write_text("test content")
 
         mock_iter_pdfs.return_value = [pdf_path]
-        mock_build_chunks.return_value = iter([
-            ChunkRecord(document_path=pdf_path, index=0, text="Text", metadata={})
-        ])
+        mock_build_chunks.return_value = iter(
+            [ChunkRecord(document_path=pdf_path, index=0, text="Text", metadata={})]
+        )
         mock_sha256.return_value = "abc123"
         indexer.store.init_document.return_value = (1, "inserted")
 

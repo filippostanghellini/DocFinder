@@ -138,7 +138,9 @@ class TestBuildChunks:
 
     @patch("docfinder.ingestion.pdf_loader.iter_text_parts")
     @patch("docfinder.ingestion.pdf_loader.get_pdf_metadata")
-    def test_build_chunks_simple(self, mock_meta: MagicMock, mock_iter: MagicMock, tmp_path: Path) -> None:
+    def test_build_chunks_simple(
+        self, mock_meta: MagicMock, mock_iter: MagicMock, tmp_path: Path
+    ) -> None:
         """Should build chunks from PDF text."""
         mock_meta.return_value = {"title": "Test", "page_count": "1"}
         mock_iter.return_value = iter(["This is a test document with some content."])
@@ -156,7 +158,9 @@ class TestBuildChunks:
 
     @patch("docfinder.ingestion.pdf_loader.iter_text_parts")
     @patch("docfinder.ingestion.pdf_loader.get_pdf_metadata")
-    def test_build_chunks_multiple(self, mock_meta: MagicMock, mock_iter: MagicMock, tmp_path: Path) -> None:
+    def test_build_chunks_multiple(
+        self, mock_meta: MagicMock, mock_iter: MagicMock, tmp_path: Path
+    ) -> None:
         """Should create multiple chunks for long text."""
         long_text = "x" * 500
         mock_meta.return_value = {"title": "Long", "page_count": "1"}
@@ -175,7 +179,9 @@ class TestBuildChunks:
 
     @patch("docfinder.ingestion.pdf_loader.iter_text_parts")
     @patch("docfinder.ingestion.pdf_loader.get_pdf_metadata")
-    def test_build_chunks_metadata(self, mock_meta: MagicMock, mock_iter: MagicMock, tmp_path: Path) -> None:
+    def test_build_chunks_metadata(
+        self, mock_meta: MagicMock, mock_iter: MagicMock, tmp_path: Path
+    ) -> None:
         """Should include metadata in chunks."""
         mock_meta.return_value = {"title": "My Document", "page_count": "5"}
         mock_iter.return_value = iter(["Content"])
@@ -192,7 +198,9 @@ class TestBuildChunks:
 
     @patch("docfinder.ingestion.pdf_loader.iter_text_parts")
     @patch("docfinder.ingestion.pdf_loader.get_pdf_metadata")
-    def test_build_chunks_empty_text(self, mock_meta: MagicMock, mock_iter: MagicMock, tmp_path: Path) -> None:
+    def test_build_chunks_empty_text(
+        self, mock_meta: MagicMock, mock_iter: MagicMock, tmp_path: Path
+    ) -> None:
         """Should handle PDF with no extractable text."""
         mock_meta.return_value = {"title": "Empty", "page_count": "1"}
         mock_iter.return_value = iter([])
