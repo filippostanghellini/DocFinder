@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from docfinder.config import AppConfig
+from docfinder.config import AppConfig, _get_default_db_path
 
 
 class TestAppConfig:
@@ -14,7 +14,9 @@ class TestAppConfig:
         """Should create config with default values."""
         config = AppConfig()
 
-        assert config.db_path == Path("data/docfinder.db")
+        # Default path depends on whether data/docfinder.db exists
+        expected_path = _get_default_db_path()
+        assert config.db_path == expected_path
         assert config.model_name == "sentence-transformers/all-mpnet-base-v2"
         assert config.chunk_chars == 500
         assert config.overlap == 50
@@ -59,8 +61,9 @@ class TestAppConfig:
         assert resolved == Path("/base/directory/relative/db.db")
 
     def test_resolve_db_path_default(self) -> None:
-        """Should resolve default path against base_dir."""
-        config = AppConfig()
+        """Should resolve default path against base_dir when path is relative."""
+        # Use explicit relative path to test resolution
+        config = AppConfig(db_path=Path("data/docfinder.db"))
         base = Path("/project")
 
         resolved = config.resolve_db_path(base_dir=base)
