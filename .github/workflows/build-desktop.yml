@@ -162,7 +162,9 @@ jobs:
           $NsisContent | Out-File -FilePath "installer.nsi" -Encoding UTF8
 
       - name: Build installer
+        shell: pwsh
         run: |
+          $env:PATH = "C:\Program Files (x86)\NSIS;$env:PATH"
           makensis installer.nsi
 
       - name: Upload Windows installer
