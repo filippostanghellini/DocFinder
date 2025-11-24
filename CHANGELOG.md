@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2025-11-24
+
+### Added
+- **🖥️ Native Desktop Application**: Cross-platform GUI using pywebview
+  - macOS: `.app` bundle with DMG installer
+  - Windows: NSIS installer (`.exe`)
+  - Linux: AppImage portable executable
+- **Desktop GUI launcher** (`docfinder-gui` command) for running from source
+- **PyInstaller build configuration** (`DocFinder.spec`) for standalone packaging
+- **Build scripts** for all platforms:
+  - `scripts/build-macos.sh` - Creates `.app` and `.dmg`
+  - `scripts/build-windows.ps1` - Creates NSIS installer
+  - `scripts/build-linux.sh` - Creates AppImage
+- **GitHub Actions workflow** (`build-desktop.yml`) for automated multi-platform builds on release
+- **New `[gui]` optional dependency group** for pywebview
+- macOS app icon (`resources/DocFinder.icns`)
+
+### Changed
+- **Database location for desktop app**: Now stored in `~/Documents/DocFinder/docfinder.db`
+- Improved error messages in web API for missing database
+- Updated README with desktop installation instructions and security bypass guides
+- Updated Makefile with `install-gui`, `build-macos`, `build-windows`, `build-linux` targets
+
+### Fixed
+- Database path resolution for frozen (packaged) applications
+- Config tests updated for dynamic database path behavior
+
 ## [0.2.0] - 2025-11-11
 
 ### Added
@@ -85,6 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed linting issues for consistent code style
 - Updated ruff configuration to use non-deprecated settings
 
-[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/filippostanghellini/DocFinder/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/filippostanghellini/DocFinder/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/filippostanghellini/DocFinder/releases/tag/v0.1.0
