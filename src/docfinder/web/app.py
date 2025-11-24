@@ -75,7 +75,11 @@ async def search_documents(payload: SearchPayload) -> dict[str, List[SearchResul
 
     resolved_db = _resolve_db_path(payload.db)
     if not resolved_db.exists():
-        raise HTTPException(status_code=404, detail=f"Database not found: {resolved_db}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Database not found at {resolved_db}. "
+            "Please index some documents first using the 'Index folder or PDF' section above.",
+        )
 
     embedder = EmbeddingModel(EmbeddingConfig(model_name=AppConfig().model_name))
     store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
