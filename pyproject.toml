@@ -32,9 +32,16 @@ dev = [
   "pytest-cov>=5.0.0",
   "ruff>=0.5.0",
   "safety>=3.0.0",
-  "bandit[toml]>=1.7.0"
+  "bandit[toml]>=1.7.0",
+  "pyinstaller>=6.0.0"
 ]
 web = [
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.32.0",
+  "pydantic>=2.9.0"
+]
+gui = [
+  "pywebview>=5.0.0",
   "fastapi>=0.115.0",
   "uvicorn[standard]>=0.32.0",
   "pydantic>=2.9.0"
@@ -45,6 +52,7 @@ gpu = [
 
 [project.scripts]
 docfinder = "docfinder.cli:app"
+docfinder-gui = "docfinder.gui:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

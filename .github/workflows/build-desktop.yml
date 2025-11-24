@@ -1,0 +1,282 @@
+name: Build Desktop Apps
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g., 0.1.0)'
+        required: false
+        default: 'dev'
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    name: Build macOS App
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install '.[dev,gui]'
+          brew install create-dmg
+
+      - name: Convert Logo to icns
+        run: |
+          mkdir -p resources
+          if [ -f "Logo.png" ]; then
+            mkdir -p resources/DocFinder.iconset
+            sips -z 16 16     Logo.png --out resources/DocFinder.iconset/icon_16x16.png
+            sips -z 32 32     Logo.png --out resources/DocFinder.iconset/icon_16x16@2x.png
+            sips -z 32 32     Logo.png --out resources/DocFinder.iconset/icon_32x32.png
+            sips -z 64 64     Logo.png --out resources/DocFinder.iconset/icon_32x32@2x.png
+            sips -z 128 128   Logo.png --out resources/DocFinder.iconset/icon_128x128.png
+            sips -z 256 256   Logo.png --out resources/DocFinder.iconset/icon_128x128@2x.png
+            sips -z 256 256   Logo.png --out resources/DocFinder.iconset/icon_256x256.png
+            sips -z 512 512   Logo.png --out resources/DocFinder.iconset/icon_256x256@2x.png
+            sips -z 512 512   Logo.png --out resources/DocFinder.iconset/icon_512x512.png
+            sips -z 1024 1024 Logo.png --out resources/DocFinder.iconset/icon_512x512@2x.png
+            iconutil -c icns resources/DocFinder.iconset -o resources/DocFinder.icns
+            rm -rf resources/DocFinder.iconset
+          fi
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller DocFinder.spec --clean --noconfirm
+
+      - name: Create DMG
+        run: |
+          create-dmg \
+            --volname "DocFinder" \
+            --volicon "resources/DocFinder.icns" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "DocFinder.app" 150 190 \
+            --hide-extension "DocFinder.app" \
+            --app-drop-link 450 190 \
+            --no-internet-enable \
+            "dist/DocFinder-macOS.dmg" \
+            "dist/DocFinder.app" || true
+          
+          # Fallback: create simple DMG if create-dmg fails
+          if [ ! -f "dist/DocFinder-macOS.dmg" ]; then
+            hdiutil create -volname "DocFinder" -srcfolder "dist/DocFinder.app" -ov -format UDZO "dist/DocFinder-macOS.dmg"
+          fi
+
+      - name: Upload macOS DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: DocFinder-macOS
+          path: dist/DocFinder-macOS.dmg
+
+  build-windows:
+    name: Build Windows App
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install '.[dev,gui]'
+
+      - name: Install NSIS
+        run: |
+          choco install nsis -y
+
+      - name: Convert Logo to ico
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path resources -Force
+          if (Test-Path "Logo.png") {
+            Add-Type -AssemblyName System.Drawing
+            $image = [System.Drawing.Image]::FromFile("$PWD\Logo.png")
+            $bitmap = New-Object System.Drawing.Bitmap(256, 256)
+            $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+            $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+            $graphics.DrawImage($image, 0, 0, 256, 256)
+            $graphics.Dispose()
+            $icon = [System.Drawing.Icon]::FromHandle($bitmap.GetHicon())
+            $fileStream = [System.IO.File]::Create("$PWD\resources\DocFinder.ico")
+            $icon.Save($fileStream)
+            $fileStream.Close()
+            $bitmap.Dispose()
+            $image.Dispose()
+          }
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller DocFinder.spec --clean --noconfirm
+
+      - name: Create NSIS installer script
+        shell: pwsh
+        run: |
+          $NsisContent = @"
+          !include "MUI2.nsh"
+          Name "DocFinder"
+          OutFile "DocFinder-Windows-Setup.exe"
+          InstallDir "`$PROGRAMFILES64\DocFinder"
+          RequestExecutionLevel admin
+          !define MUI_ICON "resources\DocFinder.ico"
+          !insertmacro MUI_PAGE_DIRECTORY
+          !insertmacro MUI_PAGE_INSTFILES
+          !insertmacro MUI_LANGUAGE "English"
+          Section "DocFinder"
+            SetOutPath "`$INSTDIR"
+            File /r "dist\DocFinder\*.*"
+            WriteUninstaller "`$INSTDIR\Uninstall.exe"
+            CreateDirectory "`$SMPROGRAMS\DocFinder"
+            CreateShortcut "`$SMPROGRAMS\DocFinder\DocFinder.lnk" "`$INSTDIR\DocFinder.exe"
+            CreateShortcut "`$DESKTOP\DocFinder.lnk" "`$INSTDIR\DocFinder.exe"
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\DocFinder" "DisplayName" "DocFinder"
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\DocFinder" "UninstallString" "`$INSTDIR\Uninstall.exe"
+          SectionEnd
+          Section "Uninstall"
+            RMDir /r "`$INSTDIR"
+            Delete "`$SMPROGRAMS\DocFinder\*.*"
+            RMDir "`$SMPROGRAMS\DocFinder"
+            Delete "`$DESKTOP\DocFinder.lnk"
+            DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\DocFinder"
+          SectionEnd
+          "@
+          $NsisContent | Out-File -FilePath "installer.nsi" -Encoding UTF8
+
+      - name: Build installer
+        run: |
+          makensis installer.nsi
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: DocFinder-Windows
+          path: DocFinder-Windows-Setup.exe
+
+  build-linux:
+    name: Build Linux App
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-0 \
+            libwebkit2gtk-4.0-37 \
+            libgirepository1.0-dev \
+            gir1.2-webkit2-4.0 \
+            fuse \
+            libfuse2
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install '.[dev,gui]'
+
+      - name: Download appimagetool
+        run: |
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller DocFinder.spec --clean --noconfirm
+
+      - name: Create AppImage
+        run: |
+          mkdir -p dist/DocFinder.AppDir/usr/bin
+          mkdir -p dist/DocFinder.AppDir/usr/share/applications
+          mkdir -p dist/DocFinder.AppDir/usr/share/icons/hicolor/256x256/apps
+          
+          # Copy built files
+          cp -r dist/DocFinder/* dist/DocFinder.AppDir/usr/bin/
+          
+          # Copy icon
+          if [ -f "Logo.png" ]; then
+            cp Logo.png dist/DocFinder.AppDir/docfinder.png
+            cp Logo.png dist/DocFinder.AppDir/usr/share/icons/hicolor/256x256/apps/docfinder.png
+          fi
+          
+          # Create AppRun
+          cat > dist/DocFinder.AppDir/AppRun << 'APPRUN'
+          #!/bin/bash
+          SELF=$(readlink -f "$0")
+          HERE=${SELF%/*}
+          export PATH="${HERE}/usr/bin:${PATH}"
+          export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+          exec "${HERE}/usr/bin/DocFinder" "$@"
+          APPRUN
+          chmod +x dist/DocFinder.AppDir/AppRun
+          
+          # Create .desktop file
+          cat > dist/DocFinder.AppDir/docfinder.desktop << 'DESKTOP'
+          [Desktop Entry]
+          Type=Application
+          Name=DocFinder
+          Comment=Local semantic search for PDF documents
+          Exec=DocFinder
+          Icon=docfinder
+          Categories=Office;Utility;
+          Terminal=false
+          DESKTOP
+          cp dist/DocFinder.AppDir/docfinder.desktop dist/DocFinder.AppDir/usr/share/applications/
+          
+          # Build AppImage
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage dist/DocFinder.AppDir dist/DocFinder-Linux-x86_64.AppImage
+
+      - name: Upload Linux AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: DocFinder-Linux
+          path: dist/DocFinder-Linux-x86_64.AppImage
+
+  release:
+    name: Upload Release Assets
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display structure
+        run: ls -la artifacts/
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/DocFinder-macOS/DocFinder-macOS.dmg
+            artifacts/DocFinder-Windows/DocFinder-Windows-Setup.exe
+            artifacts/DocFinder-Linux/DocFinder-Linux-x86_64.AppImage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
