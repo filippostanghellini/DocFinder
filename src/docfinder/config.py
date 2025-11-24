@@ -13,17 +13,17 @@ def _get_default_db_path() -> Path:
     """Get the default database path based on platform and execution context."""
     # User's Documents folder path (primary for frozen apps)
     user_db = Path.home() / "Documents" / "DocFinder" / "docfinder.db"
-    
+
     # When running as a frozen app (PyInstaller bundle)
     if getattr(sys, "frozen", False):
         # Use Documents folder for frozen apps
         return user_db
-    
+
     # When running from source, prefer local data/ if it exists
     local_db = Path("data/docfinder.db")
     if local_db.exists():
         return local_db
-    
+
     # Fall back to Documents folder for consistency
     return user_db
 
