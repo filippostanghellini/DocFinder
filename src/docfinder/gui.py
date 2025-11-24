@@ -100,8 +100,7 @@ def main() -> None:
         import webview
     except ImportError as exc:
         logger.error(
-            "pywebview is not installed. "
-            "Install the gui extras with: pip install 'docfinder[gui]'"
+            "pywebview is not installed. Install the gui extras with: pip install 'docfinder[gui]'"
         )
         raise SystemExit(1) from exc
 
