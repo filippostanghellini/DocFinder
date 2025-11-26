@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2025-11-26
+
+### Fixed
+- Fixed Linux desktop build failing due to disk space issues on CI runner
+- Excluded unnecessary CUDA/GPU libraries from PyInstaller bundle (reduces size ~2GB)
+- Optimized CI workflow with disk cleanup and CPU-only PyTorch for builds
+
+### Notes
+- GPU acceleration (NVIDIA CUDA, AMD ROCm, Apple Metal) still fully supported via system libraries at runtime
+
 ## [1.0.0] - 2025-11-24
 
 ### Added
@@ -112,7 +122,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed linting issues for consistent code style
 - Updated ruff configuration to use non-deprecated settings
 
-[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/filippostanghellini/DocFinder/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/filippostanghellini/DocFinder/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/filippostanghellini/DocFinder/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/filippostanghellini/DocFinder/releases/tag/v0.1.0
