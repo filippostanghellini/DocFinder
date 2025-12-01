@@ -77,7 +77,7 @@ jobs:
           fi
 
       - name: Upload macOS DMG
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: DocFinder-macOS
           path: dist/DocFinder-macOS.dmg
@@ -168,7 +168,7 @@ jobs:
           makensis installer.nsi
 
       - name: Upload Windows installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: DocFinder-Windows
           path: DocFinder-Windows-Setup.exe
@@ -271,7 +271,7 @@ jobs:
           ARCH=x86_64 ./appimagetool-x86_64.AppImage dist/DocFinder.AppDir dist/DocFinder-Linux-x86_64.AppImage
 
       - name: Upload Linux AppImage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: DocFinder-Linux
           path: dist/DocFinder-Linux-x86_64.AppImage
