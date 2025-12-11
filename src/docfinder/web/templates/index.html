@@ -1,224 +1,829 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DocFinder</title>
     <style>
       :root {
+        --primary: #2563eb;
+        --primary-hover: #1d4ed8;
+        --primary-light: rgba(37, 99, 235, 0.1);
+        --danger: #dc2626;
+        --danger-hover: #b91c1c;
+        --danger-light: rgba(220, 38, 38, 0.1);
+        --success: #16a34a;
+        --success-light: rgba(22, 163, 74, 0.1);
+        --warning: #d97706;
+        --bg: #f8fafc;
+        --bg-card: #ffffff;
+        --text: #1e293b;
+        --text-muted: #64748b;
+        --border: rgba(148, 163, 184, 0.3);
+        --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+        --radius: 12px;
+        --radius-sm: 8px;
         color-scheme: light dark;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
+      
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0f172a;
+          --bg-card: #1e293b;
+          --text: #f1f5f9;
+          --text-muted: #94a3b8;
+          --border: rgba(148, 163, 184, 0.2);
+          --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+          --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
         margin: 0;
-        padding: 0 1.5rem;
-        background: rgba(240, 240, 240, 0.85);
-        color: #1f2933;
+        padding: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        line-height: 1.6;
       }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 1.5rem;
+      }
+
       header {
+        background: var(--bg-card);
+        border-bottom: 1px solid var(--border);
+        padding: 1rem 0;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        box-shadow: var(--shadow);
+      }
+
+      .header-content {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 1.5rem 0 1rem;
+        gap: 1rem;
       }
+
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .logo-icon {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: var(--radius-sm);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 4px;
+      }
+
       h1 {
-        font-size: 1.6rem;
+        font-size: 1.5rem;
+        font-weight: 700;
         margin: 0;
+        background: linear-gradient(135deg, var(--primary), #7c3aed);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
       }
-      section {
+
+      .tabs {
+        display: flex;
+        gap: 0.5rem;
+        background: var(--bg);
+        padding: 0.25rem;
+        border-radius: var(--radius);
+      }
+
+      .tab {
+        padding: 0.5rem 1rem;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+        border-radius: var(--radius-sm);
+        font-weight: 500;
+        transition: all 0.2s;
+      }
+
+      .tab:hover {
+        color: var(--text);
+        background: var(--bg-card);
+      }
+
+      .tab.active {
+        background: var(--bg-card);
+        color: var(--primary);
+        box-shadow: var(--shadow);
+      }
+
+      main {
+        padding: 2rem 0;
+      }
+
+      .section {
+        display: none;
+      }
+
+      .section.active {
+        display: block;
+      }
+
+      .card {
+        background: var(--bg-card);
+        border-radius: var(--radius);
+        padding: 1.5rem;
+        box-shadow: var(--shadow);
+        border: 1px solid var(--border);
         margin-bottom: 1.5rem;
-        background: white;
-        border-radius: 0.75rem;
-        padding: 1.25rem;
-        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
-        border: 1px solid rgba(148, 163, 184, 0.18);
       }
-      section h2 {
-        margin: 0 0 0.75rem;
+
+      .card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+      }
+
+      .card-title {
         font-size: 1.1rem;
+        font-weight: 600;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
       }
-      form {
+
+      .card-title .icon {
+        font-size: 1.25rem;
+      }
+
+      .search-container {
+        position: relative;
+      }
+
+      .search-input {
+        width: 100%;
+        padding: 1rem 1.25rem 1rem 3rem;
+        border: 2px solid var(--border);
+        border-radius: var(--radius);
+        font-size: 1.1rem;
+        background: var(--bg-card);
+        color: var(--text);
+        transition: all 0.2s;
+      }
+
+      .search-input:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px var(--primary-light);
+      }
+
+      .search-icon {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 1.25rem;
+        color: var(--text-muted);
+      }
+
+      .search-btn {
+        position: absolute;
+        right: 0.5rem;
+        top: 50%;
+        transform: translateY(-50%);
+      }
+
+      .form-row {
         display: flex;
         gap: 0.75rem;
-        margin-bottom: 1rem;
         flex-wrap: wrap;
       }
-      input[type="text"] {
+
+      .form-input {
         flex: 1;
-        padding: 0.6rem 0.9rem;
-        border-radius: 0.5rem;
-        border: 1px solid rgba(15, 23, 42, 0.2);
+        min-width: 200px;
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
         font-size: 1rem;
+        background: var(--bg);
+        color: var(--text);
+        transition: all 0.2s;
       }
-      button {
-        padding: 0.6rem 1.1rem;
-        border-radius: 0.5rem;
+
+      .form-input:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px var(--primary-light);
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.25rem;
         border: none;
-        background: linear-gradient(135deg, #2563eb, #1d4ed8);
-        color: white;
-        cursor: pointer;
+        border-radius: var(--radius-sm);
+        font-size: 0.95rem;
         font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        white-space: nowrap;
       }
-      button:hover {
-        background: linear-gradient(135deg, #1d4ed8, #1e40af);
+
+      .btn-primary {
+        background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+        color: white;
       }
-      ul {
+
+      .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+      }
+
+      .btn-secondary {
+        background: transparent;
+        color: var(--primary);
+        border: 1px solid var(--primary);
+      }
+
+      .btn-secondary:hover {
+        background: var(--primary-light);
+      }
+
+      .btn-danger {
+        background: var(--danger);
+        color: white;
+      }
+
+      .btn-danger:hover {
+        background: var(--danger-hover);
+      }
+
+      .btn-ghost {
+        background: transparent;
+        color: var(--text-muted);
+        padding: 0.5rem;
+      }
+
+      .btn-ghost:hover {
+        color: var(--danger);
+        background: var(--danger-light);
+      }
+
+      .btn-sm {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.85rem;
+      }
+
+      .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none !important;
+      }
+
+      .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.85rem;
+        font-weight: 500;
+      }
+
+      .status-success {
+        background: var(--success-light);
+        color: var(--success);
+      }
+
+      .status-error {
+        background: var(--danger-light);
+        color: var(--danger);
+      }
+
+      .status-info {
+        background: var(--primary-light);
+        color: var(--primary);
+      }
+
+      .results-list {
         list-style: none;
         padding: 0;
+        margin: 0;
         display: flex;
         flex-direction: column;
         gap: 1rem;
       }
-      .card {
-        background: white;
-        border-radius: 0.75rem;
-        padding: 1rem 1.25rem;
-        box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
-        border: 1px solid rgba(148, 163, 184, 0.2);
+
+      .result-card {
+        background: var(--bg-card);
+        border-radius: var(--radius);
+        padding: 1.25rem;
+        box-shadow: var(--shadow);
+        border: 1px solid var(--border);
+        transition: all 0.2s;
       }
-      .path {
-        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-        font-size: 0.85rem;
-        color: #475569;
+
+      .result-card:hover {
+        box-shadow: var(--shadow-lg);
+        transform: translateY(-2px);
       }
-      .score {
+
+      .result-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 0.75rem;
+      }
+
+      .result-title {
+        font-size: 1.1rem;
         font-weight: 600;
-        color: #2563eb;
+        margin: 0;
+        color: var(--text);
       }
-      .actions {
-        margin-top: 0.75rem;
+
+      .result-score {
+        background: linear-gradient(135deg, var(--primary), #7c3aed);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .result-path {
+        font-family: "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", monospace;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-bottom: 0.75rem;
+        word-break: break-all;
+      }
+
+      .result-snippet {
+        font-size: 0.95rem;
+        color: var(--text);
+        line-height: 1.6;
+        background: var(--bg);
+        padding: 0.75rem 1rem;
+        border-radius: var(--radius-sm);
+        border-left: 3px solid var(--primary);
+      }
+
+      .result-actions {
         display: flex;
         gap: 0.5rem;
+        margin-top: 1rem;
       }
-      .secondary {
-        background: transparent;
-        color: #1d4ed8;
-        border: 1px solid rgba(37, 99, 235, 0.4);
+
+      .documents-table {
+        width: 100%;
+        border-collapse: collapse;
       }
-      .secondary:hover {
-        background: rgba(37, 99, 235, 0.1);
+
+      .documents-table th,
+      .documents-table td {
+        padding: 0.75rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
       }
-      .metadata {
+
+      .documents-table th {
+        font-weight: 600;
+        color: var(--text-muted);
         font-size: 0.85rem;
-        color: #6b7280;
-        margin-top: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
       }
-      .status {
-        font-size: 0.9rem;
-        color: #1f2933;
+
+      .documents-table tr:hover td {
+        background: var(--bg);
       }
-      .status.error {
-        color: #dc2626;
+
+      .doc-title {
+        font-weight: 500;
+        color: var(--text);
       }
-      .status.success {
-        color: #166534;
+
+      .doc-path {
+        font-family: monospace;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
-      .snippet {
-        margin-top: 0.75rem;
-        font-size: 0.95rem;
-        line-height: 1.4;
-        color: #1f2933;
+
+      .doc-meta {
+        font-size: 0.85rem;
+        color: var(--text-muted);
       }
-      @media (max-width: 600px) {
-        form {
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .stat-card {
+        background: var(--bg);
+        border-radius: var(--radius-sm);
+        padding: 1rem;
+        text-align: center;
+      }
+
+      .stat-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--primary);
+      }
+
+      .stat-label {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        margin-top: 0.25rem;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-muted);
+      }
+
+      .empty-state .icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+      }
+
+      .loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        padding: 2rem;
+        color: var(--text-muted);
+      }
+
+      .spinner {
+        width: 24px;
+        height: 24px;
+        border: 3px solid var(--border);
+        border-top-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+      .toast {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        padding: 1rem 1.5rem;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-lg);
+        z-index: 1000;
+        animation: slideIn 0.3s ease-out;
+      }
+
+      .toast.success {
+        background: var(--success);
+        color: white;
+      }
+
+      .toast.error {
+        background: var(--danger);
+        color: white;
+      }
+
+      @keyframes slideIn {
+        from {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.2s;
+      }
+
+      .modal-overlay.active {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      .modal {
+        background: var(--bg-card);
+        border-radius: var(--radius);
+        padding: 1.5rem;
+        max-width: 400px;
+        width: 90%;
+        box-shadow: var(--shadow-lg);
+        transform: scale(0.9);
+        transition: transform 0.2s;
+      }
+
+      .modal-overlay.active .modal {
+        transform: scale(1);
+      }
+
+      .modal-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 0 0 0.75rem;
+      }
+
+      .modal-text {
+        color: var(--text-muted);
+        margin-bottom: 1.5rem;
+      }
+
+      .modal-actions {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: flex-end;
+      }
+
+      .checkbox-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0;
+      }
+
+      .select-all-container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        background: var(--bg);
+        border-radius: var(--radius-sm);
+        margin-bottom: 1rem;
+      }
+
+      @media (max-width: 768px) {
+        .header-content {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .tabs {
+          justify-content: center;
+        }
+
+        .documents-table {
+          display: block;
+          overflow-x: auto;
+        }
+
+        .form-row {
           flex-direction: column;
         }
-        button {
-          width: 100%;
+
+        .result-header {
+          flex-direction: column;
+          gap: 0.5rem;
         }
       }
     </style>
   </head>
   <body>
     <header>
-      <h1>DocFinder</h1>
-      <button id="refresh" class="secondary" type="button">Clear results</button>
+      <div class="container header-content">
+        <div class="logo">
+          <div class="logo-icon">
+            <svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- Document -->
+              <path d="M20 15 L20 85 L70 85 L70 30 L55 15 Z" stroke="url(#docGradient)" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M55 15 L55 30 L70 30" stroke="url(#docGradient)" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              <!-- Lines -->
+              <line x1="30" y1="45" x2="50" y2="45" stroke="url(#docGradient)" stroke-width="5" stroke-linecap="round"/>
+              <line x1="30" y1="55" x2="45" y2="55" stroke="url(#docGradient)" stroke-width="5" stroke-linecap="round"/>
+              <line x1="30" y1="65" x2="40" y2="65" stroke="url(#docGradient)" stroke-width="5" stroke-linecap="round"/>
+              <!-- Magnifying glass -->
+              <circle cx="62" cy="55" r="18" stroke="url(#searchGradient)" stroke-width="5" fill="none"/>
+              <line x1="75" y1="68" x2="88" y2="82" stroke="url(#handleGradient)" stroke-width="6" stroke-linecap="round"/>
+              <!-- Gradients -->
+              <defs>
+                <linearGradient id="docGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:#4FD1C5"/>
+                  <stop offset="100%" style="stop-color:#2563eb"/>
+                </linearGradient>
+                <linearGradient id="searchGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:#2563eb"/>
+                  <stop offset="100%" style="stop-color:#7c3aed"/>
+                </linearGradient>
+                <linearGradient id="handleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:#7c3aed"/>
+                  <stop offset="100%" style="stop-color:#c026d3"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <h1>DocFinder</h1>
+        </div>
+        <div class="tabs">
+          <button class="tab active" data-tab="search">🔍 Search</button>
+          <button class="tab" data-tab="index">📁 Index</button>
+          <button class="tab" data-tab="documents">📚 Documents</button>
+        </div>
+      </div>
     </header>
-    <section>
-      <h2>Index folder or PDF</h2>
-      <form id="index-form">
-        <input
-          id="index-path"
-          type="text"
-          placeholder="Absolute path to a folder or PDF file"
-          required
-        />
-        <button type="submit">Index</button>
-      </form>
-      <div id="index-status" class="status" role="status" aria-live="polite"></div>
-    </section>
-    <form id="search-form">
-      <input id="query" type="text" placeholder="Search your documents..." required />
-      <button type="submit">Search</button>
-    </form>
-    <ul id="results"></ul>
+
+    <main class="container">
+      <!-- Search Section -->
+      <div id="search-section" class="section active">
+        <div class="card">
+          <form id="search-form" class="search-container">
+            <span class="search-icon">🔍</span>
+            <input
+              id="query"
+              type="text"
+              class="search-input"
+              placeholder="Search your documents..."
+              required
+            />
+            <button type="submit" class="btn btn-primary search-btn">Search</button>
+          </form>
+        </div>
+        <div id="results-container">
+          <ul id="results" class="results-list"></ul>
+        </div>
+      </div>
+
+      <!-- Index Section -->
+      <div id="index-section" class="section">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><span class="icon">📁</span> Index Documents</h2>
+          </div>
+          <form id="index-form" class="form-row">
+            <input
+              id="index-path"
+              type="text"
+              class="form-input"
+              placeholder="Absolute path to folder or PDF file..."
+              required
+            />
+            <button type="submit" class="btn btn-primary">
+              <span>📥</span> Index
+            </button>
+          </form>
+          <div id="index-status" style="margin-top: 1rem;"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><span class="icon">💡</span> Tips</h2>
+          </div>
+          <ul style="color: var(--text-muted); margin: 0; padding-left: 1.25rem;">
+            <li>Use absolute paths (e.g. <code>/Users/name/Documents</code>)</li>
+            <li>You can index entire folders or individual PDF files</li>
+            <li>Already indexed documents are automatically updated if modified</li>
+            <li>Unchanged files are skipped to speed up the process</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Documents Section -->
+      <div id="documents-section" class="section">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><span class="icon">📚</span> Indexed Documents</h2>
+            <div style="display: flex; gap: 0.5rem;">
+              <button id="cleanup-btn" class="btn btn-secondary btn-sm">
+                <span>🧹</span> Clean up missing
+              </button>
+              <button id="refresh-docs-btn" class="btn btn-secondary btn-sm">
+                <span>🔄</span> Refresh
+              </button>
+            </div>
+          </div>
+          
+          <div id="stats-container" class="stats-grid"></div>
+
+          <div id="bulk-actions" class="select-all-container" style="display: none;">
+            <label class="checkbox-row">
+              <input type="checkbox" id="select-all-checkbox" />
+              <span>Select all</span>
+            </label>
+            <button id="delete-selected-btn" class="btn btn-danger btn-sm" disabled>
+              <span>🗑️</span> Delete selected (<span id="selected-count">0</span>)
+            </button>
+          </div>
+
+          <div id="documents-container"></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-modal" class="modal-overlay">
+      <div class="modal">
+        <h3 class="modal-title">⚠️ Confirm deletion</h3>
+        <p class="modal-text" id="delete-modal-text">Are you sure you want to delete this document from the database?</p>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" id="cancel-delete">Cancel</button>
+          <button class="btn btn-danger" id="confirm-delete">Delete</button>
+        </div>
+      </div>
+    </div>
 
     <script>
-      const form = document.getElementById('search-form');
-      const queryInput = document.getElementById('query');
-      const resultsList = document.getElementById('results');
-      const refreshButton = document.getElementById('refresh');
-      const indexForm = document.getElementById('index-form');
-      const indexInput = document.getElementById('index-path');
-      const indexStatus = document.getElementById('index-status');
-
       const apiBase = window.location.origin;
 
-      function resetStatus(element) {
-        element.textContent = '';
-        element.classList.remove('error', 'success');
+      // Tab navigation
+      const tabs = document.querySelectorAll('.tab');
+      const sections = document.querySelectorAll('.section');
+
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          tabs.forEach(t => t.classList.remove('active'));
+          sections.forEach(s => s.classList.remove('active'));
+          
+          tab.classList.add('active');
+          document.getElementById(`${tab.dataset.tab}-section`).classList.add('active');
+          
+          // Load documents when switching to documents tab
+          if (tab.dataset.tab === 'documents') {
+            loadDocuments();
+          }
+        });
+      });
+
+      // Toast notifications
+      function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
       }
 
-      function renderStats(stats) {
-        const lines = [`Inserted: ${stats.inserted}`, `Updated: ${stats.updated}`, `Skipped: ${stats.skipped}`, `Failed: ${stats.failed}`];
-        if (Array.isArray(stats.processed_files) && stats.processed_files.length > 0) {
-          lines.push(`Processed files: ${stats.processed_files.length}`);
-        }
-        return lines.join(' · ');
+      // Format file size
+      function formatSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
       }
 
-      function renderResult(result) {
-        const li = document.createElement('li');
-        li.className = 'card';
-
-        const title = document.createElement('h2');
-        title.textContent = result.title || result.path.split('/').pop();
-        li.appendChild(title);
-
-        const path = document.createElement('div');
-        path.className = 'path';
-        path.textContent = result.path;
-        li.appendChild(path);
-
-        const score = document.createElement('div');
-        score.className = 'score';
-        score.textContent = `Score: ${result.score.toFixed(4)}`;
-        li.appendChild(score);
-
-        if (result.metadata && Object.keys(result.metadata).length > 0) {
-          const metadata = document.createElement('div');
-          metadata.className = 'metadata';
-          metadata.textContent = JSON.stringify(result.metadata);
-          li.appendChild(metadata);
-        }
-
-        const snippet = document.createElement('div');
-        snippet.className = 'snippet';
-        snippet.textContent = result.text || '(senza estratto)';
-        li.appendChild(snippet);
-
-        const actions = document.createElement('div');
-        actions.className = 'actions';
-
-        const openButton = document.createElement('button');
-  openButton.textContent = 'Open document';
-        openButton.type = 'button';
-        openButton.addEventListener('click', () => openDocument(result.path));
-        actions.appendChild(openButton);
-
-        li.appendChild(actions);
-        return li;
+      // Format date
+      function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-US', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
       }
+
+      // Search functionality
+      const searchForm = document.getElementById('search-form');
+      const queryInput = document.getElementById('query');
+      const resultsList = document.getElementById('results');
 
       async function performSearch(query) {
         const response = await fetch(`${apiBase}/search`, {
@@ -241,44 +846,73 @@
         });
         if (!response.ok) {
           const data = await response.json();
-          alert(data.detail || 'Unable to open the file');
+          showToast(data.detail || 'Unable to open file', 'error');
         }
       }
 
-      form.addEventListener('submit', async (event) => {
+      function renderResult(result) {
+        const li = document.createElement('li');
+        li.className = 'result-card';
+        li.innerHTML = `
+          <div class="result-header">
+            <h3 class="result-title">${result.title || result.path.split('/').pop()}</h3>
+            <span class="result-score">Score: ${result.score.toFixed(3)}</span>
+          </div>
+          <div class="result-path">📄 ${result.path}</div>
+          <div class="result-snippet">${result.text || '(no snippet available)'}</div>
+          <div class="result-actions">
+            <button class="btn btn-primary btn-sm" onclick="openDocument('${result.path.replace(/'/g, "\\'")}')">
+              <span>📂</span> Open document
+            </button>
+          </div>
+        `;
+        return li;
+      }
+
+      searchForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         const query = queryInput.value.trim();
         if (!query) return;
 
         try {
-          resultsList.innerHTML = '<li>Searching...</li>';
+          resultsList.innerHTML = '<div class="loading"><div class="spinner"></div><span>Searching...</span></div>';
           const data = await performSearch(query);
           resultsList.innerHTML = '';
+          
           if (data.results.length === 0) {
-            resultsList.innerHTML = '<li>No results.</li>';
+            resultsList.innerHTML = `
+              <div class="empty-state">
+                <div class="icon">🔍</div>
+                <p>No results found for "<strong>${query}</strong>"</p>
+              </div>
+            `;
             return;
           }
+          
           data.results.forEach((result) => {
             resultsList.appendChild(renderResult(result));
           });
         } catch (error) {
-          resultsList.innerHTML = `<li style="color: #dc2626;">${error.message}</li>`;
+          resultsList.innerHTML = `
+            <div class="empty-state">
+              <div class="icon">❌</div>
+              <p style="color: var(--danger);">${error.message}</p>
+            </div>
+          `;
         }
       });
 
-      refreshButton.addEventListener('click', () => {
-        resultsList.innerHTML = '';
-        queryInput.value = '';
-        queryInput.focus();
-      });
+      // Index functionality
+      const indexForm = document.getElementById('index-form');
+      const indexInput = document.getElementById('index-path');
+      const indexStatus = document.getElementById('index-status');
 
       indexForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         const targetPath = indexInput.value.trim();
         if (!targetPath) return;
 
-        resetStatus(indexStatus);
-  indexStatus.textContent = 'Indexing in progress...';
+        indexStatus.innerHTML = '<div class="loading"><div class="spinner"></div><span>Indexing in progress...</span></div>';
 
         try {
           const response = await fetch(`${apiBase}/index`, {
@@ -287,15 +921,252 @@
             body: JSON.stringify({ paths: [targetPath] }),
           });
           const data = await response.json();
+          
           if (!response.ok) {
             throw new Error(data.detail || 'Indexing failed');
           }
-          indexStatus.classList.add('success');
-          indexStatus.textContent = `Completed. ${renderStats(data.stats)}`;
+          
+          const stats = data.stats;
+          indexStatus.innerHTML = `
+            <div class="status-badge status-success">✅ Completed</div>
+            <div style="margin-top: 0.75rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+              <span class="doc-meta">📥 Inserted: ${stats.inserted}</span>
+              <span class="doc-meta">🔄 Updated: ${stats.updated}</span>
+              <span class="doc-meta">⏭️ Skipped: ${stats.skipped}</span>
+              <span class="doc-meta">❌ Failed: ${stats.failed}</span>
+            </div>
+          `;
           indexInput.value = '';
+          showToast('Indexing completed successfully!');
         } catch (error) {
-          indexStatus.classList.add('error');
-          indexStatus.textContent = error.message;
+          indexStatus.innerHTML = `<div class="status-badge status-error">❌ ${error.message}</div>`;
+          showToast(error.message, 'error');
+        }
+      });
+
+      // Documents management
+      const documentsContainer = document.getElementById('documents-container');
+      const statsContainer = document.getElementById('stats-container');
+      const bulkActions = document.getElementById('bulk-actions');
+      const selectAllCheckbox = document.getElementById('select-all-checkbox');
+      const deleteSelectedBtn = document.getElementById('delete-selected-btn');
+      const selectedCountSpan = document.getElementById('selected-count');
+      
+      let selectedDocIds = new Set();
+
+      async function loadDocuments() {
+        documentsContainer.innerHTML = '<div class="loading"><div class="spinner"></div><span>Loading documents...</span></div>';
+        
+        try {
+          const response = await fetch(`${apiBase}/documents`);
+          const data = await response.json();
+          
+          // Render stats
+          statsContainer.innerHTML = `
+            <div class="stat-card">
+              <div class="stat-value">${data.stats.document_count}</div>
+              <div class="stat-label">Documents</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">${data.stats.chunk_count}</div>
+              <div class="stat-label">Chunks</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">${formatSize(data.stats.total_size_bytes)}</div>
+              <div class="stat-label">Total Size</div>
+            </div>
+          `;
+          
+          if (data.documents.length === 0) {
+            bulkActions.style.display = 'none';
+            documentsContainer.innerHTML = `
+              <div class="empty-state">
+                <div class="icon">📭</div>
+                <p>No indexed documents</p>
+                <p style="font-size: 0.9rem;">Go to the "Index" section to add documents</p>
+              </div>
+            `;
+            return;
+          }
+          
+          bulkActions.style.display = 'flex';
+          selectedDocIds.clear();
+          updateSelectedCount();
+          
+          documentsContainer.innerHTML = `
+            <div style="overflow-x: auto;">
+              <table class="documents-table">
+                <thead>
+                  <tr>
+                    <th style="width: 40px;"></th>
+                    <th>Title</th>
+                    <th>Path</th>
+                    <th>Size</th>
+                    <th>Chunks</th>
+                    <th>Updated</th>
+                    <th style="width: 80px;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${data.documents.map(doc => `
+                    <tr data-id="${doc.id}">
+                      <td>
+                        <input type="checkbox" class="doc-checkbox" data-id="${doc.id}" />
+                      </td>
+                      <td class="doc-title">${doc.title || '-'}</td>
+                      <td class="doc-path" title="${doc.path}">${doc.path}</td>
+                      <td class="doc-meta">${formatSize(doc.size)}</td>
+                      <td class="doc-meta">${doc.chunk_count}</td>
+                      <td class="doc-meta">${formatDate(doc.updated_at)}</td>
+                      <td>
+                        <button class="btn btn-ghost btn-sm delete-doc-btn" data-id="${doc.id}" data-title="${doc.title || doc.path}" title="Delete">
+                          🗑️
+                        </button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+          
+          // Add event listeners for checkboxes
+          document.querySelectorAll('.doc-checkbox').forEach(cb => {
+            cb.addEventListener('change', (e) => {
+              const id = parseInt(e.target.dataset.id);
+              if (e.target.checked) {
+                selectedDocIds.add(id);
+              } else {
+                selectedDocIds.delete(id);
+              }
+              updateSelectedCount();
+            });
+          });
+          
+          // Add event listeners for delete buttons
+          document.querySelectorAll('.delete-doc-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+              showDeleteModal([parseInt(btn.dataset.id)], btn.dataset.title);
+            });
+          });
+          
+        } catch (error) {
+          documentsContainer.innerHTML = `
+            <div class="empty-state">
+              <div class="icon">❌</div>
+              <p style="color: var(--danger);">${error.message}</p>
+            </div>
+          `;
+        }
+      }
+
+      function updateSelectedCount() {
+        selectedCountSpan.textContent = selectedDocIds.size;
+        deleteSelectedBtn.disabled = selectedDocIds.size === 0;
+        
+        const checkboxes = document.querySelectorAll('.doc-checkbox');
+        selectAllCheckbox.checked = checkboxes.length > 0 && selectedDocIds.size === checkboxes.length;
+        selectAllCheckbox.indeterminate = selectedDocIds.size > 0 && selectedDocIds.size < checkboxes.length;
+      }
+
+      selectAllCheckbox.addEventListener('change', () => {
+        const checkboxes = document.querySelectorAll('.doc-checkbox');
+        checkboxes.forEach(cb => {
+          cb.checked = selectAllCheckbox.checked;
+          const id = parseInt(cb.dataset.id);
+          if (selectAllCheckbox.checked) {
+            selectedDocIds.add(id);
+          } else {
+            selectedDocIds.delete(id);
+          }
+        });
+        updateSelectedCount();
+      });
+
+      deleteSelectedBtn.addEventListener('click', () => {
+        showDeleteModal(Array.from(selectedDocIds));
+      });
+
+      // Delete modal
+      const deleteModal = document.getElementById('delete-modal');
+      const deleteModalText = document.getElementById('delete-modal-text');
+      const cancelDeleteBtn = document.getElementById('cancel-delete');
+      const confirmDeleteBtn = document.getElementById('confirm-delete');
+      
+      let pendingDeleteIds = [];
+
+      function showDeleteModal(ids, title = null) {
+        pendingDeleteIds = ids;
+        if (ids.length === 1 && title) {
+          deleteModalText.textContent = `Are you sure you want to delete "${title}" from the database?`;
+        } else {
+          deleteModalText.textContent = `Are you sure you want to delete ${ids.length} document${ids.length > 1 ? 's' : ''} from the database?`;
+        }
+        deleteModal.classList.add('active');
+      }
+
+      cancelDeleteBtn.addEventListener('click', () => {
+        deleteModal.classList.remove('active');
+        pendingDeleteIds = [];
+      });
+
+      confirmDeleteBtn.addEventListener('click', async () => {
+        deleteModal.classList.remove('active');
+        
+        try {
+          for (const id of pendingDeleteIds) {
+            const response = await fetch(`${apiBase}/documents/${id}`, {
+              method: 'DELETE'
+            });
+            if (!response.ok) {
+              const data = await response.json();
+              throw new Error(data.detail || 'Deletion failed');
+            }
+          }
+          
+          showToast(`${pendingDeleteIds.length} document${pendingDeleteIds.length > 1 ? 's' : ''} deleted successfully`);
+          pendingDeleteIds = [];
+          loadDocuments();
+        } catch (error) {
+          showToast(error.message, 'error');
+        }
+      });
+
+      // Cleanup button
+      document.getElementById('cleanup-btn').addEventListener('click', async () => {
+        try {
+          const response = await fetch(`${apiBase}/documents/cleanup`, {
+            method: 'DELETE'
+          });
+          const data = await response.json();
+          
+          if (data.removed_count > 0) {
+            showToast(`${data.removed_count} document${data.removed_count > 1 ? 's' : ''} removed (files no longer exist)`);
+            loadDocuments();
+          } else {
+            showToast('No documents to remove');
+          }
+        } catch (error) {
+          showToast(error.message, 'error');
+        }
+      });
+
+      // Refresh button
+      document.getElementById('refresh-docs-btn').addEventListener('click', loadDocuments);
+
+      // Close modal on overlay click
+      deleteModal.addEventListener('click', (e) => {
+        if (e.target === deleteModal) {
+          deleteModal.classList.remove('active');
+          pendingDeleteIds = [];
+        }
+      });
+
+      // Close modal on Escape key
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && deleteModal.classList.contains('active')) {
+          deleteModal.classList.remove('active');
+          pendingDeleteIds = [];
         }
       });
     </script>

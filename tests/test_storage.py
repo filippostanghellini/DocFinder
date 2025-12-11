@@ -435,3 +435,177 @@ class TestRemoveMissingFiles:
         # Verify chunks removed
         cursor = temp_db.connection.execute("SELECT COUNT(*) FROM chunks")
         assert cursor.fetchone()[0] == 0
+
+
+class TestListDocuments:
+    """Test list_documents method."""
+
+    def test_list_empty(self, temp_db):
+        """Test listing when no documents exist."""
+        docs = temp_db.list_documents()
+        assert docs == []
+
+    def test_list_single_document(self, temp_db):
+        """Test listing a single document."""
+        doc = DocumentMetadata(
+            path=Path("/tmp/test.pdf"),
+            title="Test Document",
+            sha256="abc123",
+            mtime=1234567890.0,
+            size=1000,
+        )
+        chunks = [
+            ChunkRecord(document_path=doc.path, index=0, text="Chunk", metadata={}),
+        ]
+        embeddings = np.random.rand(1, 384).astype("float32")
+        temp_db.upsert_document(doc, chunks, embeddings)
+
+        docs = temp_db.list_documents()
+
+        assert len(docs) == 1
+        assert docs[0]["path"] == str(doc.path)
+        assert docs[0]["title"] == "Test Document"
+        assert docs[0]["chunk_count"] == 1
+
+    def test_list_multiple_documents(self, temp_db):
+        """Test listing multiple documents."""
+        for i in range(3):
+            doc = DocumentMetadata(
+                path=Path(f"/tmp/test{i}.pdf"),
+                title=f"Doc {i}",
+                sha256=f"hash{i}",
+                mtime=1234567890.0 + i,
+                size=1000 + i * 100,
+            )
+            chunks = [
+                ChunkRecord(document_path=doc.path, index=0, text="Chunk", metadata={}),
+            ]
+            embeddings = np.random.rand(1, 384).astype("float32")
+            temp_db.upsert_document(doc, chunks, embeddings)
+
+        docs = temp_db.list_documents()
+
+        assert len(docs) == 3
+
+
+class TestDeleteDocument:
+    """Test delete_document and delete_document_by_path methods."""
+
+    def test_delete_by_id(self, temp_db):
+        """Test deleting a document by ID."""
+        doc = DocumentMetadata(
+            path=Path("/tmp/test.pdf"),
+            title="Test",
+            sha256="abc123",
+            mtime=1234567890.0,
+            size=1000,
+        )
+        chunks = [
+            ChunkRecord(document_path=doc.path, index=0, text="Chunk", metadata={}),
+        ]
+        embeddings = np.random.rand(1, 384).astype("float32")
+        temp_db.upsert_document(doc, chunks, embeddings)
+
+        # Get the document ID
+        docs = temp_db.list_documents()
+        doc_id = docs[0]["id"]
+
+        # Delete
+        result = temp_db.delete_document(doc_id)
+
+        assert result is True
+        assert temp_db.list_documents() == []
+
+    def test_delete_nonexistent_id(self, temp_db):
+        """Test deleting a document with nonexistent ID."""
+        result = temp_db.delete_document(9999)
+        assert result is False
+
+    def test_delete_by_path(self, temp_db):
+        """Test deleting a document by path."""
+        doc = DocumentMetadata(
+            path=Path("/tmp/test.pdf"),
+            title="Test",
+            sha256="abc123",
+            mtime=1234567890.0,
+            size=1000,
+        )
+        chunks = [
+            ChunkRecord(document_path=doc.path, index=0, text="Chunk", metadata={}),
+        ]
+        embeddings = np.random.rand(1, 384).astype("float32")
+        temp_db.upsert_document(doc, chunks, embeddings)
+
+        # Delete by path
+        result = temp_db.delete_document_by_path(str(doc.path))
+
+        assert result is True
+        assert temp_db.list_documents() == []
+
+    def test_delete_by_path_nonexistent(self, temp_db):
+        """Test deleting a document with nonexistent path."""
+        result = temp_db.delete_document_by_path("/nonexistent/path.pdf")
+        assert result is False
+
+    def test_delete_removes_chunks(self, temp_db):
+        """Test that deleting document also removes its chunks."""
+        doc = DocumentMetadata(
+            path=Path("/tmp/test.pdf"),
+            title="Test",
+            sha256="abc123",
+            mtime=1234567890.0,
+            size=1000,
+        )
+        chunks = [
+            ChunkRecord(document_path=doc.path, index=0, text="Chunk 1", metadata={}),
+            ChunkRecord(document_path=doc.path, index=1, text="Chunk 2", metadata={}),
+        ]
+        embeddings = np.random.rand(2, 384).astype("float32")
+        temp_db.upsert_document(doc, chunks, embeddings)
+
+        # Verify chunks exist
+        cursor = temp_db.connection.execute("SELECT COUNT(*) FROM chunks")
+        assert cursor.fetchone()[0] == 2
+
+        # Get doc ID and delete
+        docs = temp_db.list_documents()
+        temp_db.delete_document(docs[0]["id"])
+
+        # Verify chunks removed
+        cursor = temp_db.connection.execute("SELECT COUNT(*) FROM chunks")
+        assert cursor.fetchone()[0] == 0
+
+
+class TestGetStats:
+    """Test get_stats method."""
+
+    def test_stats_empty(self, temp_db):
+        """Test stats for empty database."""
+        stats = temp_db.get_stats()
+
+        assert stats["document_count"] == 0
+        assert stats["chunk_count"] == 0
+        assert stats["total_size_bytes"] == 0
+
+    def test_stats_with_documents(self, temp_db):
+        """Test stats with documents."""
+        for i in range(3):
+            doc = DocumentMetadata(
+                path=Path(f"/tmp/test{i}.pdf"),
+                title=f"Doc {i}",
+                sha256=f"hash{i}",
+                mtime=1234567890.0,
+                size=1000 + i * 100,  # 1000, 1100, 1200
+            )
+            chunks = [
+                ChunkRecord(document_path=doc.path, index=0, text="Chunk 1", metadata={}),
+                ChunkRecord(document_path=doc.path, index=1, text="Chunk 2", metadata={}),
+            ]
+            embeddings = np.random.rand(2, 384).astype("float32")
+            temp_db.upsert_document(doc, chunks, embeddings)
+
+        stats = temp_db.get_stats()
+
+        assert stats["document_count"] == 3
+        assert stats["chunk_count"] == 6  # 2 chunks per document
+        assert stats["total_size_bytes"] == 3300  # 1000 + 1100 + 1200

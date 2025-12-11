@@ -12,17 +12,18 @@ from docfinder.models import ChunkRecord
 class TestIterTextParts:
     """Test iter_text_parts function."""
 
-    @patch("docfinder.ingestion.pdf_loader.PdfReader")
-    def test_iter_text_parts_simple(self, mock_reader_class: MagicMock, tmp_path: Path) -> None:
+    @patch("docfinder.ingestion.pdf_loader.fitz")
+    def test_iter_text_parts_simple(self, mock_fitz: MagicMock, tmp_path: Path) -> None:
         """Should extract text from PDF page by page."""
         # Setup mock
         mock_page = MagicMock()
-        mock_page.extract_text.return_value = "Page 1 text"
+        mock_page.get_text.return_value = "Page 1 text"
 
-        mock_reader = MagicMock()
-        mock_reader.pages = [mock_page]
+        mock_doc = MagicMock()
+        mock_doc.__len__ = MagicMock(return_value=1)
+        mock_doc.__getitem__ = MagicMock(return_value=mock_page)
 
-        mock_reader_class.return_value = mock_reader
+        mock_fitz.open.return_value = mock_doc
 
         # Test
         pdf_path = tmp_path / "test.pdf"
@@ -33,23 +34,26 @@ class TestIterTextParts:
         assert len(parts) == 1
         assert "Page 1 text" in parts[0]
 
-    @patch("docfinder.ingestion.pdf_loader.PdfReader")
+    @patch("docfinder.ingestion.pdf_loader.fitz")
     def test_iter_text_parts_multiple_pages(
-        self, mock_reader_class: MagicMock, tmp_path: Path
+        self, mock_fitz: MagicMock, tmp_path: Path
     ) -> None:
         """Should extract text from multiple pages."""
-        # Setup mock
+        # Setup mock pages
         mock_page1 = MagicMock()
-        mock_page1.extract_text.return_value = "Page 1"
+        mock_page1.get_text.return_value = "Page 1"
         mock_page2 = MagicMock()
-        mock_page2.extract_text.return_value = "Page 2"
+        mock_page2.get_text.return_value = "Page 2"
         mock_page3 = MagicMock()
-        mock_page3.extract_text.return_value = "Page 3"
+        mock_page3.get_text.return_value = "Page 3"
+        
+        pages = [mock_page1, mock_page2, mock_page3]
 
-        mock_reader = MagicMock()
-        mock_reader.pages = [mock_page1, mock_page2, mock_page3]
+        mock_doc = MagicMock()
+        mock_doc.__len__ = MagicMock(return_value=3)
+        mock_doc.__getitem__ = MagicMock(side_effect=lambda i: pages[i])
 
-        mock_reader_class.return_value = mock_reader
+        mock_fitz.open.return_value = mock_doc
 
         pdf_path = tmp_path / "multi.pdf"
         pdf_path.write_bytes(b"dummy")
@@ -61,25 +65,28 @@ class TestIterTextParts:
         assert "Page 2" in parts[1]
         assert "Page 3" in parts[2]
 
-    @patch("docfinder.ingestion.pdf_loader.PdfReader")
+    @patch("docfinder.ingestion.pdf_loader.fitz")
     @patch("docfinder.ingestion.pdf_loader.LOGGER")
     def test_iter_text_parts_page_error(
-        self, mock_logger: MagicMock, mock_reader_class: MagicMock, tmp_path: Path
+        self, mock_logger: MagicMock, mock_fitz: MagicMock, tmp_path: Path
     ) -> None:
         """Should log warning and continue on page extraction error."""
         mock_page1 = MagicMock()
-        mock_page1.extract_text.return_value = "Page 1"
+        mock_page1.get_text.return_value = "Page 1"
 
         mock_page2 = MagicMock()
-        mock_page2.extract_text.side_effect = Exception("Extraction failed")
+        mock_page2.get_text.side_effect = Exception("Extraction failed")
 
         mock_page3 = MagicMock()
-        mock_page3.extract_text.return_value = "Page 3"
+        mock_page3.get_text.return_value = "Page 3"
 
-        mock_reader = MagicMock()
-        mock_reader.pages = [mock_page1, mock_page2, mock_page3]
+        pages = [mock_page1, mock_page2, mock_page3]
 
-        mock_reader_class.return_value = mock_reader
+        mock_doc = MagicMock()
+        mock_doc.__len__ = MagicMock(return_value=3)
+        mock_doc.__getitem__ = MagicMock(side_effect=lambda i: pages[i])
+
+        mock_fitz.open.return_value = mock_doc
 
         pdf_path = tmp_path / "error.pdf"
         pdf_path.write_bytes(b"dummy")
@@ -93,19 +100,34 @@ class TestIterTextParts:
         # Should have logged warning
         assert mock_logger.warning.called
 
+    @patch("docfinder.ingestion.pdf_loader.fitz")
+    @patch("docfinder.ingestion.pdf_loader.LOGGER")
+    def test_iter_text_parts_open_error(
+        self, mock_logger: MagicMock, mock_fitz: MagicMock, tmp_path: Path
+    ) -> None:
+        """Should log error and return empty on file open failure."""
+        mock_fitz.open.side_effect = Exception("Cannot open file")
+
+        pdf_path = tmp_path / "broken.pdf"
+        pdf_path.write_bytes(b"dummy")
+
+        parts = list(iter_text_parts(pdf_path))
+
+        assert len(parts) == 0
+        assert mock_logger.error.called
+
 
 class TestGetPdfMetadata:
     """Test get_pdf_metadata function."""
 
-    @patch("docfinder.ingestion.pdf_loader.PdfReader")
-    def test_get_metadata_simple(self, mock_reader_class: MagicMock, tmp_path: Path) -> None:
+    @patch("docfinder.ingestion.pdf_loader.fitz")
+    def test_get_metadata_simple(self, mock_fitz: MagicMock, tmp_path: Path) -> None:
         """Should extract metadata from PDF."""
-        mock_reader = MagicMock()
-        mock_reader.pages = [MagicMock()]
-        mock_reader.metadata = MagicMock()
-        mock_reader.metadata.title = "Test PDF"
+        mock_doc = MagicMock()
+        mock_doc.__len__ = MagicMock(return_value=1)
+        mock_doc.metadata = {"title": "Test PDF"}
 
-        mock_reader_class.return_value = mock_reader
+        mock_fitz.open.return_value = mock_doc
 
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_bytes(b"dummy")
@@ -115,14 +137,14 @@ class TestGetPdfMetadata:
         assert metadata["title"] == "Test PDF"
         assert metadata["page_count"] == "1"
 
-    @patch("docfinder.ingestion.pdf_loader.PdfReader")
-    def test_get_metadata_none(self, mock_reader_class: MagicMock, tmp_path: Path) -> None:
+    @patch("docfinder.ingestion.pdf_loader.fitz")
+    def test_get_metadata_none(self, mock_fitz: MagicMock, tmp_path: Path) -> None:
         """Should handle PDF without metadata."""
-        mock_reader = MagicMock()
-        mock_reader.pages = [MagicMock()]
-        mock_reader.metadata = None
+        mock_doc = MagicMock()
+        mock_doc.__len__ = MagicMock(return_value=1)
+        mock_doc.metadata = None
 
-        mock_reader_class.return_value = mock_reader
+        mock_fitz.open.return_value = mock_doc
 
         pdf_path = tmp_path / "no_meta.pdf"
         pdf_path.write_bytes(b"dummy")
@@ -131,6 +153,23 @@ class TestGetPdfMetadata:
 
         assert metadata["title"] == "no_meta"
         assert metadata["page_count"] == "1"
+
+    @patch("docfinder.ingestion.pdf_loader.fitz")
+    def test_get_metadata_empty_title(self, mock_fitz: MagicMock, tmp_path: Path) -> None:
+        """Should use filename when title is empty."""
+        mock_doc = MagicMock()
+        mock_doc.__len__ = MagicMock(return_value=5)
+        mock_doc.metadata = {"title": ""}
+
+        mock_fitz.open.return_value = mock_doc
+
+        pdf_path = tmp_path / "empty_title.pdf"
+        pdf_path.write_bytes(b"dummy")
+
+        metadata = get_pdf_metadata(pdf_path)
+
+        assert metadata["title"] == "empty_title"
+        assert metadata["page_count"] == "5"
 
 
 class TestBuildChunks:

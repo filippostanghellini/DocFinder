@@ -2,7 +2,7 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/filippostanghellini/DocFinder/ci.yml?branch=main&label=CI&logo=github)](https://github.com/filippostanghellini/DocFinder/actions/workflows/ci.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/filippostanghellini/DocFinder/codeql.yml?branch=main&label=CodeQL&logo=github)](https://github.com/filippostanghellini/DocFinder/actions/workflows/codeql.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Stars](https://img.shields.io/github/stars/filippostanghellini/DocFinder?style=social)](https://github.com/filippostanghellini/DocFinder/stargazers)
@@ -187,7 +187,16 @@ docfinder-gui
 
 This opens a native window with the web interface embedded.
 
-![DocFinder web interface](DocFinder.png)
+### Screenshots
+
+**Search**
+![Search](images/search.png)
+
+**Index Documents**
+![Index Documents](images/index-documents.png)
+
+**Database**
+![Database](images/database-documents.png)
 
 To index through the UI:
 
@@ -203,3 +212,9 @@ Search results list the file path, similarity score, and an excerpt from the mat
 - `src/docfinder/index`: SQLite vector storage and search.
 - `src/docfinder/utils`: hashing, chunking, and file helpers.
 - `tests`: automated checks.
+
+## License
+
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+
+> **Note**: DocFinder was originally released under the MIT License. Starting from version 0.2.0, the license has been changed to AGPL-3.0 to comply with the licensing requirements of [PyMuPDF](https://pymupdf.readthedocs.io/), which is distributed under AGPL-3.0. This ensures full license compatibility and keeps DocFinder and its ecosystem fully open source.

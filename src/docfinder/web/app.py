@@ -43,6 +43,11 @@ class OpenRequest(BaseModel):
     path: Path
 
 
+class DeleteDocumentRequest(BaseModel):
+    doc_id: int | None = None
+    path: str | None = None
+
+
 class IndexPayload(BaseModel):
     paths: List[str]
     db: str | None = None
@@ -105,6 +110,87 @@ async def open_document(payload: OpenRequest) -> dict[str, str]:
         LOGGER.error("Unable to open %s: %s", path, exc)
         raise HTTPException(status_code=500, detail=str(exc))
     return {"status": "ok"}
+
+
+@app.get("/documents")
+async def list_documents(db: Path | None = None) -> dict[str, Any]:
+    """List all indexed documents in the database."""
+    resolved_db = _resolve_db_path(db)
+    if not resolved_db.exists():
+        return {"documents": [], "stats": {"document_count": 0, "chunk_count": 0, "total_size_bytes": 0}}
+
+    embedder = EmbeddingModel(EmbeddingConfig(model_name=AppConfig().model_name))
+    store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
+    try:
+        documents = store.list_documents()
+        stats = store.get_stats()
+    finally:
+        store.close()
+    
+    return {"documents": documents, "stats": stats}
+
+
+@app.delete("/documents/{doc_id}")
+async def delete_document_by_id(doc_id: int, db: Path | None = None) -> dict[str, Any]:
+    """Delete a document by its ID."""
+    resolved_db = _resolve_db_path(db)
+    if not resolved_db.exists():
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    embedder = EmbeddingModel(EmbeddingConfig(model_name=AppConfig().model_name))
+    store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
+    try:
+        deleted = store.delete_document(doc_id)
+    finally:
+        store.close()
+    
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Document with ID {doc_id} not found")
+    
+    return {"status": "ok", "deleted_id": doc_id}
+
+
+@app.post("/documents/delete")
+async def delete_document(payload: DeleteDocumentRequest, db: Path | None = None) -> dict[str, Any]:
+    """Delete a document by ID or path."""
+    if payload.doc_id is None and payload.path is None:
+        raise HTTPException(status_code=400, detail="Either doc_id or path must be provided")
+
+    resolved_db = _resolve_db_path(db)
+    if not resolved_db.exists():
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    embedder = EmbeddingModel(EmbeddingConfig(model_name=AppConfig().model_name))
+    store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
+    try:
+        if payload.doc_id is not None:
+            deleted = store.delete_document(payload.doc_id)
+        else:
+            deleted = store.delete_document_by_path(payload.path)  # type: ignore
+    finally:
+        store.close()
+    
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    return {"status": "ok"}
+
+
+@app.delete("/documents/cleanup")
+async def cleanup_missing_files(db: Path | None = None) -> dict[str, Any]:
+    """Remove documents whose files no longer exist on disk."""
+    resolved_db = _resolve_db_path(db)
+    if not resolved_db.exists():
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    embedder = EmbeddingModel(EmbeddingConfig(model_name=AppConfig().model_name))
+    store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
+    try:
+        removed_count = store.remove_missing_files()
+    finally:
+        store.close()
+    
+    return {"status": "ok", "removed_count": removed_count}
 
 
 def _run_index_job(paths: List[Path], config: AppConfig, resolved_db: Path) -> dict[str, Any]:
