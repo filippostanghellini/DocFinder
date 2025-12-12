@@ -227,4 +227,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
 
-> **Note**: DocFinder was originally released under the MIT License. Starting from version 0.2.0, the license was changed to AGPL-3.0 to comply with [PyMuPDF](https://pymupdf.readthedocs.io/) licensing requirements.
+> **Note**: DocFinder was originally released under the MIT License. Starting from version 1.1.1, the license was changed to AGPL-3.0 to comply with [PyMuPDF](https://pymupdf.readthedocs.io/) licensing requirements.
