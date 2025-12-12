@@ -35,9 +35,7 @@ class TestIterTextParts:
         assert "Page 1 text" in parts[0]
 
     @patch("docfinder.ingestion.pdf_loader.fitz")
-    def test_iter_text_parts_multiple_pages(
-        self, mock_fitz: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_iter_text_parts_multiple_pages(self, mock_fitz: MagicMock, tmp_path: Path) -> None:
         """Should extract text from multiple pages."""
         # Setup mock pages
         mock_page1 = MagicMock()

@@ -264,9 +264,7 @@ class SQLiteVectorStore:
         Returns True if document was found and deleted, False otherwise.
         """
         with self.transaction() as conn:
-            existing = conn.execute(
-                "SELECT id FROM documents WHERE id = ?", (doc_id,)
-            ).fetchone()
+            existing = conn.execute("SELECT id FROM documents WHERE id = ?", (doc_id,)).fetchone()
 
             if not existing:
                 return False
@@ -281,9 +279,7 @@ class SQLiteVectorStore:
         Returns True if document was found and deleted, False otherwise.
         """
         with self.transaction() as conn:
-            existing = conn.execute(
-                "SELECT id FROM documents WHERE path = ?", (path,)
-            ).fetchone()
+            existing = conn.execute("SELECT id FROM documents WHERE path = ?", (path,)).fetchone()
 
             if not existing:
                 return False
@@ -297,9 +293,9 @@ class SQLiteVectorStore:
         """Get database statistics."""
         doc_count = self._conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
         chunk_count = self._conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
-        total_size = self._conn.execute(
-            "SELECT COALESCE(SUM(size), 0) FROM documents"
-        ).fetchone()[0]
+        total_size = self._conn.execute("SELECT COALESCE(SUM(size), 0) FROM documents").fetchone()[
+            0
+        ]
 
         return {
             "document_count": doc_count,

@@ -119,7 +119,7 @@ async def list_documents(db: Path | None = None) -> dict[str, Any]:
     if not resolved_db.exists():
         return {
             "documents": [],
-            "stats": {"document_count": 0, "chunk_count": 0, "total_size_bytes": 0}
+            "stats": {"document_count": 0, "chunk_count": 0, "total_size_bytes": 0},
         }
 
     embedder = EmbeddingModel(EmbeddingConfig(model_name=AppConfig().model_name))
