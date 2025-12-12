@@ -146,7 +146,7 @@ Section "DocFinder" SecMain
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\DocFinder" "UninstallString" "`$INSTDIR\Uninstall.exe"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\DocFinder" "DisplayIcon" "`$INSTDIR\DocFinder.exe"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\DocFinder" "Publisher" "DocFinder Team"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\DocFinder" "DisplayVersion" "0.1.0"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\DocFinder" "DisplayVersion" "1.1.1"
     WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\DocFinder" "NoModify" 1
     WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\DocFinder" "NoRepair" 1
 SectionEnd

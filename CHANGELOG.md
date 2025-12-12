@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2025-12-12
+
+### Added
+- **Improved User Interface**: Enhanced web UI with better design and user experience
+
+### Changed
+- **License changed from MIT to AGPL-3.0** to comply with PyMuPDF licensing requirements
+- **Switched PDF parsing from pypdf to PyMuPDF** for faster and more reliable text extraction and chunking
+
 ## [1.0.1] - 2025-11-26
 
 ### Fixed

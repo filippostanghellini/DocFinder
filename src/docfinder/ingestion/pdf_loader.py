@@ -1,4 +1,8 @@
-"""PDF loading and chunking utilities."""
+"""PDF loading and chunking utilities.
+
+Uses PyMuPDF (fitz) for fast PDF text extraction.
+PyMuPDF is typically 2-10x faster than pypdf for text extraction.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Iterable, Iterator
 
-from pypdf import PdfReader
+import fitz  # PyMuPDF
 
 from docfinder.models import ChunkRecord
 from docfinder.utils.text import normalize_whitespace
@@ -15,28 +19,45 @@ LOGGER = logging.getLogger(__name__)
 
 
 def iter_text_parts(path: Path) -> Iterator[str]:
-    """Yield text content from a PDF file page by page."""
-    reader = PdfReader(path)
-    for index, page in enumerate(reader.pages):
-        try:
-            text = page.extract_text() or ""
-            # Normalize whitespace per page to keep it consistent with previous behavior
-            # but without loading everything.
-            # We add a newline to separate pages.
-            normalized = normalize_whitespace([text])
-            if normalized:
-                yield normalized + "\n"
-        except Exception as exc:  # pragma: no cover - defensive path
-            LOGGER.warning("Failed to read page %s in %s: %s", index, path, exc)
+    """Yield text content from a PDF file page by page.
+
+    Uses PyMuPDF for faster text extraction compared to pypdf.
+    """
+    try:
+        doc = fitz.open(path)
+    except Exception as exc:
+        LOGGER.error("Failed to open PDF %s: %s", path, exc)
+        return
+
+    try:
+        for index in range(len(doc)):
+            try:
+                page = doc[index]
+                text = page.get_text() or ""
+                # Normalize whitespace per page to keep it consistent with previous behavior
+                # We add a newline to separate pages.
+                normalized = normalize_whitespace([text])
+                if normalized:
+                    yield normalized + "\n"
+            except Exception as exc:  # pragma: no cover - defensive path
+                LOGGER.warning("Failed to read page %s in %s: %s", index, path, exc)
+    finally:
+        doc.close()
 
 
 def get_pdf_metadata(path: Path) -> Dict[str, str]:
-    """Extract metadata from a PDF file."""
-    reader = PdfReader(path)
-    return {
-        "title": reader.metadata.title if reader.metadata and reader.metadata.title else path.stem,
-        "page_count": str(len(reader.pages)),
-    }
+    """Extract metadata from a PDF file using PyMuPDF."""
+    doc = fitz.open(path)
+    try:
+        metadata = doc.metadata or {}
+        title = metadata.get("title") or path.stem
+        page_count = len(doc)
+        return {
+            "title": title,
+            "page_count": str(page_count),
+        }
+    finally:
+        doc.close()
 
 
 def build_chunks(path: Path, *, max_chars: int = 1200, overlap: int = 200) -> Iterable[ChunkRecord]:

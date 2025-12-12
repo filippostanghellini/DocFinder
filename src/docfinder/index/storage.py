@@ -221,3 +221,84 @@ class SQLiteVectorStore:
                 conn.execute("DELETE FROM chunks WHERE document_id = ?", (row["id"],))
                 conn.execute("DELETE FROM documents WHERE id = ?", (row["id"],))
         return len(missing)
+
+    def list_documents(self) -> List[dict]:
+        """List all indexed documents with their metadata."""
+        rows = self._conn.execute(
+            """
+            SELECT
+                d.id,
+                d.path,
+                d.title,
+                d.sha256,
+                d.mtime,
+                d.size,
+                d.created_at,
+                d.updated_at,
+                COUNT(c.id) as chunk_count
+            FROM documents d
+            LEFT JOIN chunks c ON c.document_id = d.id
+            GROUP BY d.id
+            ORDER BY d.updated_at DESC
+            """
+        ).fetchall()
+
+        return [
+            {
+                "id": row["id"],
+                "path": row["path"],
+                "title": row["title"],
+                "sha256": row["sha256"],
+                "mtime": row["mtime"],
+                "size": row["size"],
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+                "chunk_count": row["chunk_count"],
+            }
+            for row in rows
+        ]
+
+    def delete_document(self, doc_id: int) -> bool:
+        """Delete a document and its chunks by ID.
+
+        Returns True if document was found and deleted, False otherwise.
+        """
+        with self.transaction() as conn:
+            existing = conn.execute("SELECT id FROM documents WHERE id = ?", (doc_id,)).fetchone()
+
+            if not existing:
+                return False
+
+            conn.execute("DELETE FROM chunks WHERE document_id = ?", (doc_id,))
+            conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
+            return True
+
+    def delete_document_by_path(self, path: str) -> bool:
+        """Delete a document and its chunks by file path.
+
+        Returns True if document was found and deleted, False otherwise.
+        """
+        with self.transaction() as conn:
+            existing = conn.execute("SELECT id FROM documents WHERE path = ?", (path,)).fetchone()
+
+            if not existing:
+                return False
+
+            doc_id = existing["id"]
+            conn.execute("DELETE FROM chunks WHERE document_id = ?", (doc_id,))
+            conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
+            return True
+
+    def get_stats(self) -> dict:
+        """Get database statistics."""
+        doc_count = self._conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+        chunk_count = self._conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+        total_size = self._conn.execute("SELECT COALESCE(SUM(size), 0) FROM documents").fetchone()[
+            0
+        ]
+
+        return {
+            "document_count": doc_count,
+            "chunk_count": chunk_count,
+            "total_size_bytes": total_size,
+        }

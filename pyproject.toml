@@ -4,7 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "docfinder"
-version = "0.1.0"
+version = "1.1.1"
+license = "AGPL-3.0-or-later"
 description = "Local-first semantic search CLI for PDF documents."
 authors = [
   { name = "DocFinder Team" }
@@ -12,7 +13,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "pypdf>=4.2.0",
+  "pymupdf>=1.24.0",
   "sentence-transformers>=2.6.0",
   "onnxruntime>=1.17.0",
   "optimum>=2.0.0",

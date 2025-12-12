@@ -2,204 +2,229 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/filippostanghellini/DocFinder/ci.yml?branch=main&label=CI&logo=github)](https://github.com/filippostanghellini/DocFinder/actions/workflows/ci.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/filippostanghellini/DocFinder/codeql.yml?branch=main&label=CodeQL&logo=github)](https://github.com/filippostanghellini/DocFinder/actions/workflows/codeql.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Stars](https://img.shields.io/github/stars/filippostanghellini/DocFinder?style=social)](https://github.com/filippostanghellini/DocFinder/stargazers)
 [![Release](https://img.shields.io/github/v/release/filippostanghellini/DocFinder?logo=github)](https://github.com/filippostanghellini/DocFinder/releases)
 [![Downloads](https://img.shields.io/github/downloads/filippostanghellini/DocFinder/total?logo=github)](https://github.com/filippostanghellini/DocFinder/releases)
 
-![Logo](Logo.png)
+<p align="center">
+  <img src="Logo.png" alt="DocFinder Logo" width="200">
+</p>
 
-DocFinder is a local-first CLI for indexing and searching PDF documents using semantic embeddings stored in SQLite. Everything runs on your machine—no external services required.
+<p align="center">
+  <strong>🔍 Local-first semantic search for your PDF documents</strong>
+</p>
 
-## Features
-- Extracts text from PDFs with configurable chunking powered by `pypdf`.
-- Generates local embeddings via `sentence-transformers` and `onnxruntime`.
-- Performs top-k semantic search backed by SQLite BLOB storage and cosine similarity.
-- Ships with an optional FastAPI web interface that lets you trigger indexing and open PDFs with one click.
-- **Auto-detects hardware** (Apple Silicon, NVIDIA GPU, AMD GPU, CPU) and optimizes performance automatically.
+<p align="center">
+  Index and search your PDFs using AI powered semantic embeddings.<br>
+  Everything runs locally on your machine no cloud, no external services, complete privacy.
+</p>
 
-## Requirements
-- Python 3.10 or newer.
-- macOS, Linux, or Windows (tested on Apple Silicon).
-- No native SQLite extensions needed—vector data is stored as plain BLOBs.
+---
 
-## Desktop App Installation
+## ✨ Features
 
-Download the latest release for your operating system from [GitHub Releases](https://github.com/filippostanghellini/DocFinder/releases):
+- **100% Local**: Your documents never leave your machine
+- **Fast Semantic Search**: Find documents by meaning, not just keywords
+- **Cross-Platform**: Native apps for macOS, Windows, and Linux
+- **GPU Accelerated**: Auto-detects Apple Silicon, NVIDIA, or AMD GPUs
+- **PDF Optimized**: Powered by PyMuPDF for reliable text extraction
+- **Web Interface**: UI for indexing and searching
 
-| Platform | Download | Notes |
-|----------|----------|-------|
-| **macOS** | `DocFinder-macOS.dmg` | Drag to Applications folder |
-| **Windows** | `DocFinder-Windows-Setup.exe` | Run the installer |
-| **Linux** | `DocFinder-Linux-x86_64.AppImage` | Make executable and run |
+---
 
-### macOS Installation
+## 🚀 Quick Start
+
+### 1. Install
+
+Download the app for your platform from [**GitHub Releases**](https://github.com/filippostanghellini/DocFinder/releases):
+
+| Platform | Download | 
+|----------|----------|
+| **macOS** | [DocFinder-macOS.dmg](https://github.com/filippostanghellini/DocFinder/releases/latest) |
+| **Windows** | [DocFinder-Windows-Setup.exe](https://github.com/filippostanghellini/DocFinder/releases/latest) |
+| **Linux** | [DocFinder-Linux-x86_64.AppImage](https://github.com/filippostanghellini/DocFinder/releases/latest) |
+
+### 2. Index Your Documents
+
+1. Open DocFinder
+2. Enter the path to your PDF folder (e.g., `~/Documents/Papers`)
+3. Click **Index** and wait for completion
+
+### 3. Search
+
+Type a natural language query like:
+- *"contract about property sale"*
+- *"machine learning introduction"*
+- *"invoice from December 2024"*
+
+DocFinder finds relevant documents by **meaning**, not just exact keywords.
+
+---
+
+## 📸 Screenshots
+
+<details>
+<summary>Click to expand</summary>
+
+**Search**
+![Search](images/search.png)
+
+**Index Documents**
+![Index Documents](images/index-documents.png)
+
+**Database**
+![Database](images/database-documents.png)
+
+</details>
+
+---
+
+## 💻 System Requirements
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| **RAM** | 4 GB | 8 GB+ |
+| **Disk Space** | 500 MB | 1 GB+ |
+| **macOS** | 11.0 (Big Sur) | 13.0+ (Ventura) |
+| **Windows** | 10 | 11 |
+| **Linux** | Ubuntu 20.04+ | Ubuntu 22.04+ |
+
+### GPU Support (Optional)
+
+DocFinder **automatically detects** your hardware and uses the best available option:
+
+| Hardware | Support | Notes |
+|----------|---------|-------|
+| **Apple Silicon** (M1/M2/M3/M4) | ✅ Automatic | Uses Metal Performance Shaders |
+| **NVIDIA GPU** | ✅ With `[gpu]` extra | Requires CUDA drivers |
+| **AMD GPU** | ✅ Automatic | Uses ROCm on Linux |
+| **CPU** | ✅ Always works | Fallback option |
+
+---
+
+## 📦 Installation
+
+### Desktop App (Recommended)
+
+#### macOS
 
 1. Download `DocFinder-macOS.dmg`
-2. Open the DMG file
-3. Drag **DocFinder** to the **Applications** folder
-4. **First launch**: Right-click (or Control-click) on DocFinder and select **Open**
-5. Click **Open** in the dialog to bypass Gatekeeper
+2. Open the DMG and drag **DocFinder** to **Applications**
+3. **First launch**: Right-click → **Open** → Click **Open** again
 
-> ⚠️ **Security Note**: Since DocFinder is not signed with an Apple Developer ID, macOS will show a warning on first launch. This is normal for open-source software. The "Open" option appears only when you right-click the app.
+> ⚠️ macOS shows a warning because the app isn't signed with an Apple Developer ID. This is normal for open-source software.
 
-### Windows Installation
+#### Windows
 
 1. Download `DocFinder-Windows-Setup.exe`
 2. Run the installer
-3. **SmartScreen warning**: Click **More info** → **Run anyway**
-4. Follow the installation wizard
-5. Launch from Start Menu or Desktop shortcut
+3. If SmartScreen warns you: Click **More info** → **Run anyway**
 
-> ⚠️ **Security Note**: Windows SmartScreen may warn about an unrecognized app. This is expected for unsigned software. Click "More info" to reveal the "Run anyway" button.
-
-### Linux Installation
+#### Linux
 
 ```bash
-# Download the AppImage
 wget https://github.com/filippostanghellini/DocFinder/releases/latest/download/DocFinder-Linux-x86_64.AppImage
-
-# Make it executable
 chmod +x DocFinder-Linux-x86_64.AppImage
-
-# Run
 ./DocFinder-Linux-x86_64.AppImage
 ```
 
-> **Tip**: You can integrate the AppImage with your desktop environment using [AppImageLauncher](https://github.com/TheAssassin/AppImageLauncher).
+---
 
-## Installation (Python Package)
+### Python Package
+
+For developers or advanced users:
 
 ```bash
+# Create virtual environment
 python -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install DocFinder
 pip install .
+
+# With GPU support (NVIDIA)
+pip install '.[gpu]'
+
+# With all extras (development + web + GUI)
+pip install '.[dev,web,gui]'
 ```
 
-## Build from Source
+---
 
-If you clone this repository and want to build the desktop app yourself:
+## 🔧 Usage
 
-### Quick Start (Development)
+### Desktop App
+
+Just launch **DocFinder** from your Applications folder, Start Menu, or run the AppImage.
+
+### Command Line
+
+```bash
+# Index a folder of PDFs
+docfinder index ~/Documents/PDFs
+
+# Search your documents
+docfinder search "quarterly financial report"
+
+# Launch web interface
+docfinder web
+
+# Launch desktop GUI (from source)
+docfinder-gui
+```
+
+### Where is my data stored?
+
+| Mode | Database Location |
+|------|-------------------|
+| Desktop App | `~/Documents/DocFinder/docfinder.db` |
+| Development | `data/docfinder.db` |
+
+---
+
+## 🛠️ Build from Source
 
 ```bash
 # Clone the repository
 git clone https://github.com/filippostanghellini/DocFinder.git
 cd DocFinder
 
-# Create virtual environment and install dependencies
+# Install dependencies
 make install-gui
 
-# Run the desktop GUI
+# Run the GUI
 docfinder-gui
-```
 
-### Build the Desktop App
-
-```bash
-# macOS - creates DocFinder.app in dist/
+# Build native app (macOS)
 make build-macos
-
-# Windows (PowerShell)
-.\scripts\build-windows.ps1
-
-# Linux
-./scripts/build-linux.sh
 ```
-
-The built app will be in the `dist/` folder.
-
-### Data Storage
-
-- **Desktop App**: Database stored in `~/Documents/DocFinder/docfinder.db`
-- **Development**: Database stored in `data/docfinder.db` (project folder)
 
 ---
 
-For **NVIDIA GPU acceleration** (Linux/Windows):
+## 📁 Project Structure
 
-```bash
-pip install '.[gpu]'
+```
+src/docfinder/
+├── ingestion/    # PDF parsing and text chunking
+├── embedding/    # AI model wrappers (sentence-transformers, ONNX)
+├── index/        # SQLite vector storage and search
+├── utils/        # File handling and text utilities
+└── web/          # FastAPI web interface
 ```
 
-Development extras:
+---
 
-```bash
-pip install '.[dev]'
-```
+## 🤝 Contributing
 
-Web interface extras:
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-```bash
-pip install '.[web]'
-```
+---
 
-All extras combined:
+## 📄 License
 
-```bash
-pip install '.[dev,web,gpu]'
-```
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
 
-Desktop GUI extras (for running the native window interface from source):
-
-```bash
-pip install '.[gui]'
-```
-
-> **Note**: DocFinder automatically detects your hardware (Apple Silicon, NVIDIA GPU, AMD GPU, or CPU) and uses the optimal backend. GPU support on NVIDIA requires the `gpu` extra above.
-
-## Usage
-
-### Desktop App
-
-If you installed the desktop app, simply launch **DocFinder** from your Applications folder (macOS), Start Menu (Windows), or run the AppImage (Linux). The app opens a native window with the full web interface.
-
-### Command Line
-
-#### Index a folder
-
-```bash
-docfinder index ~/Documents --db data/docfinder.db
-```
-
-#### Run a semantic search
-
-```bash
-docfinder search "contract of sale" --db data/docfinder.db --top-k 10
-```
-
-#### Launch the web interface
-
-```bash
-docfinder web --db data/docfinder.db --host 127.0.0.1 --port 8000
-```
-
-Open `http://127.0.0.1:8000` in your browser to search and open PDFs.
-
-#### Launch the desktop GUI (from source)
-
-```bash
-docfinder-gui
-```
-
-This opens a native window with the web interface embedded.
-
-![DocFinder web interface](DocFinder.png)
-
-To index through the UI:
-
-1. Start the server with the command above.
-2. Enter the absolute path of the folder (or single PDF) in the **Index** panel.
-3. Click **Index** and wait for the completion summary.
-
-Search results list the file path, similarity score, and an excerpt from the matching chunk.
-
-## Project structure
-- `src/docfinder/ingestion`: PDF parsing and chunking.
-- `src/docfinder/embedding`: embedding model wrappers.
-- `src/docfinder/index`: SQLite vector storage and search.
-- `src/docfinder/utils`: hashing, chunking, and file helpers.
-- `tests`: automated checks.
+> **Note**: DocFinder was originally released under the MIT License. Starting from version 0.2.0, the license was changed to AGPL-3.0 to comply with [PyMuPDF](https://pymupdf.readthedocs.io/) licensing requirements.

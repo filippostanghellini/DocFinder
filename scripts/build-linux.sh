@@ -123,7 +123,7 @@ cat > "$APPDIR/usr/share/metainfo/com.docfinder.app.metainfo.xml" << EOF
   <launchable type="desktop-id">docfinder.desktop</launchable>
   <content_rating type="oars-1.1"/>
   <releases>
-    <release version="0.1.0" date="2025-11-08"/>
+    <release version="1.1.1" date="2025-12-12"/>
   </releases>
 </component>
 EOF
