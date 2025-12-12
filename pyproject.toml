@@ -4,7 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "docfinder"
-version = "0.1.0"
+version = "1.1.1"
+license = "AGPL-3.0-or-later"
 description = "Local-first semantic search CLI for PDF documents."
 authors = [
   { name = "DocFinder Team" }

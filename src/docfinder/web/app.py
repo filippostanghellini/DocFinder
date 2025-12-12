@@ -23,7 +23,7 @@ from docfinder.web.frontend import router as frontend_router
 
 LOGGER = logging.getLogger(__name__)
 
-app = FastAPI(title="DocFinder Web", version="0.1.0")
+app = FastAPI(title="DocFinder Web", version="1.1.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
