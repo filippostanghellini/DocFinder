@@ -20,7 +20,7 @@ LOGGER = logging.getLogger(__name__)
 
 def iter_text_parts(path: Path) -> Iterator[str]:
     """Yield text content from a PDF file page by page.
-    
+
     Uses PyMuPDF for faster text extraction compared to pypdf.
     """
     try:
@@ -28,7 +28,7 @@ def iter_text_parts(path: Path) -> Iterator[str]:
     except Exception as exc:
         LOGGER.error("Failed to open PDF %s: %s", path, exc)
         return
-    
+
     try:
         for index in range(len(doc)):
             try:

@@ -46,7 +46,7 @@ class TestIterTextParts:
         mock_page2.get_text.return_value = "Page 2"
         mock_page3 = MagicMock()
         mock_page3.get_text.return_value = "Page 3"
-        
+
         pages = [mock_page1, mock_page2, mock_page3]
 
         mock_doc = MagicMock()

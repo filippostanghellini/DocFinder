@@ -260,34 +260,34 @@ class SQLiteVectorStore:
 
     def delete_document(self, doc_id: int) -> bool:
         """Delete a document and its chunks by ID.
-        
+
         Returns True if document was found and deleted, False otherwise.
         """
         with self.transaction() as conn:
             existing = conn.execute(
                 "SELECT id FROM documents WHERE id = ?", (doc_id,)
             ).fetchone()
-            
+
             if not existing:
                 return False
-            
+
             conn.execute("DELETE FROM chunks WHERE document_id = ?", (doc_id,))
             conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
             return True
 
     def delete_document_by_path(self, path: str) -> bool:
         """Delete a document and its chunks by file path.
-        
+
         Returns True if document was found and deleted, False otherwise.
         """
         with self.transaction() as conn:
             existing = conn.execute(
                 "SELECT id FROM documents WHERE path = ?", (path,)
             ).fetchone()
-            
+
             if not existing:
                 return False
-            
+
             doc_id = existing["id"]
             conn.execute("DELETE FROM chunks WHERE document_id = ?", (doc_id,))
             conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
@@ -300,7 +300,7 @@ class SQLiteVectorStore:
         total_size = self._conn.execute(
             "SELECT COALESCE(SUM(size), 0) FROM documents"
         ).fetchone()[0]
-        
+
         return {
             "document_count": doc_count,
             "chunk_count": chunk_count,

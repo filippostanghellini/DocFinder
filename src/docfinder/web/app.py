@@ -117,7 +117,10 @@ async def list_documents(db: Path | None = None) -> dict[str, Any]:
     """List all indexed documents in the database."""
     resolved_db = _resolve_db_path(db)
     if not resolved_db.exists():
-        return {"documents": [], "stats": {"document_count": 0, "chunk_count": 0, "total_size_bytes": 0}}
+        return {
+            "documents": [],
+            "stats": {"document_count": 0, "chunk_count": 0, "total_size_bytes": 0}
+        }
 
     embedder = EmbeddingModel(EmbeddingConfig(model_name=AppConfig().model_name))
     store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
@@ -126,7 +129,7 @@ async def list_documents(db: Path | None = None) -> dict[str, Any]:
         stats = store.get_stats()
     finally:
         store.close()
-    
+
     return {"documents": documents, "stats": stats}
 
 
@@ -143,10 +146,10 @@ async def delete_document_by_id(doc_id: int, db: Path | None = None) -> dict[str
         deleted = store.delete_document(doc_id)
     finally:
         store.close()
-    
+
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Document with ID {doc_id} not found")
-    
+
     return {"status": "ok", "deleted_id": doc_id}
 
 
@@ -169,10 +172,10 @@ async def delete_document(payload: DeleteDocumentRequest, db: Path | None = None
             deleted = store.delete_document_by_path(payload.path)  # type: ignore
     finally:
         store.close()
-    
+
     if not deleted:
         raise HTTPException(status_code=404, detail="Document not found")
-    
+
     return {"status": "ok"}
 
 
@@ -189,7 +192,7 @@ async def cleanup_missing_files(db: Path | None = None) -> dict[str, Any]:
         removed_count = store.remove_missing_files()
     finally:
         store.close()
-    
+
     return {"status": "ok", "removed_count": removed_count}
 
 
