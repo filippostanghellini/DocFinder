@@ -53,9 +53,7 @@ class TestSearchEndpoint:
     def test_search_database_not_found(self, tmp_path: Path) -> None:
         """Returns 404 when database doesn't exist."""
         db_path = tmp_path / "nonexistent.db"
-        response = client.post(
-            "/search", json={"query": "test", "db": str(db_path), "top_k": 10}
-        )
+        response = client.post("/search", json={"query": "test", "db": str(db_path), "top_k": 10})
         assert response.status_code == 404
         assert "Database not found" in response.json()["detail"]
 
@@ -96,9 +94,7 @@ class TestSearchEndpoint:
         mock_searcher.search.return_value = [real_result]
         mock_searcher_class.return_value = mock_searcher
 
-        response = client.post(
-            "/search", json={"query": "test", "db": str(db_path), "top_k": 10}
-        )
+        response = client.post("/search", json={"query": "test", "db": str(db_path), "top_k": 10})
         assert response.status_code == 200
         assert "results" in response.json()
 
@@ -128,9 +124,7 @@ class TestSearchEndpoint:
         mock_searcher_class.return_value = mock_searcher
 
         # Test with top_k > 50
-        response = client.post(
-            "/search", json={"query": "test", "db": str(db_path), "top_k": 100}
-        )
+        response = client.post("/search", json={"query": "test", "db": str(db_path), "top_k": 100})
         assert response.status_code == 200
         mock_searcher.search.assert_called_with("test", top_k=50)
 
@@ -145,9 +139,7 @@ class TestOpenEndpoint:
         assert "File not found" in response.json()["detail"]
 
     @patch("subprocess.Popen")
-    def test_open_file_success_posix(
-        self, mock_popen: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_open_file_success_posix(self, mock_popen: MagicMock, tmp_path: Path) -> None:
         """Opens file on POSIX systems."""
         test_file = tmp_path / "test.pdf"
         test_file.touch()
@@ -188,9 +180,7 @@ class TestDocumentsEndpoint:
         mock_embedder_class.return_value = mock_embedder
 
         mock_store = MagicMock()
-        mock_store.list_documents.return_value = [
-            {"id": 1, "path": "/doc.pdf", "title": "Test"}
-        ]
+        mock_store.list_documents.return_value = [{"id": 1, "path": "/doc.pdf", "title": "Test"}]
         mock_store.get_stats.return_value = {
             "document_count": 1,
             "chunk_count": 5,
@@ -293,9 +283,7 @@ class TestDeleteDocumentByPathEndpoint:
         mock_store.delete_document_by_path.return_value = True
         mock_store_class.return_value = mock_store
 
-        response = client.post(
-            f"/documents/delete?db={db_path}", json={"path": "/path/to/doc.pdf"}
-        )
+        response = client.post(f"/documents/delete?db={db_path}", json={"path": "/path/to/doc.pdf"})
         assert response.status_code == 200
         assert response.json()["status"] == "ok"
 
