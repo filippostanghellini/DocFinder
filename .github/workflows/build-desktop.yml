@@ -148,7 +148,7 @@ jobs:
           fi
 
       - name: Upload macOS DMG
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: DocFinder-macOS
           path: dist/DocFinder-macOS.dmg
@@ -303,7 +303,7 @@ jobs:
           }
 
       - name: Upload Windows installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: DocFinder-Windows
           path: DocFinder-Windows-Setup.exe
@@ -443,7 +443,7 @@ jobs:
           rm -rf squashfs-root
 
       - name: Upload Linux AppImage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: DocFinder-Linux
           path: dist/DocFinder-Linux-x86_64.AppImage
