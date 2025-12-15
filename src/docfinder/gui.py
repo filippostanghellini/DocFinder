@@ -207,7 +207,8 @@ def main() -> None:
 
         # Create and start the webview window
         # Note: pywebview doesn't support setting window icon on all platforms
-        # macOS uses the app bundle icon, Windows/Linux can use the icon parameter
+        # macOS uses the app bundle icon, Windows can use the icon parameter
+        # Linux pywebview doesn't support icon parameter
         window_kwargs: dict = {
             "title": "DocFinder",
             "url": url,
@@ -218,8 +219,8 @@ def main() -> None:
             "text_select": True,
         }
 
-        # Add icon on platforms that support it (not macOS - uses app bundle)
-        if icon_path and sys.platform != "darwin":
+        # Add icon only on Windows (macOS uses app bundle, Linux doesn't support it)
+        if icon_path and sys.platform == "win32":
             window_kwargs["icon"] = icon_path
 
         window = webview.create_window(**window_kwargs)
