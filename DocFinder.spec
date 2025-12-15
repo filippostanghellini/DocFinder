@@ -252,7 +252,7 @@ if sys.platform == "darwin":
             "CFBundleName": "DocFinder",
             "CFBundleDisplayName": "DocFinder",
             "CFBundleVersion": "1.1.1",
-            "CFBundleShortVersionString": "1.1.1",
+            "CFBundleShortVersionString": "1.1.2",
             "CFBundleIdentifier": "com.docfinder.app",
             "CFBundlePackageType": "APPL",
             "CFBundleSignature": "DCFN",

@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-from docfinder.web.app import app, _resolve_db_path, _ensure_db_parent
-
+from docfinder.web.app import _ensure_db_parent, _resolve_db_path, app
 
 client = TestClient(app)
 

@@ -6,11 +6,9 @@ import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from typer.testing import CliRunner
 
-from docfinder.cli import app, _setup_logging, _ensure_db_parent
-
+from docfinder.cli import _ensure_db_parent, _setup_logging, app
 
 runner = CliRunner()
 
