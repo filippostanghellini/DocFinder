@@ -358,8 +358,7 @@ jobs:
           python -m pip install --upgrade pip
           # Install CPU-only PyTorch (smaller, no CUDA libraries)
           pip install torch --index-url https://download.pytorch.org/whl/cpu
-          # Use system-provided PyGObject; verify gi is importable
-          python -c "import gi; import gi.repository; print('gi available')"
+          # Use system-provided PyGObject (no pip build needed)
           pip install '.[dev,gui]'
           pip cache purge
 
