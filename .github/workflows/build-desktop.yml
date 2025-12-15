@@ -410,8 +410,8 @@ jobs:
           DESKTOP
           cp dist/DocFinder.AppDir/docfinder.desktop dist/DocFinder.AppDir/usr/share/applications/
           
-          # Build AppImage
-          ARCH=x86_64 ./appimagetool-x86_64.AppImage dist/DocFinder.AppDir dist/DocFinder-Linux-x86_64.AppImage
+          # Build AppImage (use APPIMAGE_EXTRACT_AND_RUN to avoid FUSE requirement)
+          ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool-x86_64.AppImage dist/DocFinder.AppDir dist/DocFinder-Linux-x86_64.AppImage
 
       - name: Smoke test - Verify app structure
         run: |
