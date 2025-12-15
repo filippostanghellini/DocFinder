@@ -99,8 +99,18 @@ hiddenimports = [
     "starlette.routing",
     "starlette.middleware",
     "pydantic",
-    # GUI
+    # GUI - pywebview and its platform backends
     "webview",
+    "webview.platforms",
+    "webview.platforms.gtk",
+    # GTK/GObject for Linux (pywebview backend)
+    "gi",
+    "gi.repository",
+    "gi.repository.Gtk",
+    "gi.repository.Gdk",
+    "gi.repository.GLib",
+    "gi.repository.GObject",
+    "gi.repository.WebKit2",
     # PDF processing
     "pypdf",
     # Rich console
@@ -151,6 +161,16 @@ hiddenimports += collect_submodules("uvicorn")
 hiddenimports += collect_submodules("fastapi")
 hiddenimports += collect_submodules("starlette")
 hiddenimports += collect_submodules("torch")
+
+# Linux: collect GTK/gi for pywebview
+if sys.platform.startswith("linux"):
+    try:
+        hiddenimports += collect_submodules("gi")
+        gi_datas, gi_binaries, gi_hiddenimports = collect_all("gi")
+        datas += gi_datas
+        hiddenimports += gi_hiddenimports
+    except Exception:
+        pass  # gi may not be available on all systems
 
 # Platform-specific configurations
 if sys.platform == "darwin":
