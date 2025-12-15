@@ -357,8 +357,13 @@ jobs:
           python -m pip install --upgrade pip
           # Install CPU-only PyTorch (smaller, no CUDA libraries)
           pip install torch --index-url https://download.pytorch.org/whl/cpu
-          # Install PyGObject for pywebview GTK backend
-          pip install pycairo PyGObject
+          # Link system PyGObject to Python environment (PyGObject doesn't compile on Ubuntu 22.04)
+          PYTHON_SITE=$(python -c "import site; print(site.getsitepackages()[0])")
+          sudo ln -sf /usr/lib/python3/dist-packages/gi "$PYTHON_SITE/gi"
+          sudo ln -sf /usr/lib/python3/dist-packages/cairo "$PYTHON_SITE/cairo" || true
+          sudo ln -sf /usr/lib/python3/dist-packages/pygtkcompat "$PYTHON_SITE/pygtkcompat" || true
+          # Verify gi is importable
+          python -c "import gi; print('gi version:', gi.__version__)"
           pip install '.[dev,gui]'
           pip cache purge
 
