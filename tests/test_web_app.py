@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -138,6 +139,7 @@ class TestOpenEndpoint:
         assert response.status_code == 404
         assert "File not found" in response.json()["detail"]
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX-only test")
     @patch("subprocess.Popen")
     def test_open_file_success_posix(self, mock_popen: MagicMock, tmp_path: Path) -> None:
         """Opens file on POSIX systems."""
