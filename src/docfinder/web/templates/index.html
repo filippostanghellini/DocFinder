@@ -253,9 +253,14 @@
         color: white;
       }
 
-      .btn-primary:hover {
+      .btn-primary:hover:not(.search-btn) {
         transform: translateY(-1px);
         box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+      }
+
+      .search-btn:hover {
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+        filter: brightness(1.1);
       }
 
       .btn-secondary {

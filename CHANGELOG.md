@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2025-12-15
+
+### Fixed
+- **Windows: Fixed silent crash on startup** - Application would terminate immediately without any visible window
+  - Added `multiprocessing.freeze_support()` required for PyInstaller-bundled apps on Windows
+  - Added `torch.cuda` hidden imports to PyInstaller spec for proper bundling
+  - Added persistent file logging to `%LOCALAPPDATA%\DocFinder\logs\docfinder.log` for debugging
+  - Added native Windows error dialog on startup failures to inform users of issues
+  - Improved startup logging with platform and Python version information
+- **UI: Fixed Search button jumping on hover** - Button no longer moves when hovered
+
+### Added
+- **CI: Smoke tests for all platforms** - Automated verification that bundled apps start correctly
+  - macOS: Tests `.app` bundle launches and stays running
+  - Windows: Tests `.exe` launches and stays running  
+  - Linux: Tests AppImage launches with virtual display (Xvfb)
+  - All tests verify log file creation and check for startup errors
+
+### Changed
+- Improved multiprocessing handling for PyInstaller frozen apps with early child process detection
+
 ## [1.1.1] - 2025-12-12
 
 ### Added
@@ -131,7 +152,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed linting issues for consistent code style
 - Updated ruff configuration to use non-deprecated settings
 
-[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v1.1.2...HEAD
+[1.1.2]: https://github.com/filippostanghellini/DocFinder/compare/v1.1.1...v1.1.2
+[1.1.1]: https://github.com/filippostanghellini/DocFinder/compare/v1.0.1...v1.1.1
 [1.0.1]: https://github.com/filippostanghellini/DocFinder/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/filippostanghellini/DocFinder/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/filippostanghellini/DocFinder/compare/v0.1.0...v0.2.0
