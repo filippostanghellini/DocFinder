@@ -14,7 +14,7 @@ import os
 import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_all
 
 # Determine the project root
 SPEC_ROOT = Path(SPECPATH)
@@ -37,6 +37,38 @@ datas += collect_data_files("onnxruntime")
 
 # Collect optimum data
 datas += collect_data_files("optimum")
+
+# Collect torch data files (required for CUDA stubs on macOS)
+# Use collect_all to get everything torch needs (data, binaries, submodules)
+torch_datas, torch_binaries, torch_hiddenimports = collect_all("torch")
+datas += torch_datas
+
+# Include torch subpackages explicitly (required by transformers dynamic imports)
+import torch
+import os
+torch_path = os.path.dirname(torch.__file__)
+
+# torch.cuda is required even on non-CUDA platforms - copy as data files
+# to ensure they end up as real files not symlinks
+torch_cuda_path = os.path.join(torch_path, "cuda")
+if os.path.exists(torch_cuda_path):
+    # Walk the torch/cuda directory and add each file explicitly
+    for root, dirs, files in os.walk(torch_cuda_path):
+        for f in files:
+            if f.endswith(('.py', '.pyi', '.typed')):
+                src = os.path.join(root, f)
+                rel_dir = os.path.relpath(root, torch_path)
+                datas += [(src, os.path.join("torch", rel_dir))]
+    
+# torch.backends is also needed
+torch_backends_path = os.path.join(torch_path, "backends")
+if os.path.exists(torch_backends_path):
+    for root, dirs, files in os.walk(torch_backends_path):
+        for f in files:
+            if f.endswith(('.py', '.pyi', '.typed')):
+                src = os.path.join(root, f)
+                rel_dir = os.path.relpath(root, torch_path)
+                datas += [(src, os.path.join("torch", rel_dir))]
 
 # Hidden imports for dynamic imports
 hiddenimports = [
@@ -87,6 +119,13 @@ hiddenimports = [
     "torch",
     "torch.nn",
     "torch.nn.functional",
+    "torch.cuda",
+    "torch.backends",
+    "torch.backends.cuda",
+    "torch.backends.cudnn",
+    "torch.backends.mps",
+    "torch.utils",
+    "torch.utils.data",
     # Tqdm progress bars
     "tqdm",
     "tqdm.auto",
@@ -111,6 +150,7 @@ hiddenimports += collect_submodules("onnxruntime")
 hiddenimports += collect_submodules("uvicorn")
 hiddenimports += collect_submodules("fastapi")
 hiddenimports += collect_submodules("starlette")
+hiddenimports += collect_submodules("torch")
 
 # Platform-specific configurations
 if sys.platform == "darwin":

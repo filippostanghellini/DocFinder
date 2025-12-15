@@ -1,8 +1,25 @@
 name: Build Desktop Apps
 
 on:
+  # Test builds on push to main and PRs
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'DocFinder.spec'
+      - '.github/workflows/build-desktop.yml'
+      - 'pyproject.toml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'DocFinder.spec'
+      - '.github/workflows/build-desktop.yml'
+      - 'pyproject.toml'
+  # Publish assets only on release
   release:
     types: [published]
+  # Manual trigger
   workflow_dispatch:
     inputs:
       version:
@@ -74,6 +91,60 @@ jobs:
           # Fallback: create simple DMG if create-dmg fails
           if [ ! -f "dist/DocFinder-macOS.dmg" ]; then
             hdiutil create -volname "DocFinder" -srcfolder "dist/DocFinder.app" -ov -format UDZO "dist/DocFinder-macOS.dmg"
+          fi
+
+      - name: Smoke test - Verify app starts
+        run: |
+          echo "=== Starting smoke test for macOS ==="
+          
+          # Start the app in background
+          dist/DocFinder.app/Contents/MacOS/DocFinder &
+          APP_PID=$!
+          
+          # Wait for app to initialize (max 60 seconds)
+          echo "Waiting for app to initialize..."
+          for i in {1..60}; do
+            # Check if process is still running
+            if ! kill -0 $APP_PID 2>/dev/null; then
+              echo "ERROR: App crashed during startup!"
+              # Check log file
+              LOG_FILE="$HOME/Library/Logs/DocFinder/docfinder.log"
+              if [ -f "$LOG_FILE" ]; then
+                echo "=== Log file contents ==="
+                cat "$LOG_FILE"
+              fi
+              exit 1
+            fi
+            sleep 1
+          done
+          
+          # Give the app a few more seconds to fully initialize
+          sleep 5
+          
+          # Check if process is still running
+          if kill -0 $APP_PID 2>/dev/null; then
+            echo "SUCCESS: App is running (PID: $APP_PID)"
+            
+            # Check log file for any errors
+            LOG_FILE="$HOME/Library/Logs/DocFinder/docfinder.log"
+            if [ -f "$LOG_FILE" ]; then
+              echo "=== Log file contents ==="
+              cat "$LOG_FILE"
+            fi
+            
+            # Gracefully terminate
+            kill $APP_PID 2>/dev/null || true
+            sleep 2
+            kill -9 $APP_PID 2>/dev/null || true
+            echo "App terminated successfully"
+          else
+            echo "ERROR: App is not running!"
+            LOG_FILE="$HOME/Library/Logs/DocFinder/docfinder.log"
+            if [ -f "$LOG_FILE" ]; then
+              echo "=== Log file contents ==="
+              cat "$LOG_FILE"
+            fi
+            exit 1
           fi
 
       - name: Upload macOS DMG
@@ -167,6 +238,70 @@ jobs:
           $env:PATH = "C:\Program Files (x86)\NSIS;$env:PATH"
           makensis installer.nsi
 
+      - name: Smoke test - Verify app starts
+        shell: pwsh
+        run: |
+          Write-Host "=== Starting smoke test for Windows ==="
+          
+          # Start the app in background
+          $process = Start-Process -FilePath "dist\DocFinder\DocFinder.exe" -PassThru
+          Write-Host "Started app with PID: $($process.Id)"
+          
+          # Wait for app to initialize (max 60 seconds)
+          Write-Host "Waiting for app to initialize..."
+          $timeout = 60
+          $elapsed = 0
+          
+          while ($elapsed -lt $timeout) {
+            Start-Sleep -Seconds 1
+            $elapsed++
+            
+            # Check if process exited
+            if ($process.HasExited) {
+              Write-Host "ERROR: App exited with code: $($process.ExitCode)"
+              
+              # Check log file
+              $logFile = "$env:LOCALAPPDATA\DocFinder\logs\docfinder.log"
+              if (Test-Path $logFile) {
+                Write-Host "=== Log file contents ==="
+                Get-Content $logFile
+              }
+              exit 1
+            }
+            
+            if ($elapsed % 10 -eq 0) {
+              Write-Host "Still waiting... ($elapsed seconds)"
+            }
+          }
+          
+          # Give extra time for full initialization
+          Start-Sleep -Seconds 5
+          
+          # Final check
+          if (-not $process.HasExited) {
+            Write-Host "SUCCESS: App is running after $elapsed seconds"
+            
+            # Check log file
+            $logFile = "$env:LOCALAPPDATA\DocFinder\logs\docfinder.log"
+            if (Test-Path $logFile) {
+              Write-Host "=== Log file contents ==="
+              Get-Content $logFile
+            }
+            
+            # Terminate the app
+            Write-Host "Terminating app..."
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            Write-Host "App terminated successfully"
+          } else {
+            Write-Host "ERROR: App crashed during smoke test!"
+            $logFile = "$env:LOCALAPPDATA\DocFinder\logs\docfinder.log"
+            if (Test-Path $logFile) {
+              Write-Host "=== Log file contents ==="
+              Get-Content $logFile
+            }
+            exit 1
+          }
+
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
@@ -209,7 +344,8 @@ jobs:
             libgirepository1.0-dev \
             gir1.2-webkit2-4.0 \
             fuse \
-            libfuse2
+            libfuse2 \
+            xvfb
 
       - name: Install Python dependencies
         run: |
@@ -269,6 +405,84 @@ jobs:
           
           # Build AppImage
           ARCH=x86_64 ./appimagetool-x86_64.AppImage dist/DocFinder.AppDir dist/DocFinder-Linux-x86_64.AppImage
+
+      - name: Smoke test - Verify app starts
+        run: |
+          echo "=== Starting smoke test for Linux ==="
+          
+          # AppImage needs FUSE or extract mode
+          chmod +x dist/DocFinder-Linux-x86_64.AppImage
+          
+          # Extract AppImage (FUSE might not work in CI)
+          ./dist/DocFinder-Linux-x86_64.AppImage --appimage-extract
+          
+          # Start with virtual display (headless)
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1024x768x24 &
+          XVFB_PID=$!
+          sleep 2
+          
+          # Start the app in background
+          ./squashfs-root/AppRun &
+          APP_PID=$!
+          echo "Started app with PID: $APP_PID"
+          
+          # Wait for app to initialize (max 60 seconds)
+          echo "Waiting for app to initialize..."
+          for i in {1..60}; do
+            # Check if process exited
+            if ! kill -0 $APP_PID 2>/dev/null; then
+              echo "ERROR: App exited prematurely!"
+              
+              # Check log file
+              LOG_FILE="$HOME/.local/share/docfinder/logs/docfinder.log"
+              if [ -f "$LOG_FILE" ]; then
+                echo "=== Log file contents ==="
+                cat "$LOG_FILE"
+              fi
+              kill $XVFB_PID 2>/dev/null || true
+              exit 1
+            fi
+            sleep 1
+            
+            if [ $((i % 10)) -eq 0 ]; then
+              echo "Still waiting... ($i seconds)"
+            fi
+          done
+          
+          # Give extra time for full initialization
+          sleep 5
+          
+          # Final check
+          if kill -0 $APP_PID 2>/dev/null; then
+            echo "SUCCESS: App is running"
+            
+            # Check log file
+            LOG_FILE="$HOME/.local/share/docfinder/logs/docfinder.log"
+            if [ -f "$LOG_FILE" ]; then
+              echo "=== Log file contents ==="
+              cat "$LOG_FILE"
+            fi
+            
+            # Terminate
+            echo "Terminating app..."
+            kill $APP_PID 2>/dev/null || true
+            sleep 2
+            kill -9 $APP_PID 2>/dev/null || true
+            echo "App terminated successfully"
+          else
+            echo "ERROR: App crashed during smoke test!"
+            LOG_FILE="$HOME/.local/share/docfinder/logs/docfinder.log"
+            if [ -f "$LOG_FILE" ]; then
+              echo "=== Log file contents ==="
+              cat "$LOG_FILE"
+            fi
+            kill $XVFB_PID 2>/dev/null || true
+            exit 1
+          fi
+          
+          # Cleanup
+          kill $XVFB_PID 2>/dev/null || true
 
       - name: Upload Linux AppImage
         uses: actions/upload-artifact@v4
