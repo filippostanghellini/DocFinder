@@ -463,7 +463,7 @@ jobs:
         run: ls -la artifacts/
 
       - name: Upload to Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             artifacts/DocFinder-macOS/DocFinder-macOS.dmg
