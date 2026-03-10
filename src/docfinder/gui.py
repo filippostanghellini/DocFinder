@@ -220,10 +220,21 @@ def main() -> None:
         }
 
         # Add icon only on Windows (macOS uses app bundle, Linux doesn't support it)
+        # Guard against older pywebview versions that don't support the icon parameter
         if icon_path and sys.platform == "win32":
-            window_kwargs["icon"] = icon_path
+            import inspect
+            if "icon" in inspect.signature(webview.create_window).parameters:
+                window_kwargs["icon"] = icon_path
+            else:
+                logger.debug("pywebview version does not support 'icon' parameter, skipping")
 
-        window = webview.create_window(**window_kwargs)
+        try:
+            window = webview.create_window(**window_kwargs)
+        except TypeError as exc:
+            # Fallback: retry without icon in case of unexpected API mismatch
+            logger.warning("create_window() failed (%s), retrying without icon", exc)
+            window_kwargs.pop("icon", None)
+            window = webview.create_window(**window_kwargs)
 
         def on_closed() -> None:
             """Handle window close event."""

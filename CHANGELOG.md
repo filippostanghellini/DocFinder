@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-03-10
+
+### Fixed
+- **Windows: Fixed crash on startup** — `create_window()` raised `TypeError: unexpected keyword argument 'icon'` on pywebview builds that don't expose the `icon` parameter. The app now checks for parameter support at runtime via `inspect.signature` and falls back gracefully, so the window opens without an icon instead of crashing entirely.
+
+### Performance
+- **Indexing 2–4× faster** through several compounding improvements:
+  - `insert_chunks()` now uses `executemany()` for batch SQLite inserts (was one `execute()` per row)
+  - `EmbeddingModel.embed()` uses SentenceTransformer's native batching directly (batch size 32, up from 8); removed the artificial inner mini-batch loop of 4
+  - Chunk batch size per document increased from 32 to 64
+  - Removed `gc.collect()` calls from inside the per-chunk loop; one call per document is sufficient
+  - Removed the artificial 2-files-at-a-time outer loop during indexing
+- **First request instant** — `EmbeddingModel` is now a singleton loaded once at startup; previously a new model instance was created for every `/search`, `/documents`, `/index`, and `/cleanup` request
+
+### Changed
+- `/index` API endpoint is now asynchronous: returns a `job_id` immediately instead of blocking until completion
+- New `GET /index/status/{job_id}` endpoint for polling real-time progress (`processed`, `total`, `current_file`)
+- Replaced deprecated `@app.on_event("startup")` with the modern FastAPI `lifespan` context manager
+
+### UI
+- **Real-time indexing progress** — animated progress bar with file counter and current filename, updated every 600 ms via polling
+- **macOS-native design** — header uses `backdrop-filter: saturate(180%) blur(20px)` for the system frosted-glass effect; improved shadows and depth
+- **⌘K / Ctrl+K** shortcut to jump to search from any tab; search input auto-focused on load
+- **Drag & drop** — drag a folder from Finder/Explorer directly onto the path input in the Index tab
+- Relevance score shown as a **percentage** (e.g. `87%`) instead of a raw float
+- Search result **count** displayed above the results list
+
+### Developer Experience
+- `make setup` — new one-command first-time setup: creates `.venv`, upgrades pip, installs all extras (`dev`, `web`, `gui`)
+- `make run` — launches the desktop GUI
+- `make run-web` — launches the web interface at `http://127.0.0.1:8000`
+
 ## [1.1.2] - 2025-12-15
 
 ### Fixed
@@ -152,7 +184,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed linting issues for consistent code style
 - Updated ruff configuration to use non-deprecated settings
 
-[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v1.1.2...HEAD
+[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/filippostanghellini/DocFinder/compare/v1.1.2...v1.2.0
 [1.1.2]: https://github.com/filippostanghellini/DocFinder/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/filippostanghellini/DocFinder/compare/v1.0.1...v1.1.1
 [1.0.1]: https://github.com/filippostanghellini/DocFinder/compare/v1.0.0...v1.0.1

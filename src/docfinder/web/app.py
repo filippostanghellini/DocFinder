@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="DocFinder Web", version="1.1.1", lifespan=lifespan)
+app = FastAPI(title="DocFinder Web", version="1.2.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

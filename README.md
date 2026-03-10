@@ -185,22 +185,33 @@ docfinder-gui
 
 ---
 
-## 🛠️ Build from Source
+## 🛠️ Run from Source
+
+Requires Python 3.10+ and `make`.
 
 ```bash
-# Clone the repository
+# 1. Clone
 git clone https://github.com/filippostanghellini/DocFinder.git
 cd DocFinder
 
-# Install dependencies
-make install-gui
+# 2. One-command setup (creates venv + installs all dependencies)
+make setup
 
-# Run the GUI
-docfinder-gui
-
-# Build native app (macOS)
-make build-macos
+# 3. Launch
+make run        # desktop GUI
+make run-web    # web interface at http://127.0.0.1:8000
 ```
+
+That's it. `make setup` creates the virtual environment and installs everything automatically.
+
+### Build native installers
+
+```bash
+make build-macos   # → dist/DocFinder-macOS.dmg
+make build-linux   # → dist/DocFinder-Linux-x86_64.AppImage
+```
+
+For Windows builds, run `scripts/build-windows.ps1` in PowerShell on a Windows machine.
 
 ---
 
