@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Windows: Fixed crash on startup** — `create_window()` raised `TypeError: unexpected keyword argument 'icon'` on pywebview builds that don't expose the `icon` parameter. The app now checks for parameter support at runtime via `inspect.signature` and falls back gracefully, so the window opens without an icon instead of crashing entirely.
+- **macOS: Fixed dock icon showing Python logo** — When running from source the dock now displays the DocFinder logo instead of the generic Python 3.x icon, via AppKit `NSApplication.setApplicationIconImage_()`.
+
+### Added
+- **Global hotkey** — bring DocFinder to the front from any app with a configurable system-wide keyboard shortcut (default: `⌘+Shift+F` on macOS, `Ctrl+Shift+F` on Windows/Linux); implemented via pynput `GlobalHotKeys`
+- **Settings tab** — new gear-icon tab lets you enable/disable the global hotkey and change the key combination via an interactive capture modal (press the desired keys, confirm)
+- **Native folder picker** — "Browse…" button in the Index tab opens the system file dialog (Finder on macOS, Explorer on Windows) via `window.pywebview.api.pick_folder()`; button is shown only when running inside the desktop app
 
 ### Performance
 - **Indexing 2–4× faster** through several compounding improvements:
@@ -24,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `/index` API endpoint is now asynchronous: returns a `job_id` immediately instead of blocking until completion
 - New `GET /index/status/{job_id}` endpoint for polling real-time progress (`processed`, `total`, `current_file`)
+- New `GET /settings` and `POST /settings` endpoints for persisting user preferences (hotkey, hotkey_enabled)
+- Settings stored in the platform-appropriate config directory (`~/Library/Application Support/DocFinder` on macOS, `%APPDATA%\DocFinder` on Windows, `~/.config/docfinder` on Linux)
 - Replaced deprecated `@app.on_event("startup")` with the modern FastAPI `lifespan` context manager
 
 ### UI

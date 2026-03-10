@@ -22,6 +22,8 @@ from docfinder.embedding.encoder import EmbeddingConfig, EmbeddingModel
 from docfinder.index.indexer import Indexer
 from docfinder.index.search import Searcher, SearchResult
 from docfinder.index.storage import SQLiteVectorStore
+from docfinder.settings import load_settings
+from docfinder.settings import save_settings as _save_settings
 from docfinder.web.frontend import router as frontend_router
 
 LOGGER = logging.getLogger(__name__)
@@ -85,6 +87,11 @@ class IndexPayload(BaseModel):
     model: str | None = None
     chunk_chars: int | None = None
     overlap: int | None = None
+
+
+class SettingsPayload(BaseModel):
+    hotkey: str | None = None
+    hotkey_enabled: bool | None = None
 
 
 def _resolve_db_path(db: Path | None) -> Path:
@@ -220,6 +227,24 @@ async def delete_document(payload: DeleteDocumentRequest, db: Path | None = None
         raise HTTPException(status_code=404, detail="Document not found")
 
     return {"status": "ok"}
+
+
+@app.get("/settings")
+async def get_settings() -> dict:
+    """Return current user settings."""
+    return load_settings()
+
+
+@app.post("/settings")
+async def update_settings(payload: SettingsPayload) -> dict:
+    """Persist updated settings and return the full settings dict."""
+    current = load_settings()
+    if payload.hotkey is not None:
+        current["hotkey"] = payload.hotkey
+    if payload.hotkey_enabled is not None:
+        current["hotkey_enabled"] = payload.hotkey_enabled
+    _save_settings(current)
+    return current
 
 
 def _run_index_job(

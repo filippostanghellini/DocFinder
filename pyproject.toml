@@ -45,7 +45,9 @@ gui = [
   "pywebview>=5.0.0",
   "fastapi>=0.115.0",
   "uvicorn[standard]>=0.32.0",
-  "pydantic>=2.9.0"
+  "pydantic>=2.9.0",
+  "pynput>=1.7.0",
+  "pyobjc-framework-Cocoa>=9.0; sys_platform == 'darwin'"
 ]
 gpu = [
   "onnxruntime-gpu>=1.17.0"

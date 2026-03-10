@@ -137,6 +137,99 @@ def _wait_for_server(host: str, port: int, timeout: float = 30.0) -> bool:
     return False
 
 
+class GlobalHotkeyManager:
+    """Registers and manages a system-wide keyboard shortcut via pynput.
+
+    When the hotkey fires, the DocFinder window is brought to the front
+    and the search input is focused.
+    """
+
+    def __init__(self) -> None:
+        self.window: object | None = None  # set after create_window()
+        self._listener = None
+
+    def start(self, hotkey: str, enabled: bool = True) -> None:
+        """Register the global hotkey. Replaces any previously registered one."""
+        self.stop()
+        if not enabled or not hotkey:
+            return
+        try:
+            from pynput import keyboard  # type: ignore[import-untyped]
+
+            self._listener = keyboard.GlobalHotKeys({hotkey: self._on_activate})
+            self._listener.daemon = True
+            self._listener.start()
+            logger.info("Global hotkey registered: %s", hotkey)
+        except ImportError:
+            logger.warning("pynput is not installed — global hotkey unavailable")
+        except Exception as exc:
+            logger.warning("Could not register global hotkey '%s': %s", hotkey, exc)
+
+    def _on_activate(self) -> None:
+        logger.debug("Global hotkey activated — bringing DocFinder to front")
+        try:
+            if sys.platform == "darwin":
+                try:
+                    from AppKit import NSApplication  # type: ignore[import-untyped]
+
+                    NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+                except ImportError:
+                    pass
+            if self.window:
+                self.window.show()
+                self.window.evaluate_js(
+                    "document.querySelector('[data-tab=\"search\"]').click();"
+                    "setTimeout(()=>document.getElementById('query').focus(),60);"
+                )
+        except Exception as exc:
+            logger.warning("Failed to bring window to front: %s", exc)
+
+    def stop(self) -> None:
+        if self._listener:
+            try:
+                self._listener.stop()
+            except Exception:
+                pass
+            self._listener = None
+
+    def reload(self, hotkey: str, enabled: bool = True) -> None:
+        """Stop the current listener and register a new hotkey."""
+        self.start(hotkey, enabled)
+
+
+class DesktopApi:
+    """Exposes native OS capabilities to the webview JS frontend.
+
+    Available from JavaScript as window.pywebview.api.*
+    """
+
+    def __init__(self) -> None:
+        self.window: object | None = None
+        self._hotkey_manager: GlobalHotkeyManager | None = None
+
+    def pick_folder(self) -> str | None:
+        """Open the native folder picker and return the selected absolute path, or None."""
+        if self.window is None:
+            return None
+        try:
+            import webview
+
+            result = self.window.create_file_dialog(webview.FOLDER_DIALOG, allow_multiple=False)
+            return result[0] if result else None
+        except Exception as exc:
+            logger.warning("Folder picker dialog failed: %s", exc)
+            return None
+
+    def reload_hotkey(self) -> None:
+        """Re-read settings from disk and apply the hotkey immediately."""
+        if self._hotkey_manager is None:
+            return
+        from docfinder.settings import load_settings
+
+        s = load_settings()
+        self._hotkey_manager.reload(s.get("hotkey", ""), s.get("hotkey_enabled", True))
+
+
 class ServerThread(threading.Thread):
     """Thread that runs the uvicorn server."""
 
@@ -184,6 +277,8 @@ def main() -> None:
         raise SystemExit(1) from exc
 
     try:
+        from docfinder.settings import load_settings
+
         # Find a free port
         host = "127.0.0.1"
         port = _find_free_port()
@@ -202,13 +297,32 @@ def main() -> None:
 
         logger.info("Server ready, launching window...")
 
-        # Get icon path
         icon_path = _get_icon_path()
 
-        # Create and start the webview window
-        # Note: pywebview doesn't support setting window icon on all platforms
-        # macOS uses the app bundle icon, Windows can use the icon parameter
-        # Linux pywebview doesn't support icon parameter
+        # ── macOS dock icon (source runs only) ───────────────────────────────
+        # When frozen (PyInstaller), the bundle already carries the .icns icon.
+        # When running from source, set the dock icon via AppKit so the user
+        # doesn't see the generic Python icon.
+        if sys.platform == "darwin" and not getattr(sys, "frozen", False) and icon_path:
+            try:
+                from AppKit import NSApplication, NSImage  # type: ignore[import-untyped]
+
+                ns_app = NSApplication.sharedApplication()
+                ns_image = NSImage.alloc().initWithContentsOfFile_(icon_path)
+                if ns_image:
+                    ns_app.setApplicationIconImage_(ns_image)
+                    logger.debug("macOS dock icon set via AppKit")
+            except ImportError:
+                logger.debug("pyobjc not available — run: pip install 'docfinder[gui]'")
+            except Exception as exc:
+                logger.debug("Could not set macOS dock icon: %s", exc)
+
+        # ── Desktop API (folder picker + hotkey reload) ──────────────────────
+        desktop_api = DesktopApi()
+        hotkey_manager = GlobalHotkeyManager()
+        desktop_api._hotkey_manager = hotkey_manager
+
+        # ── Window creation ──────────────────────────────────────────────────
         window_kwargs: dict = {
             "title": "DocFinder",
             "url": url,
@@ -217,44 +331,47 @@ def main() -> None:
             "min_size": (800, 600),
             "resizable": True,
             "text_select": True,
+            "js_api": desktop_api,
         }
 
-        # Add icon only on Windows (macOS uses app bundle, Linux doesn't support it)
-        # Guard against older pywebview versions that don't support the icon parameter
+        # Add icon on Windows — guard against older pywebview builds that
+        # don't expose the `icon` parameter (would raise TypeError otherwise)
         if icon_path and sys.platform == "win32":
             import inspect
+
             if "icon" in inspect.signature(webview.create_window).parameters:
                 window_kwargs["icon"] = icon_path
             else:
-                logger.debug("pywebview version does not support 'icon' parameter, skipping")
+                logger.debug("pywebview does not support 'icon' parameter, skipping")
 
         try:
             window = webview.create_window(**window_kwargs)
         except TypeError as exc:
-            # Fallback: retry without icon in case of unexpected API mismatch
             logger.warning("create_window() failed (%s), retrying without icon", exc)
             window_kwargs.pop("icon", None)
             window = webview.create_window(**window_kwargs)
 
+        # Wire window references
+        desktop_api.window = window
+        hotkey_manager.window = window
+
         def on_closed() -> None:
-            """Handle window close event."""
-            logger.info("Window closed, shutting down server...")
+            logger.info("Window closed, shutting down...")
+            hotkey_manager.stop()
             server_thread.stop()
 
         window.events.closed += on_closed
 
-        # Start the webview (this blocks until window is closed)
-        # Use different backends based on platform for best compatibility
+        # ── Start global hotkey after webview is ready ───────────────────────
+        def _on_webview_started() -> None:
+            settings = load_settings()
+            hotkey_manager.start(
+                settings.get("hotkey", ""),
+                settings.get("hotkey_enabled", True),
+            )
+
         logger.info("Starting webview window...")
-        if sys.platform == "darwin":
-            # macOS: use native WebKit
-            webview.start(private_mode=False)
-        elif sys.platform == "win32":
-            # Windows: prefer EdgeChromium, fall back to others
-            webview.start(private_mode=False)
-        else:
-            # Linux: use GTK WebKit
-            webview.start(private_mode=False)
+        webview.start(private_mode=False, func=_on_webview_started)
 
         logger.info("DocFinder closed normally.")
 

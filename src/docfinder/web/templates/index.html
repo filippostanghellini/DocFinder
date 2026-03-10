@@ -682,6 +682,124 @@
 
       .stat-item strong { color: var(--text); }
 
+      /* ── Settings ────────────────────────────────────────────────────────── */
+      .setting-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.9rem 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .setting-row:last-of-type { border-bottom: none; }
+
+      .setting-info { display: flex; flex-direction: column; gap: 0.2rem; }
+
+      .setting-label { font-weight: 500; font-size: 0.95rem; }
+
+      .setting-sub { font-size: 0.8rem; color: var(--text-muted); }
+
+      .hotkey-display-wrap { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+
+      .hotkey-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.3rem 0.75rem;
+        background: var(--bg);
+        border: 1.5px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-family: "SF Mono", "Monaco", "Roboto Mono", monospace;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--text);
+        letter-spacing: 0.03em;
+        min-width: 80px;
+        text-align: center;
+        justify-content: center;
+      }
+
+      /* iOS-style toggle */
+      .toggle {
+        position: relative;
+        display: inline-block;
+        width: 44px;
+        height: 26px;
+        flex-shrink: 0;
+      }
+
+      .toggle input { opacity: 0; width: 0; height: 0; }
+
+      .toggle-slider {
+        position: absolute;
+        inset: 0;
+        background: var(--border);
+        border-radius: 9999px;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+
+      .toggle-slider::before {
+        content: '';
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        left: 3px;
+        bottom: 3px;
+        background: white;
+        border-radius: 50%;
+        transition: transform 0.2s;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+      }
+
+      .toggle input:checked + .toggle-slider { background: var(--primary); }
+      .toggle input:checked + .toggle-slider::before { transform: translateX(18px); }
+
+      /* Hotkey capture area */
+      .hotkey-capture-area {
+        min-height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px dashed var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 0.95rem;
+        color: var(--text-muted);
+        margin: 1rem 0;
+        transition: all 0.18s;
+        user-select: none;
+      }
+
+      .hotkey-capture-area.waiting {
+        border-color: var(--primary);
+        background: var(--primary-light);
+        animation: blink 1.4s ease infinite;
+      }
+
+      .hotkey-capture-area.captured {
+        border-style: solid;
+        border-color: var(--success);
+        background: var(--success-light);
+        color: var(--text);
+        font-family: "SF Mono", "Monaco", monospace;
+        font-weight: 700;
+        font-size: 1.1rem;
+      }
+
+      @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.55} }
+
+      .info-box {
+        margin-top: 1rem;
+        padding: 0.75rem 1rem;
+        background: var(--primary-light);
+        border-left: 3px solid var(--primary);
+        border-radius: var(--radius-sm);
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        line-height: 1.5;
+      }
+
       /* ── Responsive ───────────────────────────────────────────────────────── */
       @media (max-width: 640px) {
         .header-content { flex-wrap: wrap; height: auto; padding: 0.6rem 1rem; gap: 0.5rem; }
@@ -722,6 +840,10 @@
           <button class="tab" data-tab="documents" role="tab" aria-selected="false">
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 3h12v10H2V3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M5 7h6M5 10h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
             Library
+          </button>
+          <button class="tab" data-tab="settings" role="tab" aria-selected="false">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            Settings
           </button>
         </nav>
       </div>
@@ -767,9 +889,13 @@
               id="index-path"
               type="text"
               class="form-input"
-              placeholder="Drop a folder here or type an absolute path…"
+              placeholder="Select a folder with Browse, drag & drop, or type a path…"
               required
             />
+            <button type="button" id="browse-btn" class="btn btn-secondary" style="display:none;" title="Open folder picker">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h5l1.5 1.5H14V13H2V4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              Browse…
+            </button>
             <button type="submit" id="index-btn" class="btn btn-primary">
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3v8M5 8l3 3 3-3" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="white" stroke-width="1.6" stroke-linecap="round"/></svg>
               Index
@@ -786,7 +912,8 @@
           <ul class="tips-list">
             <li>Use absolute paths — e.g. <code>/Users/name/Documents</code></li>
             <li>Index entire folders: all PDFs are discovered recursively</li>
-            <li>Drag &amp; drop a folder from Finder onto the input field</li>
+            <li>Use the <strong>Browse…</strong> button to open a native folder picker</li>
+            <li>Or drag &amp; drop a folder from Finder / Explorer onto the input field</li>
             <li>Already-indexed documents are automatically updated if modified</li>
             <li>Unchanged files are skipped — re-indexing is fast</li>
           </ul>
@@ -829,7 +956,69 @@
           <div id="documents-container"></div>
         </div>
       </div>
+
+      <!-- ── Settings ─────────────────────────────────────────────────────── -->
+      <div id="settings-section" class="section" role="tabpanel">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+              Settings
+            </h2>
+          </div>
+
+          <h3 style="font-size:0.85rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.5rem;">
+            Global Search Shortcut
+          </h3>
+          <p style="font-size:0.875rem; color:var(--text-muted); margin-bottom:0.75rem; line-height:1.5;">
+            Press this shortcut from anywhere on your desktop to bring DocFinder to the front and jump directly to search.
+          </p>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">Enable global shortcut</span>
+              <span class="setting-sub" id="hotkey-permission-sub"></span>
+            </div>
+            <label class="toggle" title="Enable or disable the global shortcut">
+              <input type="checkbox" id="hotkey-enabled" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-row" id="hotkey-row">
+            <div class="setting-info">
+              <span class="setting-label">Shortcut</span>
+            </div>
+            <div class="hotkey-display-wrap">
+              <span id="hotkey-display" class="hotkey-badge">—</span>
+              <button type="button" id="change-hotkey-btn" class="btn btn-secondary btn-sm">Change…</button>
+            </div>
+          </div>
+
+          <div id="macos-permission-note" class="info-box" style="display:none;">
+            On macOS, this feature requires <strong>Accessibility</strong> permission.<br>
+            Go to <em>System Settings → Privacy &amp; Security → Accessibility</em> and add DocFinder.
+          </div>
+
+          <div style="margin-top:1.25rem; display:flex; justify-content:flex-end;">
+            <button id="save-settings-btn" class="btn btn-primary">Save settings</button>
+          </div>
+        </div>
+      </div>
     </main>
+
+    <!-- ── Hotkey capture modal ─────────────────────────────────────────────── -->
+    <div id="hotkey-modal" class="modal-overlay" role="dialog" aria-modal="true">
+      <div class="modal">
+        <h3 class="modal-title">Record shortcut</h3>
+        <p class="modal-text">Press the key combination you want to use, then click Confirm.</p>
+        <div id="hotkey-capture-display" class="hotkey-capture-area waiting">Waiting for input…</div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" id="cancel-hotkey">Cancel</button>
+          <button class="btn btn-primary" id="confirm-hotkey" disabled>Confirm</button>
+        </div>
+      </div>
+    </div>
 
     <!-- ── Delete modal ─────────────────────────────────────────────────────── -->
     <div id="delete-modal" class="modal-overlay" role="dialog" aria-modal="true">
@@ -1203,7 +1392,27 @@
 
       cancelDeleteBtn.addEventListener('click', () => { deleteModal.classList.remove('active'); pendingDeleteIds = []; });
       deleteModal.addEventListener('click', e => { if (e.target === deleteModal) { deleteModal.classList.remove('active'); pendingDeleteIds = []; } });
-      document.addEventListener('keydown', e => { if (e.key === 'Escape' && deleteModal.classList.contains('active')) { deleteModal.classList.remove('active'); pendingDeleteIds = []; } });
+      document.addEventListener('keydown', e => {
+        // Hotkey capture: intercept all keys when capture modal is open
+        if (hotkeyModal.classList.contains('active')) {
+          if (e.key === 'Escape') { hotkeyModal.classList.remove('active'); return; }
+          e.preventDefault();
+          e.stopPropagation();
+          const pynput = keyEventToPynput(e);
+          if (pynput) {
+            capturedPynput = pynput;
+            captureDisplay.textContent = pynputToDisplay(pynput);
+            captureDisplay.className = 'hotkey-capture-area captured';
+            confirmHotkeyBtn.disabled = false;
+          }
+          return;
+        }
+        // Delete modal
+        if (e.key === 'Escape' && deleteModal.classList.contains('active')) {
+          deleteModal.classList.remove('active');
+          pendingDeleteIds = [];
+        }
+      });
 
       confirmDeleteBtn.addEventListener('click', async () => {
         deleteModal.classList.remove('active');
@@ -1233,6 +1442,145 @@
       });
 
       document.getElementById('refresh-docs-btn').addEventListener('click', loadDocuments);
+
+      // ── Settings ─────────────────────────────────────────────────────────
+      const isMac = navigator.platform.toLowerCase().includes('mac') || navigator.userAgent.includes('Macintosh');
+
+      // Convert a pynput hotkey string to a human-readable display string
+      function pynputToDisplay(str) {
+        if (!str) return '—';
+        return str
+          .replace('<cmd>',   isMac ? '⌘'    : 'Win')
+          .replace('<ctrl>',  isMac ? '⌃'    : 'Ctrl')
+          .replace('<shift>', isMac ? '⇧'    : 'Shift')
+          .replace('<alt>',   isMac ? '⌥'    : 'Alt')
+          .replace('<space>', 'Space')
+          .replace('<enter>', 'Enter')
+          .replace('<esc>',   'Esc')
+          .replace('<tab>',   'Tab')
+          .replace(/<([a-z_0-9]+)>/g, (_, k) => k.charAt(0).toUpperCase() + k.slice(1))
+          .split('+')
+          .map(s => s.trim())
+          .join(isMac ? '' : ' + ');
+      }
+
+      // Convert a JS KeyboardEvent to a pynput hotkey string (requires ≥1 modifier)
+      function keyEventToPynput(e) {
+        const mods = [];
+        if (e.metaKey)  mods.push(isMac ? '<cmd>'  : '<super>');
+        if (e.ctrlKey)  mods.push('<ctrl>');
+        if (e.altKey)   mods.push('<alt>');
+        if (e.shiftKey) mods.push('<shift>');
+
+        const key = e.key.toLowerCase();
+        const modifierOnly = ['control','shift','alt','meta','command','os','win'];
+        if (modifierOnly.includes(key)) return null; // still building combo
+
+        const special = {
+          ' ':           '<space>', 'enter':     '<enter>',
+          'escape':      '<esc>',   'tab':        '<tab>',
+          'backspace':   '<backspace>',
+          'arrowup':     '<up>',    'arrowdown':  '<down>',
+          'arrowleft':   '<left>',  'arrowright': '<right>',
+        };
+        const keyPart = special[key] ?? (key.length === 1 ? key : `<${key}>`);
+        if (!mods.length) return null; // require at least one modifier
+        return [...mods, keyPart].join('+');
+      }
+
+      let currentHotkeyPynput = '';
+      let capturedPynput = '';
+
+      async function loadSettingsTab() {
+        try {
+          const res = await fetch(`${apiBase}/settings`);
+          const s = await res.json();
+          document.getElementById('hotkey-enabled').checked = s.hotkey_enabled !== false;
+          currentHotkeyPynput = s.hotkey || '';
+          document.getElementById('hotkey-display').textContent = pynputToDisplay(currentHotkeyPynput);
+
+          // macOS Accessibility note
+          if (isMac) {
+            document.getElementById('macos-permission-note').style.display = '';
+            document.getElementById('hotkey-permission-sub').textContent =
+              'Requires Accessibility permission on macOS';
+          }
+        } catch (err) {
+          console.warn('Could not load settings:', err);
+        }
+      }
+
+      document.getElementById('save-settings-btn').addEventListener('click', async () => {
+        const enabled = document.getElementById('hotkey-enabled').checked;
+        try {
+          await fetch(`${apiBase}/settings`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ hotkey: currentHotkeyPynput, hotkey_enabled: enabled }),
+          });
+          // Apply immediately in desktop app
+          if (window.pywebview?.api?.reload_hotkey) {
+            await window.pywebview.api.reload_hotkey();
+          }
+          showToast('Settings saved');
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+
+      // Hotkey capture modal
+      const hotkeyModal    = document.getElementById('hotkey-modal');
+      const captureDisplay = document.getElementById('hotkey-capture-display');
+      const confirmHotkeyBtn = document.getElementById('confirm-hotkey');
+
+      document.getElementById('change-hotkey-btn').addEventListener('click', () => {
+        capturedPynput = '';
+        captureDisplay.textContent = 'Waiting for input…';
+        captureDisplay.className = 'hotkey-capture-area waiting';
+        confirmHotkeyBtn.disabled = true;
+        hotkeyModal.classList.add('active');
+      });
+
+      document.getElementById('cancel-hotkey').addEventListener('click', () => {
+        hotkeyModal.classList.remove('active');
+      });
+
+      confirmHotkeyBtn.addEventListener('click', () => {
+        if (capturedPynput) {
+          currentHotkeyPynput = capturedPynput;
+          document.getElementById('hotkey-display').textContent = pynputToDisplay(capturedPynput);
+        }
+        hotkeyModal.classList.remove('active');
+      });
+
+      // Load settings when switching to the tab
+      document.querySelector('[data-tab="settings"]').addEventListener('click', loadSettingsTab);
+
+      // ── Native folder picker (pywebview only) ────────────────────────────
+      // The Browse button is hidden by default and shown only when running
+      // inside the desktop app, where window.pywebview.api is available.
+      const browseBtn = document.getElementById('browse-btn');
+
+      function enableBrowseButton() {
+        browseBtn.style.display = '';
+        browseBtn.addEventListener('click', async () => {
+          try {
+            const path = await window.pywebview.api.pick_folder();
+            if (path) {
+              indexInput.value = path;
+              indexInput.focus();
+            }
+          } catch (err) {
+            // Dialog was cancelled or unavailable — silently ignore
+          }
+        });
+      }
+
+      if (window.pywebview) {
+        enableBrowseButton();
+      } else {
+        window.addEventListener('pywebviewready', enableBrowseButton);
+      }
     </script>
   </body>
 </html>
