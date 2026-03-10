@@ -149,10 +149,12 @@ class SQLiteVectorStore:
             )
             for chunk, vector in zip(chunks, embeddings)
         ]
-        self._conn.executemany(
-            "INSERT INTO chunks(document_id, chunk_index, text, metadata, embedding) VALUES (?, ?, ?, ?, ?)",
-            data,
+        sql = (
+            "INSERT INTO chunks"
+            "(document_id, chunk_index, text, metadata, embedding)"
+            " VALUES (?, ?, ?, ?, ?)"
         )
+        self._conn.executemany(sql, data)
 
     def upsert_document(
         self,
