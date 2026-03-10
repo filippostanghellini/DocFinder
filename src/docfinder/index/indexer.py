@@ -6,7 +6,7 @@ import gc
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
 from docfinder.embedding.encoder import EmbeddingModel
 from docfinder.index.storage import SQLiteVectorStore
@@ -52,11 +52,13 @@ class Indexer:
         *,
         chunk_chars: int = 1200,
         overlap: int = 200,
+        progress_callback: Callable[[int, int, str], None] | None = None,
     ) -> None:
         self.embedder = embedder
         self.store = store
         self.chunk_chars = chunk_chars
         self.overlap = overlap
+        self.progress_callback = progress_callback
 
     def index(self, paths: Sequence[Path]) -> IndexStats:
         """Index all PDFs found under the given paths."""
@@ -65,27 +67,24 @@ class Indexer:
             LOGGER.warning("No PDF files found")
             return IndexStats()
 
+        total = len(pdf_files)
         stats = IndexStats()
 
-        # Processa solo 2 file alla volta per ridurre memoria
-        batch_size = 2
-
-        for i in range(0, len(pdf_files), batch_size):
-            batch = pdf_files[i : i + batch_size]
-
-            for path in batch:
-                try:
-                    LOGGER.info(f"Processing: {path}")
-                    status = self._index_single(path)
-                    stats.increment(status, path)
-
-                except Exception as e:
-                    LOGGER.error(f"Failed to process {path}: {e}")
-                    stats.failed += 1
-                    stats.processed_files.append(path)
-
-            # Libera memoria dopo ogni batch
+        for i, path in enumerate(pdf_files):
+            if self.progress_callback:
+                self.progress_callback(i, total, str(path))
+            try:
+                LOGGER.info(f"Processing: {path}")
+                status = self._index_single(path)
+                stats.increment(status, path)
+            except Exception as e:
+                LOGGER.error(f"Failed to process {path}: {e}")
+                stats.failed += 1
+                stats.processed_files.append(path)
             gc.collect()
+
+        if self.progress_callback:
+            self.progress_callback(total, total, "")
 
         return stats
 
@@ -120,7 +119,7 @@ class Indexer:
                 return status
 
             # Process chunks in batches
-            batch_size = 32
+            batch_size = 64
             current_batch = []
 
             # Chain the first chunk back with the rest
@@ -131,12 +130,10 @@ class Indexer:
                     embeddings = self.embedder.embed([c.text for c in current_batch])
                     self.store.insert_chunks(doc_id, current_batch, embeddings)
                     current_batch = []
-                    gc.collect()
 
             # Process remaining chunks
             if current_batch:
                 embeddings = self.embedder.embed([c.text for c in current_batch])
                 self.store.insert_chunks(doc_id, current_batch, embeddings)
-                gc.collect()
 
         return status
