@@ -139,21 +139,20 @@ class SQLiteVectorStore:
         if embeddings.shape[0] != len(chunks):
             raise ValueError("Embeddings and chunks length mismatch")
 
-        conn = self._conn
-        for chunk, vector in zip(chunks, embeddings):
-            conn.execute(
-                """
-                INSERT INTO chunks(document_id, chunk_index, text, metadata, embedding)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    doc_id,
-                    chunk.index,
-                    chunk.text,
-                    json.dumps(chunk.metadata, ensure_ascii=True),
-                    sqlite3.Binary(np.asarray(vector, dtype="float32").tobytes()),
-                ),
+        data = [
+            (
+                doc_id,
+                chunk.index,
+                chunk.text,
+                json.dumps(chunk.metadata, ensure_ascii=True),
+                sqlite3.Binary(np.asarray(vector, dtype="float32").tobytes()),
             )
+            for chunk, vector in zip(chunks, embeddings)
+        ]
+        self._conn.executemany(
+            "INSERT INTO chunks(document_id, chunk_index, text, metadata, embedding) VALUES (?, ?, ?, ?, ?)",
+            data,
+        )
 
     def upsert_document(
         self,
