@@ -12,14 +12,25 @@ from docfinder.embedding.encoder import EmbeddingModel
 from docfinder.index.storage import SQLiteVectorStore
 from docfinder.ingestion.pdf_loader import build_chunks
 from docfinder.models import DocumentMetadata
-from docfinder.utils.files import compute_sha256, iter_pdf_paths
+from docfinder.utils.files import compute_sha256, iter_document_paths
 
 LOGGER = logging.getLogger(__name__)
 
 
+def find_documents(
+    paths: Sequence[Path],
+    exclude: frozenset[str] | None = None,
+) -> list[Path]:
+    """Find all supported documents under the given paths, honouring exclusions."""
+    docs = list(iter_document_paths(paths))
+    if exclude:
+        docs = [p for p in docs if str(p) not in exclude]
+    return docs
+
+
+# Keep old name as alias so existing tests don't break
 def find_pdfs(paths: Sequence[Path]) -> list[Path]:
-    """Find all PDF files under the given paths."""
-    return list(iter_pdf_paths(paths))
+    return [p for p in find_documents(paths) if p.suffix.lower() == ".pdf"]
 
 
 @dataclass(slots=True)
@@ -52,25 +63,32 @@ class Indexer:
         *,
         chunk_chars: int = 1200,
         overlap: int = 200,
+        embed_batch_size: int | None = None,
         progress_callback: Callable[[int, int, str], None] | None = None,
     ) -> None:
         self.embedder = embedder
         self.store = store
         self.chunk_chars = chunk_chars
         self.overlap = overlap
+        self.embed_batch_size = embed_batch_size
         self.progress_callback = progress_callback
 
-    def index(self, paths: Sequence[Path]) -> IndexStats:
-        """Index all PDFs found under the given paths."""
-        pdf_files = find_pdfs(paths)
-        if not pdf_files:
-            LOGGER.warning("No PDF files found")
+    def index(
+        self,
+        paths: Sequence[Path],
+        *,
+        exclude_paths: frozenset[str] | None = None,
+    ) -> IndexStats:
+        """Index all supported documents found under the given paths."""
+        doc_files = find_documents(paths, exclude_paths)
+        if not doc_files:
+            LOGGER.warning("No supported documents found")
             return IndexStats()
 
-        total = len(pdf_files)
+        total = len(doc_files)
         stats = IndexStats()
 
-        for i, path in enumerate(pdf_files):
+        for i, path in enumerate(doc_files):
             if self.progress_callback:
                 self.progress_callback(i, total, str(path))
             try:
@@ -89,13 +107,11 @@ class Indexer:
         return stats
 
     def _index_single(self, path: Path) -> str:
-        """Index a single PDF file."""
+        """Index a single document file."""
         import itertools
 
-        # Create generator
         chunk_gen = build_chunks(path, max_chars=self.chunk_chars, overlap=self.overlap)
 
-        # Peek at first chunk to get metadata and ensure we have content
         try:
             first_chunk = next(chunk_gen)
         except StopIteration:
@@ -112,28 +128,29 @@ class Indexer:
             size=stat.st_size,
         )
 
-        # Use a transaction for the whole document update
         with self.store.transaction():
             doc_id, status = self.store.init_document(document)
             if status == "skipped":
                 return status
 
-            # Process chunks in batches
             batch_size = 64
             current_batch = []
 
-            # Chain the first chunk back with the rest
             for chunk in itertools.chain([first_chunk], chunk_gen):
                 current_batch.append(chunk)
-
                 if len(current_batch) >= batch_size:
-                    embeddings = self.embedder.embed([c.text for c in current_batch])
+                    embeddings = self.embedder.embed(
+                        [c.text for c in current_batch],
+                        batch_size=self.embed_batch_size,
+                    )
                     self.store.insert_chunks(doc_id, current_batch, embeddings)
                     current_batch = []
 
-            # Process remaining chunks
             if current_batch:
-                embeddings = self.embedder.embed([c.text for c in current_batch])
+                embeddings = self.embedder.embed(
+                    [c.text for c in current_batch],
+                    batch_size=self.embed_batch_size,
+                )
                 self.store.insert_chunks(doc_id, current_batch, embeddings)
 
         return status

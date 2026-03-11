@@ -157,6 +157,135 @@
         box-shadow: var(--shadow-xs);
       }
 
+      /* ── Spotlight overlay ───────────────────────────────────────────────── */
+      #spotlight-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: rgba(0, 0, 0, 0.55);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        align-items: flex-start;
+        justify-content: center;
+        padding-top: 15vh;
+      }
+      #spotlight-overlay.visible { display: flex; }
+
+      .spotlight-box {
+        width: 660px;
+        max-width: 92vw;
+        background: rgba(22, 27, 42, 0.97);
+        border: 1px solid rgba(255,255,255,0.10);
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 4px 16px rgba(0,0,0,0.4);
+        display: flex;
+        flex-direction: column;
+      }
+
+      .spotlight-search-bar {
+        display: flex;
+        align-items: center;
+        padding: 0 18px;
+        height: 66px;
+        gap: 14px;
+        border-bottom: 1px solid rgba(255,255,255,0.07);
+        flex-shrink: 0;
+      }
+      .spotlight-search-icon { color: rgba(255,255,255,0.35); flex-shrink: 0; }
+
+      #spotlight-input {
+        flex: 1;
+        background: none;
+        border: none;
+        outline: none;
+        font-size: 1.25rem;
+        font-weight: 400;
+        color: rgba(255,255,255,0.92);
+        caret-color: #60a5fa;
+        font-family: inherit;
+      }
+      #spotlight-input::placeholder { color: rgba(255,255,255,0.25); }
+
+      .spotlight-spinner {
+        width: 16px; height: 16px;
+        border: 2px solid rgba(255,255,255,0.12);
+        border-top-color: #60a5fa;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        flex-shrink: 0;
+        display: none;
+      }
+      .spotlight-spinner.active { display: block; }
+
+      #spotlight-results {
+        overflow-y: auto;
+        max-height: 420px;
+        padding: 6px 0;
+      }
+      #spotlight-results::-webkit-scrollbar { width: 4px; }
+      #spotlight-results::-webkit-scrollbar-track { background: transparent; }
+      #spotlight-results::-webkit-scrollbar-thumb {
+        background: rgba(255,255,255,0.12); border-radius: 2px;
+      }
+
+      .sl-result-item {
+        display: flex;
+        flex-direction: column;
+        padding: 10px 18px;
+        cursor: pointer;
+        gap: 3px;
+        transition: background 0.1s;
+        border-left: 3px solid transparent;
+      }
+      .sl-result-item.active, .sl-result-item:hover {
+        background: rgba(96,165,250,0.12);
+        border-left-color: #60a5fa;
+      }
+      .sl-result-title {
+        font-size: 0.9rem; font-weight: 500;
+        color: rgba(255,255,255,0.9);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .sl-result-snippet {
+        font-size: 0.77rem; color: rgba(255,255,255,0.38);
+        line-height: 1.4;
+        display: -webkit-box; -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical; overflow: hidden;
+      }
+      .sl-result-meta {
+        display: flex; align-items: center; gap: 10px; margin-top: 1px;
+      }
+      .sl-result-type {
+        font-size: 0.66rem; padding: 1px 5px; border-radius: 3px;
+        background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.35);
+        text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0;
+      }
+      .sl-result-path {
+        font-size: 0.7rem; color: rgba(255,255,255,0.22);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+      }
+      .sl-result-score {
+        font-size: 0.68rem; color: rgba(96,165,250,0.6);
+        flex-shrink: 0; font-variant-numeric: tabular-nums;
+      }
+      .sl-empty {
+        padding: 28px 20px; text-align: center;
+        color: rgba(255,255,255,0.22); font-size: 0.88rem;
+      }
+      .spotlight-hint-bar {
+        display: flex; justify-content: space-between;
+        padding: 7px 18px; font-size: 0.7rem;
+        color: rgba(255,255,255,0.18);
+        border-top: 1px solid rgba(255,255,255,0.05); flex-shrink: 0;
+      }
+      .spotlight-hint-bar kbd {
+        background: rgba(255,255,255,0.08); border-radius: 3px;
+        padding: 1px 5px; font-family: inherit; font-size: 0.68rem;
+      }
+
+
       /* ── Main layout ──────────────────────────────────────────────────────── */
       main {
         max-width: 1100px;
@@ -800,6 +929,56 @@
         line-height: 1.5;
       }
 
+      /* ── Folder live preview ──────────────────────────────────────────────── */
+      .folder-preview {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.5rem;
+        margin-top: 0.6rem;
+        padding: 0.5rem 0.75rem;
+        background: var(--primary-light);
+        border-radius: var(--radius-xs);
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        line-height: 1.4;
+      }
+
+      /* ── Warn file exclusion rows ─────────────────────────────────────────── */
+      .warn-file-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.35rem 0.5rem;
+        border-radius: var(--radius-xs);
+        font-size: 0.82rem;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .warn-file-row:hover { background: var(--bg); }
+      .warn-file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .warn-file-size { color: var(--text-muted); flex-shrink: 0; }
+
+      /* ── Index warning list ───────────────────────────────────────────────── */
+      .warn-list {
+        list-style: none;
+        margin: 0.6rem 0 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+      }
+
+      .warn-list li {
+        padding: 0.5rem 0.75rem;
+        background: rgba(217, 119, 6, 0.1);
+        border-left: 3px solid var(--warning);
+        border-radius: var(--radius-xs);
+        font-size: 0.875rem;
+        color: var(--text);
+        line-height: 1.45;
+      }
+
       /* ── Responsive ───────────────────────────────────────────────────────── */
       @media (max-width: 640px) {
         .header-content { flex-wrap: wrap; height: auto; padding: 0.6rem 1rem; gap: 0.5rem; }
@@ -813,6 +992,28 @@
     </style>
   </head>
   <body>
+    <!-- ── Spotlight overlay ──────────────────────────────────────────────── -->
+    <div id="spotlight-overlay" role="dialog" aria-modal="true" aria-label="Quick Search">
+      <div class="spotlight-box">
+        <div class="spotlight-search-bar">
+          <span class="spotlight-search-icon">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.7"/>
+              <path d="M13.5 13.5L17 17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <input id="spotlight-input" type="text" placeholder="Search your documents… (min 3 chars)"
+            autocomplete="off" spellcheck="false"/>
+          <div id="spotlight-spinner" class="spotlight-spinner"></div>
+        </div>
+        <div id="spotlight-results"></div>
+        <div class="spotlight-hint-bar">
+          <span><kbd>↑↓</kbd> navigate · <kbd>↵</kbd> open · <kbd>Esc</kbd> close</span>
+          <span>DocFinder</span>
+        </div>
+      </div>
+    </div>
+
     <header>
       <div class="header-content">
         <div class="logo">
@@ -862,7 +1063,7 @@
                 id="query"
                 type="text"
                 class="search-input"
-                placeholder="Search your documents… (⌘K)"
+                placeholder="Search your documents… (⌥D)"
                 autocomplete="off"
                 spellcheck="false"
                 required
@@ -901,6 +1102,7 @@
               Index
             </button>
           </form>
+          <div id="folder-preview" class="folder-preview" style="display:none;"></div>
           <div id="index-status" style="margin-top: 1rem;"></div>
         </div>
 
@@ -1032,8 +1234,36 @@
       </div>
     </div>
 
+    <!-- ── Index warning modal ───────────────────────────────────────────────── -->
+    <div id="index-warn-modal" class="modal-overlay" role="dialog" aria-modal="true">
+      <div class="modal">
+        <h3 class="modal-title">Before you index</h3>
+        <ul id="index-warn-list" class="warn-list"></ul>
+        <div id="warn-exclusions" style="display:none; margin-top:0.75rem;">
+          <p style="font-size:0.82rem; font-weight:600; margin-bottom:0.4rem; color:var(--text);">
+            Large files — uncheck to skip during indexing:
+          </p>
+          <div id="warn-file-list" style="display:flex; flex-direction:column; max-height:160px; overflow-y:auto;"></div>
+        </div>
+        <p style="font-size:0.82rem; margin-top:0.85rem; color:var(--text-muted); line-height:1.45;">
+          Indexing runs in the background and won't block the app.
+        </p>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" id="cancel-index-warn">Cancel</button>
+          <button class="btn btn-primary" id="confirm-index-warn">Index anyway</button>
+        </div>
+      </div>
+    </div>
+
     <script>
       const apiBase = window.location.origin;
+
+      // ── System info (RAM) – fetched once at startup ───────────────────────
+      let systemInfo = { available_mb: null, total_mb: null };
+      fetch(`${apiBase}/system/info`)
+        .then(r => r.json())
+        .then(d => { systemInfo = d; })
+        .catch(() => {});
 
       // ── Tab navigation ───────────────────────────────────────────────────
       const tabs     = document.querySelectorAll('.tab');
@@ -1163,11 +1393,151 @@
         if (!res.ok) showToast((await res.json()).detail || 'Unable to open file', 'error');
       }
 
+      // ── Index warning modal ───────────────────────────────────────────────
+      const indexWarnModal   = document.getElementById('index-warn-modal');
+      const indexWarnList    = document.getElementById('index-warn-list');
+      const warnExclusions   = document.getElementById('warn-exclusions');
+      const warnFileList     = document.getElementById('warn-file-list');
+      const cancelIndexWarn  = document.getElementById('cancel-index-warn');
+      const confirmIndexWarn = document.getElementById('confirm-index-warn');
+
+      // Returns { proceed: bool, excludePaths: string[] }
+      function showIndexWarning(warnings, largeFiles = []) {
+        return new Promise(resolve => {
+          indexWarnList.innerHTML = warnings.map(w => `<li>${escHtml(w)}</li>`).join('');
+
+          if (largeFiles.length > 0) {
+            warnFileList.innerHTML = largeFiles.map(f => {
+              const mb = (f.size_bytes / (1024 * 1024)).toFixed(1);
+              return `<label class="warn-file-row">
+                <input type="checkbox" class="large-file-cb" data-path="${escHtml(f.path)}" checked />
+                <span class="warn-file-name" title="${escHtml(f.path)}">${escHtml(f.name)}</span>
+                <span class="warn-file-size">${mb} MB</span>
+              </label>`;
+            }).join('');
+            warnExclusions.style.display = 'block';
+          } else {
+            warnExclusions.style.display = 'none';
+          }
+
+          indexWarnModal.classList.add('active');
+          confirmIndexWarn.focus();
+
+          const onConfirm = () => {
+            const excludePaths = [];
+            warnFileList.querySelectorAll('.large-file-cb:not(:checked)').forEach(cb => {
+              excludePaths.push(cb.dataset.path);
+            });
+            cleanup();
+            resolve({ proceed: true, excludePaths });
+          };
+          const onCancel  = () => { cleanup(); resolve({ proceed: false, excludePaths: [] }); };
+          const onOverlay = e => { if (e.target === indexWarnModal) onCancel(); };
+          const onKey     = e => { if (e.key === 'Escape') onCancel(); };
+
+          function cleanup() {
+            indexWarnModal.classList.remove('active');
+            confirmIndexWarn.removeEventListener('click', onConfirm);
+            cancelIndexWarn.removeEventListener('click', onCancel);
+            indexWarnModal.removeEventListener('click', onOverlay);
+            document.removeEventListener('keydown', onKey);
+          }
+
+          confirmIndexWarn.addEventListener('click', onConfirm);
+          cancelIndexWarn.addEventListener('click', onCancel);
+          indexWarnModal.addEventListener('click', onOverlay);
+          document.addEventListener('keydown', onKey);
+        });
+      }
+
+      // Returns { warnings: string[], largeFiles: object[] }
+      async function buildIndexWarnings(targetPath) {
+        const LARGE_FILE_MB  = 100;
+        const MANY_FILES     = 50;
+        const TOTAL_LARGE_MB = 1024;
+        const LOW_RAM_MB     = 2048;
+
+        let scanData = null;
+        try {
+          const res = await fetch(`${apiBase}/index/scan`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paths: [targetPath] }),
+          });
+          if (res.ok) scanData = await res.json();
+        } catch (_) {}
+
+        const warnings    = [];
+        const largeFiles  = [];
+
+        if (scanData) {
+          if (scanData.file_count === 0) {
+            warnings.push('No supported files were found in the selected folder.');
+          } else if (scanData.file_count > MANY_FILES) {
+            warnings.push(
+              `${scanData.file_count} files found — indexing a large number of files can take several minutes.`
+            );
+          }
+          if (scanData.large_files && scanData.large_files.length > 0) {
+            largeFiles.push(...scanData.large_files);
+          }
+          if (scanData.total_size_bytes > TOTAL_LARGE_MB * 1024 * 1024) {
+            const mb = Math.round(scanData.total_size_bytes / (1024 * 1024));
+            const label = mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`;
+            warnings.push(`Total size is ${label} — this may require significant time and memory.`);
+          }
+        }
+        if (systemInfo.available_mb !== null && systemInfo.available_mb < LOW_RAM_MB) {
+          warnings.push(
+            `Low available RAM (${systemInfo.available_mb} MB free) — indexing may be slow or unstable.`
+          );
+        }
+        return { warnings, largeFiles };
+      }
+
       // ── Indexing with progress polling ───────────────────────────────────
-      const indexForm   = document.getElementById('index-form');
-      const indexInput  = document.getElementById('index-path');
-      const indexStatus = document.getElementById('index-status');
-      const indexBtn    = document.getElementById('index-btn');
+      const indexForm    = document.getElementById('index-form');
+      const indexInput   = document.getElementById('index-path');
+      const indexStatus  = document.getElementById('index-status');
+      const indexBtn     = document.getElementById('index-btn');
+      const folderPreview = document.getElementById('folder-preview');
+
+      // Live folder preview (debounced)
+      let _previewTimer = null;
+      async function _fetchPreview(path) {
+        try {
+          const res = await fetch(`${apiBase}/index/scan`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paths: [path] }),
+          });
+          if (!res.ok) { folderPreview.style.display = 'none'; return; }
+          const d = await res.json();
+          if (d.file_count === 0) {
+            folderPreview.innerHTML = '<span>No supported files found in this folder.</span>';
+          } else {
+            const mb    = d.total_size_bytes / (1024 * 1024);
+            const size  = mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb.toFixed(1)} MB`;
+            const types = d.by_type
+              ? Object.entries(d.by_type).filter(([,n]) => n > 0)
+                  .map(([ext, n]) => `${n}\u00a0${ext}`).join(', ')
+              : '';
+            folderPreview.innerHTML =
+              `<svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="color:var(--primary);flex-shrink:0;margin-top:1px"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="M5 8.5l2 2L11 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>` +
+              `<span>Found <strong>${d.file_count}</strong> file${d.file_count !== 1 ? 's' : ''}` +
+              (types ? ` (${types})` : '') +
+              ` — <strong>${size}</strong> total</span>`;
+          }
+          folderPreview.style.display = 'flex';
+        } catch (_) { folderPreview.style.display = 'none'; }
+      }
+
+      indexInput.addEventListener('input', () => {
+        clearTimeout(_previewTimer);
+        const val = indexInput.value.trim();
+        if (!val) { folderPreview.style.display = 'none'; return; }
+        _previewTimer = setTimeout(() => _fetchPreview(val), 800);
+      });
 
       // Drag & drop on path input
       indexInput.addEventListener('dragover',  e => { e.preventDefault(); indexInput.classList.add('drag-over'); });
@@ -1178,21 +1548,38 @@
         const item = e.dataTransfer.items?.[0];
         if (item?.kind === 'file') {
           const entry = item.webkitGetAsEntry?.();
-          if (entry) { indexInput.value = entry.fullPath || e.dataTransfer.getData('text'); return; }
+          if (entry) {
+            indexInput.value = entry.fullPath || e.dataTransfer.getData('text');
+            clearTimeout(_previewTimer);
+            _previewTimer = setTimeout(() => _fetchPreview(indexInput.value.trim()), 400);
+            return;
+          }
         }
         const text = e.dataTransfer.getData('text');
-        if (text) indexInput.value = text;
+        if (text) {
+          indexInput.value = text;
+          clearTimeout(_previewTimer);
+          _previewTimer = setTimeout(() => _fetchPreview(text.trim()), 400);
+        }
       });
 
-      function renderProgress(job) {
-        const pct = job.total > 0 ? Math.round((job.processed / job.total) * 100) : 5;
+      function renderProgress(job, startTime = null) {
+        const pct      = job.total > 0 ? Math.round((job.processed / job.total) * 100) : 5;
         const countStr = job.total > 0 ? `${job.processed} / ${job.total}` : '…';
         const fileName = job.current_file ? job.current_file.split('/').pop() : '';
+        let etaStr = '';
+        if (startTime && job.processed > 0 && job.total > 0 && job.processed < job.total) {
+          const elapsed  = (Date.now() - startTime) / 1000;
+          const remaining = (elapsed / job.processed) * (job.total - job.processed);
+          etaStr = remaining < 60
+            ? ` · ~${Math.round(remaining)}s left`
+            : ` · ~${Math.round(remaining / 60)}m left`;
+        }
         return `
           <div class="progress-wrap">
             <div class="progress-header">
               <span class="progress-label">Indexing…</span>
-              <span class="progress-count">${countStr} files</span>
+              <span class="progress-count">${countStr} files${etaStr}</span>
             </div>
             <div class="progress-bar-bg">
               <div class="progress-bar-fill" style="width:${pct}%"></div>
@@ -1206,14 +1593,26 @@
         const targetPath = indexInput.value.trim();
         if (!targetPath) return;
 
+        folderPreview.style.display = 'none';
+
+        // Scan + warn before starting
+        const { warnings, largeFiles } = await buildIndexWarnings(targetPath);
+        let excludePaths = [];
+        if (warnings.length > 0 || largeFiles.length > 0) {
+          const result = await showIndexWarning(warnings, largeFiles);
+          if (!result.proceed) return;
+          excludePaths = result.excludePaths;
+        }
+
         indexBtn.disabled = true;
-        indexStatus.innerHTML = renderProgress({ processed: 0, total: 0, current_file: '' });
+        const jobStartTime = Date.now();
+        indexStatus.innerHTML = renderProgress({ processed: 0, total: 0, current_file: '' }, jobStartTime);
 
         try {
           const startRes = await fetch(`${apiBase}/index`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ paths: [targetPath] }),
+            body: JSON.stringify({ paths: [targetPath], exclude_paths: excludePaths }),
           });
           const startData = await startRes.json();
           if (!startRes.ok) throw new Error(startData.detail || 'Failed to start indexing');
@@ -1227,7 +1626,7 @@
                 const statusRes = await fetch(`${apiBase}/index/status/${jobId}`);
                 const job = await statusRes.json();
                 if (job.status === 'running') {
-                  indexStatus.innerHTML = renderProgress(job);
+                  indexStatus.innerHTML = renderProgress(job, jobStartTime);
                 } else if (job.status === 'complete') {
                   clearInterval(interval);
                   resolve(job);
@@ -1472,18 +1871,30 @@
         if (e.altKey)   mods.push('<alt>');
         if (e.shiftKey) mods.push('<shift>');
 
-        const key = e.key.toLowerCase();
-        const modifierOnly = ['control','shift','alt','meta','command','os','win'];
-        if (modifierOnly.includes(key)) return null; // still building combo
+        // Use e.code to get the physical key — e.key gives composed characters
+        // on macOS (e.g. Option+D → '∂' instead of 'd').
+        const code = e.code || '';
+        const modifierOnly = ['ControlLeft','ControlRight','ShiftLeft','ShiftRight',
+          'AltLeft','AltRight','MetaLeft','MetaRight','OSLeft','OSRight'];
+        if (modifierOnly.includes(code)) return null; // still building combo
 
-        const special = {
-          ' ':           '<space>', 'enter':     '<enter>',
-          'escape':      '<esc>',   'tab':        '<tab>',
-          'backspace':   '<backspace>',
-          'arrowup':     '<up>',    'arrowdown':  '<down>',
-          'arrowleft':   '<left>',  'arrowright': '<right>',
+        const codeToKey = {
+          'Space': '<space>', 'Enter': '<enter>', 'NumpadEnter': '<enter>',
+          'Escape': '<esc>', 'Tab': '<tab>', 'Backspace': '<backspace>',
+          'ArrowUp': '<up>', 'ArrowDown': '<down>',
+          'ArrowLeft': '<left>', 'ArrowRight': '<right>',
         };
-        const keyPart = special[key] ?? (key.length === 1 ? key : `<${key}>`);
+        let keyPart = codeToKey[code];
+        if (!keyPart) {
+          // KeyA-KeyZ → a-z
+          const letterMatch = code.match(/^Key([A-Z])$/);
+          if (letterMatch) keyPart = letterMatch[1].toLowerCase();
+          // Digit0-Digit9 → 0-9
+          else if (/^Digit[0-9]$/.test(code)) keyPart = code.charAt(5);
+          // F1-F12
+          else if (/^F([1-9]|1[0-2])$/.test(code)) keyPart = `<${code.toLowerCase()}>`;
+          else keyPart = e.key.length === 1 ? e.key.toLowerCase() : `<${e.key.toLowerCase()}>`;
+        }
         if (!mods.length) return null; // require at least one modifier
         return [...mods, keyPart].join('+');
       }
@@ -1581,6 +1992,138 @@
       } else {
         window.addEventListener('pywebviewready', enableBrowseButton);
       }
+
+      // ── Spotlight overlay ─────────────────────────────────────────────────
+      (function () {
+        const overlay  = document.getElementById('spotlight-overlay');
+        const slInput  = document.getElementById('spotlight-input');
+        const slResult = document.getElementById('spotlight-results');
+        const slSpinner = document.getElementById('spotlight-spinner');
+        let slActive = -1, slItems = [], slDebounce = null;
+
+        function escHtmlSl(s) {
+          return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+            .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+        function slExt(p) { const m = String(p).match(/\.([^.]+)$/); return m ? m[1].toLowerCase() : ''; }
+        function slShortPath(p) { return String(p).split(/[/\\]/).slice(-3).join('/'); }
+
+        function slSetActive(idx) {
+          slActive = Math.max(0, Math.min(idx, slItems.length - 1));
+          slResult.querySelectorAll('.sl-result-item').forEach((el, i) =>
+            el.classList.toggle('active', i === slActive));
+        }
+
+        function slRender(items) {
+          slItems = items; slActive = -1;
+          if (!items.length) {
+            slResult.innerHTML = '<div class="sl-empty">No results found</div>'; return;
+          }
+          slResult.innerHTML = items.map((r, i) => `
+            <div class="sl-result-item" data-index="${i}" data-path="${escHtmlSl(r.path)}">
+              <div class="sl-result-title">${escHtmlSl(r.title || slExt(r.path).toUpperCase() + ' document')}</div>
+              <div class="sl-result-snippet">${escHtmlSl(r.text)}</div>
+              <div class="sl-result-meta">
+                <span class="sl-result-type">${escHtmlSl(slExt(r.path) || 'doc')}</span>
+                <span class="sl-result-path" title="${escHtmlSl(r.path)}">${escHtmlSl(slShortPath(r.path))}</span>
+                <span class="sl-result-score">${Math.round(r.score * 100)}%</span>
+              </div>
+            </div>`).join('');
+          slResult.querySelectorAll('.sl-result-item').forEach(el => {
+            el.addEventListener('click', () => slOpen(el.dataset.path));
+            el.addEventListener('mouseenter', () => slSetActive(parseInt(el.dataset.index)));
+          });
+        }
+
+        async function slOpen(path) {
+          try {
+            await fetch('/open', { method: 'POST',
+              headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ path }) });
+          } catch (_) {}
+          hideSpotlightOverlay();
+        }
+
+        async function slSearch(q) {
+          const trimmed = q.trim();
+          if (trimmed.length < 3) { slResult.innerHTML = ''; slItems = []; return; }
+          slSpinner.classList.add('active');
+          try {
+            const res = await fetch('/search', { method: 'POST',
+              headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ query: trimmed, top_k: 10 }) });
+            const data = await res.json();
+            if (res.ok) {
+              // Apply same relevance threshold as the main app experience
+              const relevant = (data.results || []).filter(r => r.score >= 0.3);
+              slRender(relevant);
+            } else {
+              slResult.innerHTML = `<div class="sl-empty">${escHtmlSl(data.detail||'Error')}</div>`;
+            }
+          } catch (_) {
+            slResult.innerHTML = '<div class="sl-empty">Search unavailable — is DocFinder indexed?</div>';
+          } finally { slSpinner.classList.remove('active'); }
+        }
+
+        slInput.addEventListener('input', () => {
+          clearTimeout(slDebounce);
+          const q = slInput.value.trim();
+          if (q.length < 3) { slResult.innerHTML = ''; slItems = []; return; }
+          slDebounce = setTimeout(() => slSearch(slInput.value), 500);
+        });
+
+        // Use document-level keydown so Escape works even if the input lost focus
+        document.addEventListener('keydown', e => {
+          if (!overlay.classList.contains('visible')) return;
+          if (e.key === 'Escape') { hideSpotlightOverlay(); return; }
+          if (e.key === 'ArrowDown') {
+            e.preventDefault(); slSetActive(slActive + 1);
+            slResult.querySelectorAll('.sl-result-item')[slActive]?.scrollIntoView({block:'nearest'});
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault(); slSetActive(slActive - 1);
+            slResult.querySelectorAll('.sl-result-item')[slActive]?.scrollIntoView({block:'nearest'});
+          } else if (e.key === 'Enter' && slActive >= 0 && slItems[slActive]) {
+            slOpen(slItems[slActive].path);
+          }
+        });
+
+        // Click backdrop to close
+        overlay.addEventListener('click', e => { if (e.target === overlay) hideSpotlightOverlay(); });
+
+        // ⌥D shortcut within the webview (no pynput / no threading needed)
+        // Use e.code ('KeyD') because macOS Option+D produces '∂' in e.key
+        document.addEventListener('keydown', e => {
+          if (e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey && e.code === 'KeyD') {
+            e.preventDefault();
+            toggleSpotlightOverlay();
+          }
+        });
+
+        window.toggleSpotlightOverlay = function () {
+          if (overlay.classList.contains('visible')) hideSpotlightOverlay();
+          else showSpotlightOverlay();
+        };
+
+        window.showSpotlightOverlay = function () {
+          overlay.classList.add('visible');
+          slInput.value = '';
+          slResult.innerHTML = '';
+          slItems = []; slActive = -1;
+          // Retry focus to ensure it works in pywebview / WKWebView
+          function tryFocus(attempts) {
+            slInput.focus();
+            if (document.activeElement !== slInput && attempts > 0) {
+              setTimeout(() => tryFocus(attempts - 1), 50);
+            }
+          }
+          setTimeout(() => tryFocus(5), 60);
+        };
+
+        window.hideSpotlightOverlay = function () {
+          overlay.classList.remove('visible');
+        };
+      })();
+
     </script>
   </body>
 </html>

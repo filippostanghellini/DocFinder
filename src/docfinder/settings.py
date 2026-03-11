@@ -27,8 +27,11 @@ def get_settings_path() -> Path:
 
 
 def _default_hotkey() -> str:
-    """Return a platform-appropriate default global hotkey string (pynput format)."""
-    return "<cmd>+<shift>+f" if sys.platform == "darwin" else "<ctrl>+<shift>+f"
+    """Return a platform-appropriate default global hotkey string (pynput format).
+
+    Uses Option+D (⌥D) which is free on all platforms and easy to press.
+    """
+    return "<alt>+d"
 
 
 _DEFAULTS: dict = {

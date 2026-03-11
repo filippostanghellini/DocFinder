@@ -6,12 +6,26 @@ import hashlib
 from pathlib import Path
 from typing import Iterable, Iterator
 
+SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({".pdf", ".txt", ".md", ".docx"})
 
-def iter_pdf_paths(inputs: Iterable[Path]) -> Iterator[Path]:
-    """Yield PDF paths from input paths, descending into directories."""
+
+def iter_document_paths(inputs: Iterable[Path]) -> Iterator[Path]:
+    """Yield supported document paths from input paths, descending into directories."""
     for item in inputs:
         if item.is_dir():
-            yield from iter_pdf_paths(sorted(child for child in item.rglob("*.pdf")))
+            yield from sorted(
+                p for p in item.rglob("*")
+                if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS
+            )
+        elif item.is_file() and item.suffix.lower() in SUPPORTED_EXTENSIONS:
+            yield item
+
+
+def iter_pdf_paths(inputs: Iterable[Path]) -> Iterator[Path]:
+    """Yield PDF paths from input paths (kept for backward compatibility)."""
+    for item in inputs:
+        if item.is_dir():
+            yield from sorted(p for p in item.rglob("*.pdf") if p.is_file())
         elif item.is_file() and item.suffix.lower() == ".pdf":
             yield item
 

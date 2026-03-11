@@ -211,12 +211,19 @@ class EmbeddingModel:
 
         logger.info(" | ".join(info_parts))
 
-    def embed(self, texts: Sequence[str] | Iterable[str]) -> np.ndarray:
-        """Return float32 embeddings for input texts."""
+    def embed(
+        self, texts: Sequence[str] | Iterable[str], *, batch_size: int | None = None
+    ) -> np.ndarray:
+        """Return float32 embeddings for input texts.
+
+        Args:
+            texts: Input strings to embed.
+            batch_size: Override the configured batch size (useful for low-RAM scenarios).
+        """
         sentences = list(texts)
         embeddings = self._model.encode(
             sentences,
-            batch_size=self.config.batch_size,
+            batch_size=batch_size if batch_size is not None else self.config.batch_size,
             show_progress_bar=False,
             convert_to_numpy=True,
             normalize_embeddings=self.config.normalize,

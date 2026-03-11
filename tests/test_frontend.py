@@ -10,19 +10,19 @@ class TestLoadTemplate:
 
     def test_load_template_returns_string(self) -> None:
         """Template is loaded as a string."""
-        result = _load_template()
+        result = _load_template("index.html")
         assert isinstance(result, str)
         assert len(result) > 0
 
     def test_load_template_contains_html(self) -> None:
         """Template contains valid HTML."""
-        result = _load_template()
+        result = _load_template("index.html")
         assert "<html" in result.lower() or "<!doctype" in result.lower()
         assert "</html>" in result.lower()
 
     def test_load_template_contains_docfinder(self) -> None:
         """Template contains DocFinder branding."""
-        result = _load_template()
+        result = _load_template("index.html")
         assert "DocFinder" in result
 
 

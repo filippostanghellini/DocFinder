@@ -39,7 +39,8 @@ dev = [
 web = [
   "fastapi>=0.115.0",
   "uvicorn[standard]>=0.32.0",
-  "pydantic>=2.9.0"
+  "pydantic>=2.9.0",
+  "python-docx>=1.1.0"
 ]
 gui = [
   "pywebview>=5.0.0",
@@ -47,6 +48,7 @@ gui = [
   "uvicorn[standard]>=0.32.0",
   "pydantic>=2.9.0",
   "pynput>=1.7.0",
+  "python-docx>=1.1.0",
   "pyobjc-framework-Cocoa>=9.0; sys_platform == 'darwin'"
 ]
 gpu = [

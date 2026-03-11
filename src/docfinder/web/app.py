@@ -47,6 +47,15 @@ def _get_embedder() -> EmbeddingModel:
 # ── Async indexing job registry ───────────────────────────────────────────────
 _index_jobs: dict[str, dict] = {}
 
+# ── GUI callback registry (set by the desktop GUI layer, not used in web mode) ─
+_spotlight_hide_callback: object = None  # callable | None
+
+
+def register_spotlight_hide_callback(callback: object) -> None:
+    """Register a callable that hides the spotlight panel (called by gui.py)."""
+    global _spotlight_hide_callback
+    _spotlight_hide_callback = callback
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -87,6 +96,7 @@ class IndexPayload(BaseModel):
     model: str | None = None
     chunk_chars: int | None = None
     overlap: int | None = None
+    exclude_paths: List[str] = []
 
 
 class SettingsPayload(BaseModel):
@@ -142,6 +152,15 @@ async def open_document(payload: OpenRequest) -> dict[str, str]:
     except Exception as exc:  # pragma: no cover - defensive
         LOGGER.error("Unable to open %s: %s", path, exc)
         raise HTTPException(status_code=500, detail=str(exc))
+    return {"status": "ok"}
+
+
+@app.post("/gui/spotlight/hide", include_in_schema=False)
+async def spotlight_hide() -> dict[str, str]:
+    """Signal the native SpotlightPanel to hide (called by spotlight.html JS)."""
+    cb = _spotlight_hide_callback
+    if cb is not None:
+        await asyncio.to_thread(cb)  # type: ignore[arg-type]
     return {"status": "ok"}
 
 
@@ -247,13 +266,27 @@ async def update_settings(payload: SettingsPayload) -> dict:
     return current
 
 
+def _compute_embed_batch_size() -> int:
+    """Choose embedding batch size based on available RAM to avoid OOM."""
+    info = _get_memory_info()
+    available = info.get("available_mb")
+    if available is None or available >= 4096:
+        return 32
+    elif available >= 2048:
+        return 16
+    else:
+        return 8
+
+
 def _run_index_job(
     paths: List[Path],
     config: AppConfig,
     resolved_db: Path,
     job: dict | None = None,
+    exclude_paths: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     embedder = _get_embedder()
+    embed_batch_size = _compute_embed_batch_size()
 
     def _progress(processed: int, total: int, current_file: str) -> None:
         if job is not None:
@@ -267,10 +300,11 @@ def _run_index_job(
         store,
         chunk_chars=config.chunk_chars,
         overlap=config.overlap,
+        embed_batch_size=embed_batch_size,
         progress_callback=_progress,
     )
     try:
-        stats = indexer.index(paths)
+        stats = indexer.index(paths, exclude_paths=exclude_paths)
     finally:
         store.close()
 
@@ -283,13 +317,85 @@ def _run_index_job(
     }
 
 
-def _validate_index_paths(payload: "IndexPayload") -> List[Path]:
-    """Validate and resolve paths from an IndexPayload. Raises HTTPException on error."""
+def _get_memory_info() -> dict[str, Any]:
+    """Return available and total RAM in MB using platform-native methods. No extra deps."""
+    try:
+        import psutil  # optional – used if installed
+
+        vm = psutil.virtual_memory()
+        return {
+            "available_mb": vm.available // (1024 * 1024),
+            "total_mb": vm.total // (1024 * 1024),
+        }
+    except ImportError:
+        pass
+
+    if sys.platform == "darwin":
+        try:
+            import subprocess as _sp
+
+            total = int(_sp.check_output(["sysctl", "-n", "hw.memsize"]).strip())
+            vm_out = _sp.check_output(["vm_stat"]).decode()
+            free_pages = inactive_pages = 0
+            for line in vm_out.splitlines():
+                if line.startswith("Pages free:"):
+                    free_pages = int(line.split(":")[1].strip().rstrip("."))
+                elif line.startswith("Pages inactive:"):
+                    inactive_pages = int(line.split(":")[1].strip().rstrip("."))
+            available = (free_pages + inactive_pages) * 4096
+            return {"available_mb": available // (1024 * 1024), "total_mb": total // (1024 * 1024)}
+        except Exception:
+            pass
+    elif sys.platform.startswith("linux"):
+        try:
+            meminfo: dict[str, int] = {}
+            with open("/proc/meminfo") as _f:
+                for line in _f:
+                    k, v = line.split(":")
+                    meminfo[k.strip()] = int(v.strip().split()[0])  # kB
+            return {
+                "available_mb": meminfo.get("MemAvailable", meminfo.get("MemFree", 0)) // 1024,
+                "total_mb": meminfo.get("MemTotal", 0) // 1024,
+            }
+        except Exception:
+            pass
+    elif sys.platform == "win32":
+        try:
+            import ctypes
+
+            class _MemStatEx(ctypes.Structure):
+                _fields_ = [
+                    ("dwLength", ctypes.c_ulong),
+                    ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
+                ]
+
+            stat = _MemStatEx()
+            stat.dwLength = ctypes.sizeof(stat)
+            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat))  # type: ignore[attr-defined]
+            return {
+                "available_mb": stat.ullAvailPhys // (1024 * 1024),
+                "total_mb": stat.ullTotalPhys // (1024 * 1024),
+            }
+        except Exception:
+            pass
+
+    return {"available_mb": None, "total_mb": None}
+
+
+def _validate_paths(paths: List[str]) -> List[Path]:
+    """Validate and resolve a list of raw path strings. Raises HTTPException on error."""
     logger = logging.getLogger(__name__)
     safe_base_dir = Path(os.path.realpath(str(Path.home())))
     resolved_paths: List[Path] = []
 
-    for p in payload.paths:
+    for p in paths:
         clean_path = p.strip().replace("\r", "").replace("\n", "")
         if not clean_path:
             continue
@@ -343,7 +449,7 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     resolved_db = config.resolve_db_path(Path.cwd())
     _ensure_db_parent(resolved_db)
 
-    resolved_paths = _validate_index_paths(payload)
+    resolved_paths = _validate_paths(payload.paths)
 
     job_id = str(uuid.uuid4())
     job: dict[str, Any] = {
@@ -357,10 +463,14 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     }
     _index_jobs[job_id] = job
 
+    exclude: frozenset[str] | None = (
+        frozenset(payload.exclude_paths) if payload.exclude_paths else None
+    )
+
     async def _run() -> None:
         try:
             result = await asyncio.to_thread(
-                _run_index_job, resolved_paths, config, resolved_db, job
+                _run_index_job, resolved_paths, config, resolved_db, job, exclude
             )
             job["status"] = "complete"
             job["stats"] = result
@@ -380,3 +490,50 @@ async def get_index_status(job_id: str) -> dict[str, Any]:
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+
+@app.get("/system/info")
+async def get_system_info() -> dict[str, Any]:
+    """Return available and total RAM in MB for the host machine."""
+    return await asyncio.to_thread(_get_memory_info)
+
+
+class ScanPayload(BaseModel):
+    paths: List[str]
+
+
+@app.post("/index/scan")
+async def scan_index_paths(payload: ScanPayload) -> dict[str, Any]:
+    """Scan paths for PDFs and return file stats without indexing."""
+    if not payload.paths:
+        raise HTTPException(status_code=400, detail="No path provided")
+
+    resolved_paths = _validate_paths(payload.paths)
+
+    _LARGE_FILE_BYTES = 100 * 1024 * 1024  # 100 MB
+
+    def _scan() -> dict[str, Any]:
+        from docfinder.utils.files import iter_document_paths
+
+        docs = list(iter_document_paths(resolved_paths))
+        total_size = 0
+        large_files: list[dict[str, Any]] = []
+        by_type: dict[str, int] = {}
+        for f in docs:
+            ext = f.suffix.lower()
+            by_type[ext] = by_type.get(ext, 0) + 1
+            try:
+                size = f.stat().st_size
+                total_size += size
+                if size >= _LARGE_FILE_BYTES:
+                    large_files.append({"name": f.name, "path": str(f), "size_bytes": size})
+            except OSError:
+                pass
+        return {
+            "file_count": len(docs),
+            "total_size_bytes": total_size,
+            "large_files": large_files,
+            "by_type": by_type,
+        }
+
+    return await asyncio.to_thread(_scan)

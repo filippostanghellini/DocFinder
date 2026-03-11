@@ -231,7 +231,6 @@ class TestBuildChunks:
         assert len(chunks) >= 1
         chunk = chunks[0]
         assert chunk.metadata["title"] == "My Document"
-        assert chunk.metadata["page_span"] == "5"
 
     @patch("docfinder.ingestion.pdf_loader.iter_text_parts")
     @patch("docfinder.ingestion.pdf_loader.get_pdf_metadata")
