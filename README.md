@@ -16,12 +16,9 @@
   Everything runs on your machine — no cloud, no accounts, complete privacy.
 </p>
 
-<table width="100%">                                                            
-  <tr>                                                                          
-    <td width="50%"><img src="images/search.png" alt="Search" width="100%"></td>
-    <td width="50%"><img src="images/index.png" alt="Index" width="100%"></td>  
-  </tr>                                                                         
-</table>                                                                        
+<p align="center">
+  <img src="images/demo.gif" alt="DocFinder Demo" width="700">
+</p>                                                                        
 
 ## Features
 

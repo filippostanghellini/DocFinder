@@ -6,69 +6,119 @@
     <title>DocFinder</title>
     <style>
       :root {
-        --primary: #2563eb;
-        --primary-hover: #1d4ed8;
-        --primary-light: rgba(37, 99, 235, 0.12);
-        --danger: #dc2626;
-        --danger-hover: #b91c1c;
-        --danger-light: rgba(220, 38, 38, 0.1);
-        --success: #16a34a;
-        --success-light: rgba(22, 163, 74, 0.1);
-        --warning: #d97706;
-        --bg: #f1f5f9;
-        --bg-card: #ffffff;
-        --bg-input: #f8fafc;
-        --text: #0f172a;
-        --text-muted: #64748b;
-        --text-subtle: #94a3b8;
-        --border: rgba(148, 163, 184, 0.25);
-        --border-focus: rgba(37, 99, 235, 0.5);
-        --shadow-xs: 0 1px 2px rgba(0,0,0,0.05);
-        --shadow: 0 1px 3px rgba(0,0,0,0.07), 0 4px 12px rgba(0,0,0,0.04);
-        --shadow-lg: 0 8px 24px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06);
-        --shadow-xl: 0 20px 48px rgba(0,0,0,0.14);
-        --radius: 12px;
-        --radius-sm: 8px;
+        --primary: #6366f1;
+        --primary-hover: #4f46e5;
+        --primary-light: rgba(99, 102, 241, 0.10);
+        --primary-glow: rgba(99, 102, 241, 0.25);
+        --danger: #ef4444;
+        --danger-hover: #dc2626;
+        --danger-light: rgba(239, 68, 68, 0.08);
+        --success: #10b981;
+        --success-light: rgba(16, 185, 129, 0.08);
+        --warning: #f59e0b;
+        --accent: #8b5cf6;
+
+        --bg-0: #fafbfc;
+        --bg-1: #ffffff;
+        --bg-2: #f4f5f7;
+        --bg-3: #eef0f4;
+        --text-0: #111827;
+        --text-1: #374151;
+        --text-2: #6b7280;
+        --text-3: #9ca3af;
+
+        --border: rgba(0, 0, 0, 0.06);
+        --border-subtle: rgba(0, 0, 0, 0.03);
+        --border-focus: rgba(99, 102, 241, 0.4);
+
+        --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+        --shadow-md: 0 2px 8px rgba(0,0,0,0.06), 0 0 1px rgba(0,0,0,0.04);
+        --shadow-lg: 0 8px 30px rgba(0,0,0,0.08), 0 0 1px rgba(0,0,0,0.04);
+        --shadow-xl: 0 20px 60px rgba(0,0,0,0.12);
+
         --radius-xs: 6px;
-        --header-h: 60px;
+        --radius-sm: 8px;
+        --radius: 12px;
+        --radius-lg: 16px;
+        --radius-xl: 20px;
+
+        --header-h: 56px;
+        --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         color-scheme: light dark;
       }
 
       @media (prefers-color-scheme: dark) {
         :root {
-          --bg: #0c1120;
-          --bg-card: #151f32;
-          --bg-input: #1a2540;
-          --text: #e8edf5;
-          --text-muted: #8a9bbf;
-          --text-subtle: #536180;
-          --border: rgba(148, 163, 184, 0.12);
-          --border-focus: rgba(96, 165, 250, 0.5);
-          --shadow-xs: 0 1px 2px rgba(0,0,0,0.3);
-          --shadow: 0 1px 3px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.25);
-          --shadow-lg: 0 8px 24px rgba(0,0,0,0.45), 0 2px 6px rgba(0,0,0,0.3);
-          --shadow-xl: 0 20px 48px rgba(0,0,0,0.6);
-          --primary: #3b82f6;
-          --primary-hover: #2563eb;
-          --primary-light: rgba(59, 130, 246, 0.15);
+          --primary: #818cf8;
+          --primary-hover: #6366f1;
+          --primary-light: rgba(129, 140, 248, 0.12);
+          --primary-glow: rgba(129, 140, 248, 0.20);
+          --danger: #f87171;
+          --danger-hover: #ef4444;
+          --danger-light: rgba(248, 113, 113, 0.10);
+          --success: #34d399;
+          --success-light: rgba(52, 211, 153, 0.10);
+          --accent: #a78bfa;
+
+          --bg-0: #0a0a0f;
+          --bg-1: #12121a;
+          --bg-2: #1a1a25;
+          --bg-3: #22222f;
+          --text-0: #f3f4f6;
+          --text-1: #d1d5db;
+          --text-2: #9ca3af;
+          --text-3: #6b7280;
+
+          --border: rgba(255, 255, 255, 0.06);
+          --border-subtle: rgba(255, 255, 255, 0.03);
+          --border-focus: rgba(129, 140, 248, 0.4);
+
+          --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+          --shadow-md: 0 2px 8px rgba(0,0,0,0.3), 0 0 1px rgba(0,0,0,0.2);
+          --shadow-lg: 0 8px 30px rgba(0,0,0,0.4), 0 0 1px rgba(0,0,0,0.2);
+          --shadow-xl: 0 20px 60px rgba(0,0,0,0.5);
         }
       }
 
       * { box-sizing: border-box; margin: 0; padding: 0; }
 
       body {
-        background: var(--bg);
-        color: var(--text);
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-        font-size: 15px;
-        line-height: 1.55;
+        background: var(--bg-0);
+        color: var(--text-0);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
         -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        min-height: 100vh;
+      }
+
+      /* ── Ambient background gradient ─────────────────────────────────────── */
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background:
+          radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99,102,241,0.08), transparent),
+          radial-gradient(ellipse 60% 40% at 80% 50%, rgba(139,92,246,0.05), transparent),
+          radial-gradient(ellipse 60% 40% at 20% 80%, rgba(59,130,246,0.04), transparent);
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        body::before {
+          background:
+            radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99,102,241,0.12), transparent),
+            radial-gradient(ellipse 60% 40% at 80% 50%, rgba(139,92,246,0.08), transparent),
+            radial-gradient(ellipse 60% 40% at 20% 80%, rgba(59,130,246,0.06), transparent);
+        }
       }
 
       /* ── Header ─────────────────────────────────────────────────────────── */
       header {
         height: var(--header-h);
-        background: rgba(255,255,255,0.75);
+        background: color-mix(in srgb, var(--bg-1) 80%, transparent);
         backdrop-filter: saturate(180%) blur(20px);
         -webkit-backdrop-filter: saturate(180%) blur(20px);
         border-bottom: 1px solid var(--border);
@@ -77,14 +127,8 @@
         z-index: 200;
       }
 
-      @media (prefers-color-scheme: dark) {
-        header {
-          background: rgba(21,31,50,0.8);
-        }
-      }
-
-      .header-content {
-        max-width: 1100px;
+      .header-inner {
+        max-width: 960px;
         margin: 0 auto;
         padding: 0 1.5rem;
         height: 100%;
@@ -97,64 +141,62 @@
       .logo {
         display: flex;
         align-items: center;
-        gap: 0.6rem;
+        gap: 0.5rem;
         text-decoration: none;
         flex-shrink: 0;
       }
 
-      .logo-icon {
-        width: 34px;
-        height: 34px;
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        border-radius: 9px;
+      .logo-mark {
+        width: 28px;
+        height: 28px;
+        background: linear-gradient(135deg, var(--primary), var(--accent));
+        border-radius: 7px;
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 2px 8px rgba(118,75,162,0.35);
+        box-shadow: 0 2px 8px var(--primary-glow);
       }
 
       .logo h1 {
-        font-size: 1.15rem;
+        font-size: 0.95rem;
         font-weight: 700;
-        background: linear-gradient(135deg, var(--primary), #7c3aed);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        letter-spacing: -0.02em;
+        letter-spacing: -0.03em;
+        color: var(--text-0);
       }
 
       /* ── Tabs ─────────────────────────────────────────────────────────────── */
       .tabs {
         display: flex;
-        gap: 2px;
-        background: var(--bg);
+        gap: 1px;
+        background: var(--bg-2);
         border: 1px solid var(--border);
         padding: 3px;
         border-radius: calc(var(--radius-sm) + 3px);
       }
 
       .tab {
-        padding: 0.4rem 1rem;
+        padding: 0.35rem 0.85rem;
         border: none;
         background: transparent;
-        color: var(--text-muted);
+        color: var(--text-2);
         cursor: pointer;
         border-radius: var(--radius-sm);
-        font-size: 0.875rem;
+        font-size: 0.8rem;
         font-weight: 500;
-        transition: all 0.18s ease;
+        transition: all var(--transition);
         white-space: nowrap;
         display: flex;
         align-items: center;
-        gap: 0.35rem;
+        gap: 0.3rem;
+        position: relative;
       }
 
-      .tab:hover { color: var(--text); background: var(--bg-card); }
+      .tab:hover { color: var(--text-0); }
 
       .tab.active {
-        background: var(--bg-card);
-        color: var(--primary);
-        box-shadow: var(--shadow-xs);
+        background: var(--bg-1);
+        color: var(--text-0);
+        box-shadow: var(--shadow-sm);
       }
 
       /* ── Spotlight overlay ───────────────────────────────────────────────── */
@@ -163,55 +205,68 @@
         position: fixed;
         inset: 0;
         z-index: 9999;
-        background: rgba(0, 0, 0, 0.55);
-        backdrop-filter: blur(4px);
-        -webkit-backdrop-filter: blur(4px);
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
         align-items: flex-start;
         justify-content: center;
-        padding-top: 15vh;
+        padding-top: 18vh;
       }
       #spotlight-overlay.visible { display: flex; }
 
       .spotlight-box {
-        width: 660px;
+        width: 620px;
         max-width: 92vw;
-        background: rgba(22, 27, 42, 0.97);
-        border: 1px solid rgba(255,255,255,0.10);
-        border-radius: 16px;
+        background: var(--bg-1);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
         overflow: hidden;
-        box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 4px 16px rgba(0,0,0,0.4);
+        box-shadow: var(--shadow-xl), 0 0 0 1px var(--border);
         display: flex;
         flex-direction: column;
+        animation: spotlightIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      @keyframes spotlightIn {
+        from { opacity: 0; transform: scale(0.98) translateY(-8px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .spotlight-box {
+          background: rgba(18, 18, 26, 0.95);
+          border-color: rgba(255,255,255,0.08);
+        }
       }
 
       .spotlight-search-bar {
         display: flex;
         align-items: center;
-        padding: 0 18px;
-        height: 66px;
-        gap: 14px;
-        border-bottom: 1px solid rgba(255,255,255,0.07);
+        padding: 0 16px;
+        height: 56px;
+        gap: 12px;
+        border-bottom: 1px solid var(--border);
         flex-shrink: 0;
       }
-      .spotlight-search-icon { color: rgba(255,255,255,0.35); flex-shrink: 0; }
+      .spotlight-search-icon { color: var(--text-3); flex-shrink: 0; }
 
       #spotlight-input {
         flex: 1;
         background: none;
         border: none;
         outline: none;
-        font-size: 1.25rem;
+        font-size: 1.05rem;
         font-weight: 400;
-        color: rgba(255,255,255,0.92);
-        caret-color: #60a5fa;
+        color: var(--text-0);
+        caret-color: var(--primary);
         font-family: inherit;
       }
-      #spotlight-input::placeholder { color: rgba(255,255,255,0.25); }
+      #spotlight-input::placeholder { color: var(--text-3); }
 
       .spotlight-spinner {
-        width: 16px; height: 16px;
-        border: 2px solid rgba(255,255,255,0.12);
-        border-top-color: #60a5fa;
+        width: 14px; height: 14px;
+        border: 2px solid var(--border);
+        border-top-color: var(--primary);
         border-radius: 50%;
         animation: spin 0.7s linear infinite;
         flex-shrink: 0;
@@ -221,94 +276,95 @@
 
       #spotlight-results {
         overflow-y: auto;
-        max-height: 420px;
-        padding: 6px 0;
+        max-height: 380px;
+        padding: 4px;
       }
       #spotlight-results::-webkit-scrollbar { width: 4px; }
       #spotlight-results::-webkit-scrollbar-track { background: transparent; }
       #spotlight-results::-webkit-scrollbar-thumb {
-        background: rgba(255,255,255,0.12); border-radius: 2px;
+        background: var(--text-3); border-radius: 2px; opacity: 0.3;
       }
 
       .sl-result-item {
         display: flex;
         flex-direction: column;
-        padding: 10px 18px;
+        padding: 8px 12px;
         cursor: pointer;
-        gap: 3px;
-        transition: background 0.1s;
-        border-left: 3px solid transparent;
+        gap: 2px;
+        transition: background var(--transition);
+        border-radius: var(--radius-sm);
+        margin: 1px 0;
       }
       .sl-result-item.active, .sl-result-item:hover {
-        background: rgba(96,165,250,0.12);
-        border-left-color: #60a5fa;
+        background: var(--primary-light);
       }
       .sl-result-title {
-        font-size: 0.9rem; font-weight: 500;
-        color: rgba(255,255,255,0.9);
+        font-size: 0.85rem; font-weight: 500;
+        color: var(--text-0);
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       }
       .sl-result-snippet {
-        font-size: 0.77rem; color: rgba(255,255,255,0.38);
+        font-size: 0.75rem; color: var(--text-2);
         line-height: 1.4;
         display: -webkit-box; -webkit-line-clamp: 2;
         -webkit-box-orient: vertical; overflow: hidden;
       }
       .sl-result-meta {
-        display: flex; align-items: center; gap: 10px; margin-top: 1px;
+        display: flex; align-items: center; gap: 8px; margin-top: 2px;
       }
       .sl-result-type {
-        font-size: 0.66rem; padding: 1px 5px; border-radius: 3px;
-        background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.35);
+        font-size: 0.65rem; padding: 1px 5px; border-radius: 3px;
+        background: var(--bg-3); color: var(--text-2);
         text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0;
       }
       .sl-result-path {
-        font-size: 0.7rem; color: rgba(255,255,255,0.22);
+        font-size: 0.68rem; color: var(--text-3);
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
       }
       .sl-result-score {
-        font-size: 0.68rem; color: rgba(96,165,250,0.6);
-        flex-shrink: 0; font-variant-numeric: tabular-nums;
+        font-size: 0.65rem; color: var(--primary);
+        flex-shrink: 0; font-variant-numeric: tabular-nums; opacity: 0.7;
       }
       .sl-empty {
-        padding: 28px 20px; text-align: center;
-        color: rgba(255,255,255,0.22); font-size: 0.88rem;
+        padding: 24px 16px; text-align: center;
+        color: var(--text-3); font-size: 0.85rem;
       }
       .spotlight-hint-bar {
         display: flex; justify-content: space-between;
-        padding: 7px 18px; font-size: 0.7rem;
-        color: rgba(255,255,255,0.18);
-        border-top: 1px solid rgba(255,255,255,0.05); flex-shrink: 0;
+        padding: 6px 16px; font-size: 0.68rem;
+        color: var(--text-3);
+        border-top: 1px solid var(--border); flex-shrink: 0;
       }
       .spotlight-hint-bar kbd {
-        background: rgba(255,255,255,0.08); border-radius: 3px;
-        padding: 1px 5px; font-family: inherit; font-size: 0.68rem;
+        background: var(--bg-3); border-radius: 3px;
+        padding: 1px 4px; font-family: inherit; font-size: 0.65rem;
       }
-
 
       /* ── Main layout ──────────────────────────────────────────────────────── */
       main {
-        max-width: 1100px;
+        max-width: 960px;
         margin: 0 auto;
-        padding: 1.75rem 1.5rem 3rem;
+        padding: 2rem 1.5rem 4rem;
+        position: relative;
+        z-index: 1;
       }
 
       .section { display: none; }
-      .section.active { display: block; animation: fadeUp 0.2s ease both; }
+      .section.active { display: block; animation: sectionIn 0.25s ease both; }
 
-      @keyframes fadeUp {
-        from { opacity: 0; transform: translateY(6px); }
+      @keyframes sectionIn {
+        from { opacity: 0; transform: translateY(8px); }
         to   { opacity: 1; transform: translateY(0); }
       }
 
       /* ── Card ─────────────────────────────────────────────────────────────── */
       .card {
-        background: var(--bg-card);
+        background: var(--bg-1);
         border-radius: var(--radius);
-        padding: 1.4rem 1.5rem;
-        box-shadow: var(--shadow);
+        padding: 1.25rem;
+        box-shadow: var(--shadow-md);
         border: 1px solid var(--border);
-        margin-bottom: 1.25rem;
+        margin-bottom: 1rem;
       }
 
       .card-header {
@@ -319,61 +375,83 @@
       }
 
       .card-title {
-        font-size: 0.95rem;
+        font-size: 0.85rem;
         font-weight: 600;
-        color: var(--text);
+        color: var(--text-0);
         display: flex;
         align-items: center;
-        gap: 0.45rem;
+        gap: 0.4rem;
       }
 
-      /* ── Search ───────────────────────────────────────────────────────────── */
+      /* ── Hero search ─────────────────────────────────────────────────────── */
+      .hero {
+        text-align: center;
+        padding: 2.5rem 0 0;
+        margin-bottom: 1.5rem;
+      }
+
+      .hero-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        letter-spacing: -0.04em;
+        color: var(--text-0);
+        margin-bottom: 0.35rem;
+      }
+
+      .hero-sub {
+        font-size: 0.9rem;
+        color: var(--text-2);
+        margin-bottom: 1.5rem;
+      }
+
       .search-wrap {
         position: relative;
         display: flex;
         align-items: center;
+        max-width: 600px;
+        margin: 0 auto;
       }
 
       .search-icon {
         position: absolute;
         left: 1rem;
-        color: var(--text-subtle);
-        font-size: 1.1rem;
-        pointer-events: none;
+        color: var(--text-3);
         display: flex;
+        pointer-events: none;
       }
 
       .search-input {
         width: 100%;
-        padding: 0.875rem 5.5rem 0.875rem 3rem;
+        padding: 0.85rem 5.5rem 0.85rem 2.75rem;
         border: 1.5px solid var(--border);
         border-radius: var(--radius);
-        font-size: 1.05rem;
-        background: var(--bg-card);
-        color: var(--text);
-        transition: border-color 0.15s, box-shadow 0.15s;
+        font-size: 0.95rem;
+        background: var(--bg-1);
+        color: var(--text-0);
+        transition: all var(--transition);
         outline: none;
+        box-shadow: var(--shadow-sm);
+        font-family: inherit;
       }
 
-      .search-input::placeholder { color: var(--text-subtle); }
+      .search-input::placeholder { color: var(--text-3); }
 
       .search-input:focus {
         border-color: var(--primary);
-        box-shadow: 0 0 0 3px var(--primary-light);
+        box-shadow: 0 0 0 3px var(--primary-light), var(--shadow-sm);
       }
 
       .search-btn {
         position: absolute;
-        right: 0.5rem;
-        padding: 0.5rem 1rem;
-        font-size: 0.875rem;
+        right: 6px;
+        padding: 0.5rem 0.9rem;
+        font-size: 0.8rem;
       }
 
-      /* Results count */
       .results-meta {
-        font-size: 0.85rem;
-        color: var(--text-muted);
-        margin-bottom: 1rem;
+        font-size: 0.8rem;
+        color: var(--text-2);
+        margin-bottom: 0.75rem;
         padding: 0 0.25rem;
       }
 
@@ -381,78 +459,81 @@
       .btn {
         display: inline-flex;
         align-items: center;
-        gap: 0.4rem;
-        padding: 0.6rem 1.1rem;
+        gap: 0.35rem;
+        padding: 0.5rem 0.95rem;
         border: none;
         border-radius: var(--radius-sm);
-        font-size: 0.875rem;
-        font-weight: 600;
+        font-size: 0.8rem;
+        font-weight: 550;
         cursor: pointer;
-        transition: all 0.15s ease;
+        transition: all var(--transition);
         white-space: nowrap;
         text-decoration: none;
+        font-family: inherit;
       }
 
       .btn-primary {
-        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+        background: var(--primary);
         color: #fff;
-        box-shadow: 0 1px 3px rgba(37,99,235,0.3);
+        box-shadow: 0 1px 3px var(--primary-glow);
       }
 
       .btn-primary:hover:not(:disabled) {
-        filter: brightness(1.08);
-        box-shadow: 0 3px 10px rgba(37,99,235,0.4);
+        background: var(--primary-hover);
+        box-shadow: 0 4px 12px var(--primary-glow);
         transform: translateY(-1px);
       }
 
       .btn-secondary {
-        background: transparent;
-        color: var(--primary);
-        border: 1.5px solid var(--border);
+        background: var(--bg-2);
+        color: var(--text-1);
+        border: 1px solid var(--border);
       }
 
-      .btn-secondary:hover:not(:disabled) { background: var(--primary-light); border-color: var(--primary); }
+      .btn-secondary:hover:not(:disabled) { background: var(--bg-3); }
 
       .btn-danger { background: var(--danger); color: #fff; }
       .btn-danger:hover:not(:disabled) { background: var(--danger-hover); }
 
       .btn-ghost {
         background: transparent;
-        color: var(--text-muted);
-        padding: 0.4rem 0.6rem;
+        color: var(--text-2);
+        padding: 0.35rem 0.5rem;
       }
 
       .btn-ghost:hover:not(:disabled) { color: var(--danger); background: var(--danger-light); }
 
-      .btn-sm { padding: 0.4rem 0.75rem; font-size: 0.8rem; }
+      .btn-sm { padding: 0.35rem 0.65rem; font-size: 0.75rem; }
 
-      .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; filter: none !important; }
+      .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; }
 
       /* ── Forms ────────────────────────────────────────────────────────────── */
       .form-row {
         display: flex;
-        gap: 0.75rem;
+        gap: 0.6rem;
         flex-wrap: wrap;
       }
 
       .form-input {
         flex: 1;
         min-width: 220px;
-        padding: 0.65rem 0.9rem;
+        padding: 0.6rem 0.85rem;
         border: 1.5px solid var(--border);
         border-radius: var(--radius-sm);
-        font-size: 0.95rem;
-        background: var(--bg-input);
-        color: var(--text);
-        transition: border-color 0.15s, box-shadow 0.15s;
+        font-size: 0.875rem;
+        background: var(--bg-2);
+        color: var(--text-0);
+        transition: all var(--transition);
         outline: none;
+        font-family: inherit;
       }
 
-      .form-input::placeholder { color: var(--text-subtle); }
+      .form-input::placeholder { color: var(--text-3); }
 
       .form-input:focus {
         border-color: var(--primary);
         box-shadow: 0 0 0 3px var(--primary-light);
+        background: var(--bg-1);
       }
 
       .form-input.drag-over {
@@ -465,10 +546,10 @@
       .badge {
         display: inline-flex;
         align-items: center;
-        gap: 0.3rem;
-        padding: 0.3rem 0.7rem;
+        gap: 0.25rem;
+        padding: 0.25rem 0.6rem;
         border-radius: 9999px;
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         font-weight: 600;
       }
 
@@ -480,39 +561,53 @@
       .progress-wrap {
         display: flex;
         flex-direction: column;
-        gap: 0.6rem;
-        padding: 1rem 0 0.25rem;
+        gap: 0.5rem;
+        padding: 0.85rem 0 0.25rem;
       }
 
       .progress-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        font-size: 0.85rem;
+        font-size: 0.8rem;
       }
 
-      .progress-label { font-weight: 500; }
-      .progress-count { color: var(--text-muted); }
+      .progress-label { font-weight: 500; color: var(--text-1); }
+      .progress-count { color: var(--text-2); font-variant-numeric: tabular-nums; }
 
       .progress-bar-bg {
-        height: 6px;
-        background: var(--border);
+        height: 4px;
+        background: var(--bg-3);
         border-radius: 9999px;
         overflow: hidden;
       }
 
       .progress-bar-fill {
         height: 100%;
-        background: linear-gradient(90deg, var(--primary), #7c3aed);
+        background: linear-gradient(90deg, var(--primary), var(--accent));
         border-radius: 9999px;
-        transition: width 0.4s ease;
+        transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         min-width: 4px;
+        position: relative;
+      }
+
+      .progress-bar-fill::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+        animation: shimmer 1.5s ease-in-out infinite;
+      }
+
+      @keyframes shimmer {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
       }
 
       .progress-file {
-        font-size: 0.78rem;
-        color: var(--text-muted);
-        font-family: "SF Mono", "Monaco", "Roboto Mono", monospace;
+        font-size: 0.72rem;
+        color: var(--text-2);
+        font-family: "SF Mono", "JetBrains Mono", "Fira Code", monospace;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -523,139 +618,158 @@
         list-style: none;
         display: flex;
         flex-direction: column;
-        gap: 0.85rem;
+        gap: 0.6rem;
       }
 
       .result-card {
-        background: var(--bg-card);
+        background: var(--bg-1);
         border-radius: var(--radius);
-        padding: 1.15rem 1.25rem;
-        box-shadow: var(--shadow);
+        padding: 1rem 1.15rem;
+        box-shadow: var(--shadow-md);
         border: 1px solid var(--border);
-        transition: box-shadow 0.18s, transform 0.18s;
+        transition: all var(--transition);
+        animation: resultIn 0.3s ease both;
+      }
+
+      .result-card:nth-child(1) { animation-delay: 0s; }
+      .result-card:nth-child(2) { animation-delay: 0.03s; }
+      .result-card:nth-child(3) { animation-delay: 0.06s; }
+      .result-card:nth-child(4) { animation-delay: 0.09s; }
+      .result-card:nth-child(5) { animation-delay: 0.12s; }
+      .result-card:nth-child(n+6) { animation-delay: 0.15s; }
+
+      @keyframes resultIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
       }
 
       .result-card:hover {
         box-shadow: var(--shadow-lg);
-        transform: translateY(-2px);
+        border-color: var(--primary-light);
+        transform: translateY(-1px);
       }
 
       .result-header {
         display: flex;
         align-items: flex-start;
         justify-content: space-between;
-        gap: 1rem;
-        margin-bottom: 0.5rem;
+        gap: 0.75rem;
+        margin-bottom: 0.4rem;
       }
 
       .result-title {
-        font-size: 1rem;
+        font-size: 0.9rem;
         font-weight: 600;
-        color: var(--text);
+        color: var(--text-0);
       }
 
       .result-score {
-        background: linear-gradient(135deg, var(--primary), #7c3aed);
-        color: #fff;
-        padding: 0.2rem 0.65rem;
+        background: var(--primary-light);
+        color: var(--primary);
+        padding: 0.15rem 0.5rem;
         border-radius: 9999px;
-        font-size: 0.78rem;
+        font-size: 0.7rem;
         font-weight: 700;
         flex-shrink: 0;
+        font-variant-numeric: tabular-nums;
       }
 
       .result-path {
-        font-family: "SF Mono", "Monaco", "Roboto Mono", monospace;
-        font-size: 0.75rem;
-        color: var(--text-muted);
-        margin-bottom: 0.6rem;
+        font-family: "SF Mono", "JetBrains Mono", monospace;
+        font-size: 0.7rem;
+        color: var(--text-2);
+        margin-bottom: 0.5rem;
         word-break: break-all;
       }
 
       .result-snippet {
-        font-size: 0.9rem;
-        color: var(--text);
-        line-height: 1.6;
-        background: var(--bg);
-        padding: 0.65rem 0.9rem;
+        font-size: 0.82rem;
+        color: var(--text-1);
+        line-height: 1.55;
+        background: var(--bg-2);
+        padding: 0.6rem 0.85rem;
         border-radius: var(--radius-sm);
-        border-left: 3px solid var(--primary);
+        border-left: 2px solid var(--primary);
       }
 
       .result-actions {
         display: flex;
-        gap: 0.5rem;
-        margin-top: 0.85rem;
+        gap: 0.4rem;
+        margin-top: 0.65rem;
       }
 
       /* ── Documents table ──────────────────────────────────────────────────── */
       .documents-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 0.875rem;
+        font-size: 0.82rem;
       }
 
       .documents-table th,
       .documents-table td {
-        padding: 0.65rem 0.9rem;
+        padding: 0.55rem 0.75rem;
         text-align: left;
         border-bottom: 1px solid var(--border);
       }
 
       .documents-table th {
         font-weight: 600;
-        color: var(--text-subtle);
-        font-size: 0.75rem;
+        color: var(--text-3);
+        font-size: 0.7rem;
         text-transform: uppercase;
         letter-spacing: 0.06em;
-        background: var(--bg);
+        background: var(--bg-2);
       }
 
       .documents-table tr:last-child td { border-bottom: none; }
 
-      .documents-table tbody tr:hover td { background: var(--bg); }
+      .documents-table tbody tr {
+        transition: background var(--transition);
+      }
+
+      .documents-table tbody tr:hover td { background: var(--bg-2); }
 
       .doc-title { font-weight: 500; }
 
       .doc-path {
-        font-family: "SF Mono", "Monaco", monospace;
-        font-size: 0.75rem;
-        color: var(--text-muted);
+        font-family: "SF Mono", "JetBrains Mono", monospace;
+        font-size: 0.7rem;
+        color: var(--text-2);
         max-width: 260px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
 
-      .doc-meta { color: var(--text-muted); }
+      .doc-meta { color: var(--text-2); }
 
       /* ── Stats ────────────────────────────────────────────────────────────── */
       .stats-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-        gap: 0.85rem;
-        margin-bottom: 1.25rem;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 0.6rem;
+        margin-bottom: 1rem;
       }
 
       .stat-card {
-        background: var(--bg);
+        background: var(--bg-2);
         border-radius: var(--radius-sm);
-        padding: 1rem;
+        padding: 0.85rem;
         text-align: center;
-        border: 1px solid var(--border);
+        border: 1px solid var(--border-subtle);
       }
 
       .stat-value {
-        font-size: 1.6rem;
+        font-size: 1.4rem;
         font-weight: 700;
         color: var(--primary);
         letter-spacing: -0.02em;
       }
 
       .stat-label {
-        font-size: 0.78rem;
-        color: var(--text-muted);
-        margin-top: 0.2rem;
+        font-size: 0.7rem;
+        color: var(--text-2);
+        margin-top: 0.15rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
       }
@@ -663,26 +777,32 @@
       /* ── Empty / loading states ───────────────────────────────────────────── */
       .empty-state {
         text-align: center;
-        padding: 3.5rem 1rem;
-        color: var(--text-muted);
+        padding: 3rem 1rem;
+        color: var(--text-2);
       }
 
-      .empty-state .icon { font-size: 2.5rem; margin-bottom: 0.75rem; opacity: 0.45; }
+      .empty-state .icon {
+        font-size: 2rem;
+        margin-bottom: 0.6rem;
+        opacity: 0.35;
+      }
+
+      .empty-state p { font-size: 0.85rem; }
 
       .loading {
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 0.65rem;
+        gap: 0.6rem;
         padding: 2.5rem;
-        color: var(--text-muted);
-        font-size: 0.9rem;
+        color: var(--text-2);
+        font-size: 0.85rem;
       }
 
       .spinner {
-        width: 20px;
-        height: 20px;
-        border: 2.5px solid var(--border);
+        width: 16px;
+        height: 16px;
+        border: 2px solid var(--border);
         border-top-color: var(--primary);
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
@@ -691,29 +811,38 @@
 
       @keyframes spin { to { transform: rotate(360deg); } }
 
+      /* Skeleton loading */
+      .skeleton {
+        background: linear-gradient(90deg, var(--bg-2) 25%, var(--bg-3) 50%, var(--bg-2) 75%);
+        background-size: 200% 100%;
+        animation: skeletonPulse 1.5s ease-in-out infinite;
+        border-radius: var(--radius-sm);
+      }
+
+      @keyframes skeletonPulse {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+
       /* ── Toast ────────────────────────────────────────────────────────────── */
       .toast {
         position: fixed;
-        bottom: 1.75rem;
-        right: 1.75rem;
-        padding: 0.8rem 1.25rem;
-        border-radius: var(--radius);
+        bottom: 1.5rem;
+        right: 1.5rem;
+        padding: 0.65rem 1rem;
+        border-radius: var(--radius-sm);
         box-shadow: var(--shadow-xl);
         z-index: 9999;
-        font-size: 0.875rem;
+        font-size: 0.8rem;
         font-weight: 500;
-        animation: toastIn 0.25s cubic-bezier(0.34,1.56,0.64,1) both;
+        animation: toastIn 0.3s cubic-bezier(0.34,1.56,0.64,1) both;
         max-width: 320px;
+        backdrop-filter: blur(12px);
       }
 
-      .toast.success { background: #166534; color: #dcfce7; }
-      .toast.error   { background: #7f1d1d; color: #fee2e2; }
-      .toast.info    { background: #1e3a5f; color: #dbeafe; }
-
-      @media (prefers-color-scheme: dark) {
-        .toast.success { background: #14532d; }
-        .toast.error   { background: #7f1d1d; }
-      }
+      .toast.success { background: rgba(16,185,129,0.9); color: #fff; }
+      .toast.error   { background: rgba(239,68,68,0.9); color: #fff; }
+      .toast.info    { background: rgba(99,102,241,0.9); color: #fff; }
 
       @keyframes toastIn {
         from { opacity: 0; transform: translateY(12px) scale(0.95); }
@@ -724,8 +853,8 @@
       .modal-overlay {
         position: fixed;
         inset: 0;
-        background: rgba(0,0,0,0.45);
-        backdrop-filter: blur(4px);
+        background: rgba(0,0,0,0.4);
+        backdrop-filter: blur(6px);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -738,41 +867,41 @@
       .modal-overlay.active { opacity: 1; visibility: visible; }
 
       .modal {
-        background: var(--bg-card);
+        background: var(--bg-1);
         border-radius: var(--radius);
-        padding: 1.5rem;
+        padding: 1.25rem;
         max-width: 380px;
         width: 92%;
         box-shadow: var(--shadow-xl);
         border: 1px solid var(--border);
-        transform: scale(0.92);
+        transform: scale(0.95);
         transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1);
       }
 
       .modal-overlay.active .modal { transform: scale(1); }
 
-      .modal-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.6rem; }
-      .modal-text  { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem; }
+      .modal-title { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem; }
+      .modal-text  { color: var(--text-2); font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.5; }
 
-      .modal-actions { display: flex; gap: 0.6rem; justify-content: flex-end; }
+      .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
 
       /* ── Bulk actions ─────────────────────────────────────────────────────── */
       .select-all-bar {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 0.6rem 0.75rem;
-        background: var(--bg);
+        padding: 0.5rem 0.65rem;
+        background: var(--bg-2);
         border-radius: var(--radius-sm);
-        margin-bottom: 0.85rem;
-        border: 1px solid var(--border);
+        margin-bottom: 0.75rem;
+        border: 1px solid var(--border-subtle);
       }
 
       .checkbox-row {
         display: flex;
         align-items: center;
-        gap: 0.4rem;
-        font-size: 0.875rem;
+        gap: 0.35rem;
+        font-size: 0.8rem;
         cursor: pointer;
       }
 
@@ -781,35 +910,35 @@
         list-style: none;
         display: flex;
         flex-direction: column;
-        gap: 0.5rem;
-        color: var(--text-muted);
-        font-size: 0.875rem;
+        gap: 0.4rem;
+        color: var(--text-2);
+        font-size: 0.82rem;
       }
 
       .tips-list li {
         display: flex;
-        gap: 0.5rem;
+        gap: 0.45rem;
       }
 
-      .tips-list li::before { content: "→"; color: var(--primary); flex-shrink: 0; }
+      .tips-list li::before { content: "\2192"; color: var(--primary); flex-shrink: 0; }
 
       /* ── Stats row ────────────────────────────────────────────────────────── */
       .index-stats-row {
         display: flex;
-        gap: 1.5rem;
+        gap: 1.25rem;
         flex-wrap: wrap;
-        margin-top: 0.85rem;
+        margin-top: 0.75rem;
       }
 
       .stat-item {
         display: flex;
         align-items: center;
-        gap: 0.35rem;
-        font-size: 0.875rem;
-        color: var(--text-muted);
+        gap: 0.3rem;
+        font-size: 0.82rem;
+        color: var(--text-2);
       }
 
-      .stat-item strong { color: var(--text); }
+      .stat-item strong { color: var(--text-0); }
 
       /* ── Settings ────────────────────────────────────────────────────────── */
       .setting-row {
@@ -817,34 +946,33 @@
         align-items: center;
         justify-content: space-between;
         gap: 1rem;
-        padding: 0.9rem 0;
+        padding: 0.75rem 0;
         border-bottom: 1px solid var(--border);
       }
 
       .setting-row:last-of-type { border-bottom: none; }
 
-      .setting-info { display: flex; flex-direction: column; gap: 0.2rem; }
+      .setting-info { display: flex; flex-direction: column; gap: 0.15rem; }
 
-      .setting-label { font-weight: 500; font-size: 0.95rem; }
+      .setting-label { font-weight: 500; font-size: 0.875rem; }
 
-      .setting-sub { font-size: 0.8rem; color: var(--text-muted); }
+      .setting-sub { font-size: 0.75rem; color: var(--text-2); }
 
-      .hotkey-display-wrap { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+      .hotkey-display-wrap { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
 
       .hotkey-badge {
         display: inline-flex;
         align-items: center;
-        gap: 0.25rem;
-        padding: 0.3rem 0.75rem;
-        background: var(--bg);
-        border: 1.5px solid var(--border);
+        gap: 0.2rem;
+        padding: 0.25rem 0.65rem;
+        background: var(--bg-2);
+        border: 1px solid var(--border);
         border-radius: var(--radius-sm);
-        font-family: "SF Mono", "Monaco", "Roboto Mono", monospace;
-        font-size: 0.875rem;
+        font-family: "SF Mono", "JetBrains Mono", monospace;
+        font-size: 0.82rem;
         font-weight: 600;
-        color: var(--text);
-        letter-spacing: 0.03em;
-        min-width: 80px;
+        color: var(--text-0);
+        min-width: 72px;
         text-align: center;
         justify-content: center;
       }
@@ -853,8 +981,8 @@
       .toggle {
         position: relative;
         display: inline-block;
-        width: 44px;
-        height: 26px;
+        width: 40px;
+        height: 24px;
         flex-shrink: 0;
       }
 
@@ -863,40 +991,40 @@
       .toggle-slider {
         position: absolute;
         inset: 0;
-        background: var(--border);
+        background: var(--bg-3);
         border-radius: 9999px;
         cursor: pointer;
-        transition: background 0.2s;
+        transition: background var(--transition);
       }
 
       .toggle-slider::before {
         content: '';
         position: absolute;
-        width: 20px;
-        height: 20px;
+        width: 18px;
+        height: 18px;
         left: 3px;
         bottom: 3px;
         background: white;
         border-radius: 50%;
-        transition: transform 0.2s;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+        transition: transform var(--transition);
+        box-shadow: 0 1px 4px rgba(0,0,0,0.2);
       }
 
       .toggle input:checked + .toggle-slider { background: var(--primary); }
-      .toggle input:checked + .toggle-slider::before { transform: translateX(18px); }
+      .toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
 
       /* Hotkey capture area */
       .hotkey-capture-area {
-        min-height: 60px;
+        min-height: 56px;
         display: flex;
         align-items: center;
         justify-content: center;
         border: 2px dashed var(--border);
         border-radius: var(--radius-sm);
-        font-size: 0.95rem;
-        color: var(--text-muted);
-        margin: 1rem 0;
-        transition: all 0.18s;
+        font-size: 0.9rem;
+        color: var(--text-2);
+        margin: 0.85rem 0;
+        transition: all var(--transition);
         user-select: none;
       }
 
@@ -910,22 +1038,22 @@
         border-style: solid;
         border-color: var(--success);
         background: var(--success-light);
-        color: var(--text);
-        font-family: "SF Mono", "Monaco", monospace;
+        color: var(--text-0);
+        font-family: "SF Mono", "JetBrains Mono", monospace;
         font-weight: 700;
-        font-size: 1.1rem;
+        font-size: 1rem;
       }
 
-      @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.55} }
+      @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.6} }
 
       .info-box {
-        margin-top: 1rem;
-        padding: 0.75rem 1rem;
+        margin-top: 0.85rem;
+        padding: 0.65rem 0.85rem;
         background: var(--primary-light);
-        border-left: 3px solid var(--primary);
-        border-radius: var(--radius-sm);
-        font-size: 0.85rem;
-        color: var(--text-muted);
+        border-left: 2px solid var(--primary);
+        border-radius: var(--radius-xs);
+        font-size: 0.8rem;
+        color: var(--text-2);
         line-height: 1.5;
       }
 
@@ -933,13 +1061,13 @@
       .folder-preview {
         display: flex;
         align-items: flex-start;
-        gap: 0.5rem;
-        margin-top: 0.6rem;
-        padding: 0.5rem 0.75rem;
+        gap: 0.4rem;
+        margin-top: 0.5rem;
+        padding: 0.45rem 0.65rem;
         background: var(--primary-light);
         border-radius: var(--radius-xs);
-        font-size: 0.85rem;
-        color: var(--text-muted);
+        font-size: 0.8rem;
+        color: var(--text-2);
         line-height: 1.4;
       }
 
@@ -947,47 +1075,49 @@
       .warn-file-row {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
-        padding: 0.35rem 0.5rem;
+        gap: 0.4rem;
+        padding: 0.3rem 0.45rem;
         border-radius: var(--radius-xs);
-        font-size: 0.82rem;
+        font-size: 0.78rem;
         cursor: pointer;
         user-select: none;
       }
 
-      .warn-file-row:hover { background: var(--bg); }
+      .warn-file-row:hover { background: var(--bg-2); }
       .warn-file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .warn-file-size { color: var(--text-muted); flex-shrink: 0; }
+      .warn-file-size { color: var(--text-2); flex-shrink: 0; }
 
       /* ── Index warning list ───────────────────────────────────────────────── */
       .warn-list {
         list-style: none;
-        margin: 0.6rem 0 0;
+        margin: 0.5rem 0 0;
         padding: 0;
         display: flex;
         flex-direction: column;
-        gap: 0.4rem;
+        gap: 0.35rem;
       }
 
       .warn-list li {
-        padding: 0.5rem 0.75rem;
-        background: rgba(217, 119, 6, 0.1);
-        border-left: 3px solid var(--warning);
+        padding: 0.45rem 0.65rem;
+        background: rgba(245, 158, 11, 0.08);
+        border-left: 2px solid var(--warning);
         border-radius: var(--radius-xs);
-        font-size: 0.875rem;
-        color: var(--text);
-        line-height: 1.45;
+        font-size: 0.82rem;
+        color: var(--text-1);
+        line-height: 1.4;
       }
 
       /* ── Responsive ───────────────────────────────────────────────────────── */
       @media (max-width: 640px) {
-        .header-content { flex-wrap: wrap; height: auto; padding: 0.6rem 1rem; gap: 0.5rem; }
+        .header-inner { flex-wrap: wrap; height: auto; padding: 0.5rem 1rem; gap: 0.4rem; }
         header { height: auto; }
         .tabs { width: 100%; }
         .tab { flex: 1; justify-content: center; }
         .form-row { flex-direction: column; }
-        .result-header { flex-direction: column; gap: 0.4rem; }
+        .result-header { flex-direction: column; gap: 0.3rem; }
         .documents-table { display: block; overflow-x: auto; }
+        .hero { padding: 1.5rem 0 0; }
+        .hero-title { font-size: 1.35rem; }
       }
     </style>
   </head>
@@ -997,7 +1127,7 @@
       <div class="spotlight-box">
         <div class="spotlight-search-bar">
           <span class="spotlight-search-icon">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
               <circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.7"/>
               <path d="M13.5 13.5L17 17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
             </svg>
@@ -1008,42 +1138,40 @@
         </div>
         <div id="spotlight-results"></div>
         <div class="spotlight-hint-bar">
-          <span><kbd>↑↓</kbd> navigate · <kbd>↵</kbd> open · <kbd>Esc</kbd> close</span>
+          <span><kbd>&uarr;&darr;</kbd> navigate &middot; <kbd>&crarr;</kbd> open &middot; <kbd>Esc</kbd> close</span>
           <span>DocFinder</span>
         </div>
       </div>
     </div>
 
     <header>
-      <div class="header-content">
+      <div class="header-inner">
         <div class="logo">
-          <div class="logo-icon">
-            <svg width="22" height="22" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M20 15L20 85L70 85L70 30L55 15Z" stroke="white" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M55 15L55 30L70 30" stroke="white" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-              <line x1="30" y1="45" x2="50" y2="45" stroke="white" stroke-width="5.5" stroke-linecap="round"/>
-              <line x1="30" y1="55" x2="45" y2="55" stroke="white" stroke-width="5.5" stroke-linecap="round"/>
-              <circle cx="64" cy="57" r="17" stroke="white" stroke-width="5.5" fill="none"/>
-              <line x1="76" y1="69" x2="88" y2="83" stroke="white" stroke-width="6.5" stroke-linecap="round"/>
+          <div class="logo-mark">
+            <svg width="16" height="16" viewBox="0 0 100 100" fill="none">
+              <path d="M20 15L20 85L70 85L70 30L55 15Z" stroke="white" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M55 15L55 30L70 30" stroke="white" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="64" cy="57" r="17" stroke="white" stroke-width="6" fill="none"/>
+              <line x1="76" y1="69" x2="88" y2="83" stroke="white" stroke-width="7" stroke-linecap="round"/>
             </svg>
           </div>
           <h1>DocFinder</h1>
         </div>
         <nav class="tabs" role="tablist">
           <button class="tab active" data-tab="search" role="tab" aria-selected="true">
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
             Search
           </button>
           <button class="tab" data-tab="index" role="tab" aria-selected="false">
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 2h5l2 2h5v10H2V2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 7v5M6 10l2 2 2-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 2h5l2 2h5v10H2V2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 7v5M6 10l2 2 2-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Index
           </button>
           <button class="tab" data-tab="documents" role="tab" aria-selected="false">
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 3h12v10H2V3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M5 7h6M5 10h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 3h12v10H2V3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M5 7h6M5 10h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
             Library
           </button>
           <button class="tab" data-tab="settings" role="tab" aria-selected="false">
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
             Settings
           </button>
         </nav>
@@ -1053,17 +1181,19 @@
     <main>
       <!-- ── Search ───────────────────────────────────────────────────────── -->
       <div id="search-section" class="section active" role="tabpanel">
-        <div class="card">
+        <div class="hero">
+          <h2 class="hero-title">Find anything, instantly</h2>
+          <p class="hero-sub">Semantic search across all your indexed documents</p>
           <form id="search-form">
             <div class="search-wrap">
               <span class="search-icon">
-                <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6.5" stroke="currentColor" stroke-width="1.7"/><path d="M14 14L18 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6.5" stroke="currentColor" stroke-width="1.7"/><path d="M14 14L18 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
               </span>
               <input
                 id="query"
                 type="text"
                 class="search-input"
-                placeholder="Search your documents… (⌥D)"
+                placeholder="Search your documents..."
                 autocomplete="off"
                 spellcheck="false"
                 required
@@ -1081,7 +1211,7 @@
         <div class="card">
           <div class="card-header">
             <h2 class="card-title">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 2h5l2 2h5v10H2V2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 7v5M6 10l2 2 2-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M2 2h5l2 2h5v10H2V2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 7v5M6 10l2 2 2-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
               Index Documents
             </h2>
           </div>
@@ -1090,31 +1220,31 @@
               id="index-path"
               type="text"
               class="form-input"
-              placeholder="Select a folder with Browse, drag & drop, or type a path…"
+              placeholder="Select a folder with Browse, drag & drop, or type a path..."
               required
             />
             <button type="button" id="browse-btn" class="btn btn-secondary" style="display:none;" title="Open folder picker">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h5l1.5 1.5H14V13H2V4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
-              Browse…
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 4h5l1.5 1.5H14V13H2V4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              Browse
             </button>
             <button type="submit" id="index-btn" class="btn btn-primary">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3v8M5 8l3 3 3-3" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="white" stroke-width="1.6" stroke-linecap="round"/></svg>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3v8M5 8l3 3 3-3" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 13h12" stroke="white" stroke-width="1.6" stroke-linecap="round"/></svg>
               Index
             </button>
           </form>
           <div id="folder-preview" class="folder-preview" style="display:none;"></div>
-          <div id="index-status" style="margin-top: 1rem;"></div>
+          <div id="index-status" style="margin-top: 0.85rem;"></div>
         </div>
 
         <div class="card">
-          <h2 class="card-title" style="margin-bottom: 0.75rem;">
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v4l2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          <h2 class="card-title" style="margin-bottom: 0.6rem;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v4l2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
             Tips
           </h2>
           <ul class="tips-list">
             <li>Use absolute paths — e.g. <code>/Users/name/Documents</code></li>
             <li>Index entire folders: all PDFs are discovered recursively</li>
-            <li>Use the <strong>Browse…</strong> button to open a native folder picker</li>
+            <li>Use the <strong>Browse</strong> button to open a native folder picker</li>
             <li>Or drag &amp; drop a folder from Finder / Explorer onto the input field</li>
             <li>Already-indexed documents are automatically updated if modified</li>
             <li>Unchanged files are skipped — re-indexing is fast</li>
@@ -1127,16 +1257,16 @@
         <div class="card">
           <div class="card-header">
             <h2 class="card-title">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 3h12v10H2V3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M5 7h6M5 10h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M2 3h12v10H2V3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M5 7h6M5 10h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
               Indexed Library
             </h2>
-            <div style="display:flex; gap: 0.5rem;">
+            <div style="display:flex; gap: 0.4rem;">
               <button id="cleanup-btn" class="btn btn-secondary btn-sm">
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M6 5l-3 3 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                Clean up missing
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M6 5l-3 3 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Clean up
               </button>
               <button id="refresh-docs-btn" class="btn btn-secondary btn-sm">
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M13 8A5 5 0 1 1 8 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M8 1l3 2-3 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M13 8A5 5 0 1 1 8 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M8 1l3 2-3 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 Refresh
               </button>
             </div>
@@ -1150,7 +1280,7 @@
               <span>Select all</span>
             </label>
             <button id="delete-selected-btn" class="btn btn-danger btn-sm" disabled>
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V2h4v2M13 4l-1 10H4L3 4" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V2h4v2M13 4l-1 10H4L3 4" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
               Delete (<span id="selected-count">0</span>)
             </button>
           </div>
@@ -1164,15 +1294,15 @@
         <div class="card">
           <div class="card-header">
             <h2 class="card-title">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
               Settings
             </h2>
           </div>
 
-          <h3 style="font-size:0.85rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.5rem;">
+          <h3 style="font-size:0.75rem; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.4rem;">
             Global Search Shortcut
           </h3>
-          <p style="font-size:0.875rem; color:var(--text-muted); margin-bottom:0.75rem; line-height:1.5;">
+          <p style="font-size:0.82rem; color:var(--text-2); margin-bottom:0.65rem; line-height:1.5;">
             Press this shortcut from anywhere on your desktop to bring DocFinder to the front and jump directly to search.
           </p>
 
@@ -1192,17 +1322,17 @@
               <span class="setting-label">Shortcut</span>
             </div>
             <div class="hotkey-display-wrap">
-              <span id="hotkey-display" class="hotkey-badge">—</span>
-              <button type="button" id="change-hotkey-btn" class="btn btn-secondary btn-sm">Change…</button>
+              <span id="hotkey-display" class="hotkey-badge">&mdash;</span>
+              <button type="button" id="change-hotkey-btn" class="btn btn-secondary btn-sm">Change</button>
             </div>
           </div>
 
           <div id="macos-permission-note" class="info-box" style="display:none;">
             On macOS, this feature requires <strong>Accessibility</strong> permission.<br>
-            Go to <em>System Settings → Privacy &amp; Security → Accessibility</em> and add DocFinder.
+            Go to <em>System Settings &rarr; Privacy &amp; Security &rarr; Accessibility</em> and add DocFinder.
           </div>
 
-          <div style="margin-top:1.25rem; display:flex; justify-content:flex-end;">
+          <div style="margin-top:1rem; display:flex; justify-content:flex-end;">
             <button id="save-settings-btn" class="btn btn-primary">Save settings</button>
           </div>
         </div>
@@ -1214,7 +1344,7 @@
       <div class="modal">
         <h3 class="modal-title">Record shortcut</h3>
         <p class="modal-text">Press the key combination you want to use, then click Confirm.</p>
-        <div id="hotkey-capture-display" class="hotkey-capture-area waiting">Waiting for input…</div>
+        <div id="hotkey-capture-display" class="hotkey-capture-area waiting">Waiting for input&hellip;</div>
         <div class="modal-actions">
           <button class="btn btn-secondary" id="cancel-hotkey">Cancel</button>
           <button class="btn btn-primary" id="confirm-hotkey" disabled>Confirm</button>
@@ -1239,13 +1369,13 @@
       <div class="modal">
         <h3 class="modal-title">Before you index</h3>
         <ul id="index-warn-list" class="warn-list"></ul>
-        <div id="warn-exclusions" style="display:none; margin-top:0.75rem;">
-          <p style="font-size:0.82rem; font-weight:600; margin-bottom:0.4rem; color:var(--text);">
-            Large files — uncheck to skip during indexing:
+        <div id="warn-exclusions" style="display:none; margin-top:0.65rem;">
+          <p style="font-size:0.78rem; font-weight:600; margin-bottom:0.35rem; color:var(--text-0);">
+            Large files &mdash; uncheck to skip during indexing:
           </p>
-          <div id="warn-file-list" style="display:flex; flex-direction:column; max-height:160px; overflow-y:auto;"></div>
+          <div id="warn-file-list" style="display:flex; flex-direction:column; max-height:150px; overflow-y:auto;"></div>
         </div>
-        <p style="font-size:0.82rem; margin-top:0.85rem; color:var(--text-muted); line-height:1.45;">
+        <p style="font-size:0.78rem; margin-top:0.75rem; color:var(--text-2); line-height:1.4;">
           Indexing runs in the background and won't block the app.
         </p>
         <div class="modal-actions">
@@ -1314,7 +1444,7 @@
       }
 
       function formatDate(s) {
-        if (!s) return '—';
+        if (!s) return '\u2014';
         return new Date(s).toLocaleDateString(undefined, {
           day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'
         });
@@ -1336,11 +1466,11 @@
             <h3 class="result-title">${escHtml(title)}</h3>
             <span class="result-score">${pct}%</span>
           </div>
-          <div class="result-path">📄 ${escHtml(r.path)}</div>
+          <div class="result-path">${escHtml(r.path)}</div>
           <div class="result-snippet">${escHtml(r.text || '(no snippet available)')}</div>
           <div class="result-actions">
             <button class="btn btn-primary btn-sm" onclick="openDocument('${safePath}')">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 4h8l2 2v8H2V4z" stroke="white" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 2h4v4" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 7l5-5" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4h8l2 2v8H2V4z" stroke="white" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 2h4v4" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 7l5-5" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>
               Open
             </button>
           </div>`;
@@ -1357,7 +1487,7 @@
         if (!query) return;
 
         resultsMeta.style.display = 'none';
-        resultsList.innerHTML = '<div class="loading"><div class="spinner"></div><span>Searching…</span></div>';
+        resultsList.innerHTML = '<div class="loading"><div class="spinner"></div><span>Searching\u2026</span></div>';
 
         try {
           const res = await fetch(`${apiBase}/search`, {
@@ -1371,7 +1501,7 @@
 
           if (!data.results.length) {
             resultsMeta.style.display = 'none';
-            resultsList.innerHTML = `<div class="empty-state"><div class="icon">🔍</div><p>No results for <strong>"${escHtml(query)}"</strong></p><p style="font-size:0.85rem;margin-top:0.35rem;">Try different keywords or index more documents.</p></div>`;
+            resultsList.innerHTML = `<div class="empty-state"><div class="icon">\ud83d\udd0d</div><p>No results for <strong>\u201c${escHtml(query)}\u201d</strong></p><p style="font-size:0.8rem;margin-top:0.3rem;color:var(--text-3);">Try different keywords or index more documents.</p></div>`;
             return;
           }
 
@@ -1380,7 +1510,7 @@
           data.results.forEach(r => resultsList.appendChild(renderResult(r)));
         } catch (err) {
           resultsMeta.style.display = 'none';
-          resultsList.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p style="color:var(--danger);">${escHtml(err.message)}</p></div>`;
+          resultsList.innerHTML = `<div class="empty-state"><div class="icon">\u26a0\ufe0f</div><p style="color:var(--danger);">${escHtml(err.message)}</p></div>`;
         }
       });
 
@@ -1475,7 +1605,7 @@
             warnings.push('No supported files were found in the selected folder.');
           } else if (scanData.file_count > MANY_FILES) {
             warnings.push(
-              `${scanData.file_count} files found — indexing a large number of files can take several minutes.`
+              `${scanData.file_count} files found \u2014 indexing a large number of files can take several minutes.`
             );
           }
           if (scanData.large_files && scanData.large_files.length > 0) {
@@ -1484,12 +1614,12 @@
           if (scanData.total_size_bytes > TOTAL_LARGE_MB * 1024 * 1024) {
             const mb = Math.round(scanData.total_size_bytes / (1024 * 1024));
             const label = mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`;
-            warnings.push(`Total size is ${label} — this may require significant time and memory.`);
+            warnings.push(`Total size is ${label} \u2014 this may require significant time and memory.`);
           }
         }
         if (systemInfo.available_mb !== null && systemInfo.available_mb < LOW_RAM_MB) {
           warnings.push(
-            `Low available RAM (${systemInfo.available_mb} MB free) — indexing may be slow or unstable.`
+            `Low available RAM (${systemInfo.available_mb} MB free) \u2014 indexing may be slow or unstable.`
           );
         }
         return { warnings, largeFiles };
@@ -1523,10 +1653,10 @@
                   .map(([ext, n]) => `${n}\u00a0${ext}`).join(', ')
               : '';
             folderPreview.innerHTML =
-              `<svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="color:var(--primary);flex-shrink:0;margin-top:1px"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="M5 8.5l2 2L11 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>` +
+              `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="color:var(--primary);flex-shrink:0;margin-top:1px"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="M5 8.5l2 2L11 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>` +
               `<span>Found <strong>${d.file_count}</strong> file${d.file_count !== 1 ? 's' : ''}` +
               (types ? ` (${types})` : '') +
-              ` — <strong>${size}</strong> total</span>`;
+              ` \u2014 <strong>${size}</strong> total</span>`;
           }
           folderPreview.style.display = 'flex';
         } catch (_) { folderPreview.style.display = 'none'; }
@@ -1565,26 +1695,26 @@
 
       function renderProgress(job, startTime = null) {
         const pct      = job.total > 0 ? Math.round((job.processed / job.total) * 100) : 5;
-        const countStr = job.total > 0 ? `${job.processed} / ${job.total}` : '…';
+        const countStr = job.total > 0 ? `${job.processed} / ${job.total}` : '\u2026';
         const fileName = job.current_file ? job.current_file.split('/').pop() : '';
         let etaStr = '';
         if (startTime && job.processed > 0 && job.total > 0 && job.processed < job.total) {
           const elapsed  = (Date.now() - startTime) / 1000;
           const remaining = (elapsed / job.processed) * (job.total - job.processed);
           etaStr = remaining < 60
-            ? ` · ~${Math.round(remaining)}s left`
-            : ` · ~${Math.round(remaining / 60)}m left`;
+            ? ` \u00b7 ~${Math.round(remaining)}s left`
+            : ` \u00b7 ~${Math.round(remaining / 60)}m left`;
         }
         return `
           <div class="progress-wrap">
             <div class="progress-header">
-              <span class="progress-label">Indexing…</span>
+              <span class="progress-label">Indexing\u2026</span>
               <span class="progress-count">${countStr} files${etaStr}</span>
             </div>
             <div class="progress-bar-bg">
               <div class="progress-bar-fill" style="width:${pct}%"></div>
             </div>
-            ${fileName ? `<div class="progress-file">↳ ${escHtml(fileName)}</div>` : ''}
+            ${fileName ? `<div class="progress-file">\u21b3 ${escHtml(fileName)}</div>` : ''}
           </div>`;
       }
 
@@ -1639,8 +1769,8 @@
           }).then(job => {
             const s = job.stats;
             indexStatus.innerHTML = `
-              <div style="display:flex; align-items:center; gap: 0.75rem; flex-wrap:wrap;">
-                <span class="badge badge-success">✓ Done</span>
+              <div style="display:flex; align-items:center; gap: 0.6rem; flex-wrap:wrap;">
+                <span class="badge badge-success">\u2713 Done</span>
                 <div class="index-stats-row">
                   <span class="stat-item"><strong>${s.inserted}</strong> inserted</span>
                   <span class="stat-item"><strong>${s.updated}</strong> updated</span>
@@ -1653,7 +1783,7 @@
           });
 
         } catch (err) {
-          indexStatus.innerHTML = `<span class="badge badge-error">⚠ ${escHtml(err.message)}</span>`;
+          indexStatus.innerHTML = `<span class="badge badge-error">\u26a0 ${escHtml(err.message)}</span>`;
           showToast(err.message, 'error');
         } finally {
           indexBtn.disabled = false;
@@ -1670,7 +1800,7 @@
       let selectedDocIds    = new Set();
 
       async function loadDocuments() {
-        docsContainer.innerHTML = '<div class="loading"><div class="spinner"></div><span>Loading library…</span></div>';
+        docsContainer.innerHTML = '<div class="loading"><div class="spinner"></div><span>Loading library\u2026</span></div>';
         try {
           const res  = await fetch(`${apiBase}/documents`);
           const data = await res.json();
@@ -1693,9 +1823,9 @@
             bulkActions.style.display = 'none';
             docsContainer.innerHTML = `
               <div class="empty-state">
-                <div class="icon">📭</div>
+                <div class="icon">\ud83d\udced</div>
                 <p>No indexed documents yet</p>
-                <p style="font-size:0.85rem; margin-top:0.35rem;">Switch to the <strong>Index</strong> tab to add your PDFs.</p>
+                <p style="font-size:0.8rem; margin-top:0.3rem; color:var(--text-3);">Switch to the <strong>Index</strong> tab to add your PDFs.</p>
               </div>`;
             return;
           }
@@ -1709,27 +1839,27 @@
               <table class="documents-table">
                 <thead>
                   <tr>
-                    <th style="width:36px;"></th>
+                    <th style="width:32px;"></th>
                     <th>Title</th>
                     <th>Path</th>
                     <th>Size</th>
                     <th>Chunks</th>
                     <th>Indexed</th>
-                    <th style="width:48px;"></th>
+                    <th style="width:40px;"></th>
                   </tr>
                 </thead>
                 <tbody>
                   ${data.documents.map(doc => `
                     <tr data-id="${doc.id}">
                       <td><input type="checkbox" class="doc-checkbox" data-id="${doc.id}" /></td>
-                      <td class="doc-title">${escHtml(doc.title || '—')}</td>
+                      <td class="doc-title">${escHtml(doc.title || '\u2014')}</td>
                       <td class="doc-path" title="${escHtml(doc.path)}">${escHtml(doc.path)}</td>
                       <td class="doc-meta">${formatSize(doc.size)}</td>
                       <td class="doc-meta">${doc.chunk_count}</td>
                       <td class="doc-meta">${formatDate(doc.updated_at)}</td>
                       <td>
                         <button class="btn btn-ghost btn-sm delete-doc-btn" data-id="${doc.id}" data-title="${escHtml(doc.title || doc.path)}" title="Remove from index">
-                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V2h4v2M13 4l-1 10H4L3 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V2h4v2M13 4l-1 10H4L3 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
                         </button>
                       </td>
                     </tr>`).join('')}
@@ -1750,7 +1880,7 @@
           });
 
         } catch (err) {
-          docsContainer.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p style="color:var(--danger);">${escHtml(err.message)}</p></div>`;
+          docsContainer.innerHTML = `<div class="empty-state"><div class="icon">\u26a0\ufe0f</div><p style="color:var(--danger);">${escHtml(err.message)}</p></div>`;
         }
       }
 
@@ -1783,7 +1913,7 @@
       function showDeleteModal(ids, title = null) {
         pendingDeleteIds = ids;
         deleteModalText.textContent = ids.length === 1 && title
-          ? `Remove "${title}" from the index?`
+          ? `Remove \u201c${title}\u201d from the index?`
           : `Remove ${ids.length} document${ids.length > 1 ? 's' : ''} from the index?`;
         deleteModal.classList.add('active');
         cancelDeleteBtn.focus();
@@ -1847,12 +1977,12 @@
 
       // Convert a pynput hotkey string to a human-readable display string
       function pynputToDisplay(str) {
-        if (!str) return '—';
+        if (!str) return '\u2014';
         return str
-          .replace('<cmd>',   isMac ? '⌘'    : 'Win')
-          .replace('<ctrl>',  isMac ? '⌃'    : 'Ctrl')
-          .replace('<shift>', isMac ? '⇧'    : 'Shift')
-          .replace('<alt>',   isMac ? '⌥'    : 'Alt')
+          .replace('<cmd>',   isMac ? '\u2318'    : 'Win')
+          .replace('<ctrl>',  isMac ? '\u2303'    : 'Ctrl')
+          .replace('<shift>', isMac ? '\u21e7'    : 'Shift')
+          .replace('<alt>',   isMac ? '\u2325'    : 'Alt')
           .replace('<space>', 'Space')
           .replace('<enter>', 'Enter')
           .replace('<esc>',   'Esc')
@@ -1946,7 +2076,7 @@
 
       document.getElementById('change-hotkey-btn').addEventListener('click', () => {
         capturedPynput = '';
-        captureDisplay.textContent = 'Waiting for input…';
+        captureDisplay.textContent = 'Waiting for input\u2026';
         captureDisplay.className = 'hotkey-capture-area waiting';
         confirmHotkeyBtn.disabled = true;
         hotkeyModal.classList.add('active');
@@ -2061,7 +2191,7 @@
               slResult.innerHTML = `<div class="sl-empty">${escHtmlSl(data.detail||'Error')}</div>`;
             }
           } catch (_) {
-            slResult.innerHTML = '<div class="sl-empty">Search unavailable — is DocFinder indexed?</div>';
+            slResult.innerHTML = '<div class="sl-empty">Search unavailable \u2014 is DocFinder indexed?</div>';
           } finally { slSpinner.classList.remove('active'); }
         }
 
