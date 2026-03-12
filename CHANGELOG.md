@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0-beta] - 2026-03-12
+
+### Added
+- **Multi-format document support** — DocFinder now indexes PDF, plain text (`.txt`), Markdown (`.md`), and Word (`.docx`) files.
+- **Spotlight-style quick-search panel** *(experimental)* — a floating `NSPanel` + `WKWebView` can be summoned via the global hotkey to search documents without switching to the main window. The panel dismisses automatically when it loses focus (Esc or click away). Keyboard input (typing, arrows, Enter, Backspace) is forwarded to the search field via a `CGEventTap`. Note: this feature is still being refined and may behave unexpectedly in some scenarios.
+
+### Changed
+- **Redesigned UI theme**
+- `EmbeddingModel.embed()` accepts an optional `batch_size` override for low-RAM scenarios.
+
 ## [1.2.0] - 2026-03-10
 
 ### Fixed
@@ -180,7 +190,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed linting issues for consistent code style
 - Updated ruff configuration to use non-deprecated settings
 
-[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v2.0.0-beta...HEAD
+[2.0.0-beta]: https://github.com/filippostanghellini/DocFinder/compare/v1.2.0...v2.0.0-beta
 [1.2.0]: https://github.com/filippostanghellini/DocFinder/compare/v1.1.2...v1.2.0
 [1.1.2]: https://github.com/filippostanghellini/DocFinder/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/filippostanghellini/DocFinder/compare/v1.0.1...v1.1.1
