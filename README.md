@@ -24,7 +24,7 @@
 ## Features
 
 - **Semantic search** — find documents by meaning, not just keywords (PDF, DOCX, Markdown, TXT)
-- **AI chat** — ask questions about any document and get precise answers from its content
+- **AI chat** — ask questions about any document and get precise answers, powered by local Qwen models (automatically selects the best model for your hardware)
 - **100% local** — your files never leave your machine
 - **GPU accelerated** — auto-detects Apple Silicon (Metal), NVIDIA (CUDA), AMD (ROCm)
 - **Cross-platform** — native apps for macOS, Windows, and Linux
