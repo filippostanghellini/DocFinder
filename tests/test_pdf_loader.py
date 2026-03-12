@@ -173,14 +173,14 @@ class TestGetPdfMetadata:
 class TestBuildChunks:
     """Test build_chunks function."""
 
-    @patch("docfinder.ingestion.pdf_loader.iter_text_parts")
+    @patch("docfinder.ingestion.pdf_loader.iter_text_parts_paged")
     @patch("docfinder.ingestion.pdf_loader.get_pdf_metadata")
     def test_build_chunks_simple(
         self, mock_meta: MagicMock, mock_iter: MagicMock, tmp_path: Path
     ) -> None:
         """Should build chunks from PDF text."""
         mock_meta.return_value = {"title": "Test", "page_count": "1"}
-        mock_iter.return_value = iter(["This is a test document with some content."])
+        mock_iter.return_value = iter([(1, "This is a test document with some content.")])
 
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_bytes(b"dummy")
@@ -193,7 +193,7 @@ class TestBuildChunks:
         assert chunks[0].index == 0
         assert chunks[0].metadata["title"] == "Test"
 
-    @patch("docfinder.ingestion.pdf_loader.iter_text_parts")
+    @patch("docfinder.ingestion.pdf_loader.iter_text_parts_paged")
     @patch("docfinder.ingestion.pdf_loader.get_pdf_metadata")
     def test_build_chunks_multiple(
         self, mock_meta: MagicMock, mock_iter: MagicMock, tmp_path: Path
@@ -201,7 +201,7 @@ class TestBuildChunks:
         """Should create multiple chunks for long text."""
         long_text = "x" * 500
         mock_meta.return_value = {"title": "Long", "page_count": "1"}
-        mock_iter.return_value = iter([long_text])
+        mock_iter.return_value = iter([(1, long_text)])
 
         pdf_path = tmp_path / "long.pdf"
         pdf_path.write_bytes(b"dummy")
@@ -214,14 +214,14 @@ class TestBuildChunks:
         for i, chunk in enumerate(chunks):
             assert chunk.index == i
 
-    @patch("docfinder.ingestion.pdf_loader.iter_text_parts")
+    @patch("docfinder.ingestion.pdf_loader.iter_text_parts_paged")
     @patch("docfinder.ingestion.pdf_loader.get_pdf_metadata")
     def test_build_chunks_metadata(
         self, mock_meta: MagicMock, mock_iter: MagicMock, tmp_path: Path
     ) -> None:
         """Should include metadata in chunks."""
         mock_meta.return_value = {"title": "My Document", "page_count": "5"}
-        mock_iter.return_value = iter(["Content"])
+        mock_iter.return_value = iter([(1, "Content")])
 
         pdf_path = tmp_path / "doc.pdf"
         pdf_path.write_bytes(b"dummy")
@@ -232,7 +232,7 @@ class TestBuildChunks:
         chunk = chunks[0]
         assert chunk.metadata["title"] == "My Document"
 
-    @patch("docfinder.ingestion.pdf_loader.iter_text_parts")
+    @patch("docfinder.ingestion.pdf_loader.iter_text_parts_paged")
     @patch("docfinder.ingestion.pdf_loader.get_pdf_metadata")
     def test_build_chunks_empty_text(
         self, mock_meta: MagicMock, mock_iter: MagicMock, tmp_path: Path

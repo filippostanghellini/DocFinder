@@ -65,7 +65,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="DocFinder Web", version="1.2.0", lifespan=lifespan)
+app = FastAPI(title="DocFinder Web", version="2.0.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -99,9 +99,18 @@ class IndexPayload(BaseModel):
     exclude_paths: List[str] = []
 
 
+class RAGPayload(BaseModel):
+    question: str
+    document_path: str
+    chunk_index: int
+    db: Path | None = None
+
+
 class SettingsPayload(BaseModel):
     hotkey: str | None = None
     hotkey_enabled: bool | None = None
+    rag_enabled: bool | None = None
+    rag_model: str | None = None
 
 
 def _resolve_db_path(db: Path | None) -> Path:
@@ -135,6 +144,237 @@ async def search_documents(payload: SearchPayload) -> dict[str, List[SearchResul
     results = searcher.search(query, top_k=top_k)
     store.close()
     return {"results": results}
+
+
+# ── RAG singleton + download progress ─────────────────────────────────────
+_rag_llm: "LocalLLM | None" = None
+_rag_llm_lock = threading.Lock()
+_rag_download: dict[str, Any] = {
+    "status": "idle",  # idle | downloading | loading | ready | error
+    "downloaded_bytes": 0,
+    "total_bytes": 0,
+    "error": None,
+}
+
+
+def _load_rag_llm(model_name: str | None = None) -> None:
+    """Download (if needed) and load the RAG LLM.  Updates _rag_download state."""
+    global _rag_llm
+    from docfinder.rag.llm import MODEL_TIERS, LocalLLM, ModelSpec, _DEFAULT_MODELS_DIR
+
+    # Pick the requested model or auto-select
+    spec: ModelSpec | None = None
+    if model_name:
+        for t in MODEL_TIERS:
+            if t.name == model_name:
+                spec = t
+                break
+    if spec is None:
+        from docfinder.rag.llm import select_model
+        spec = select_model()
+
+    dest_dir = _DEFAULT_MODELS_DIR
+    local_path = dest_dir / spec.filename
+
+    if not local_path.exists():
+        _rag_download["status"] = "downloading"
+        _rag_download["downloaded_bytes"] = 0
+        _rag_download["total_bytes"] = 0
+        _rag_download["error"] = None
+
+        from huggingface_hub import hf_hub_download
+        from huggingface_hub.utils.tqdm import tqdm as HfTqdm
+
+        # Monkey-patch the HF tqdm class to capture download progress
+        _orig_init = HfTqdm.__init__
+        _orig_update = HfTqdm.update
+        outer = _rag_download
+
+        def _patched_init(self, *a, **kw):
+            _orig_init(self, *a, **kw)
+            if self.total:
+                outer["total_bytes"] = int(self.total)
+
+        def _patched_update(self, n=1):
+            _orig_update(self, n)
+            outer["downloaded_bytes"] = int(self.n)
+
+        HfTqdm.__init__ = _patched_init
+        HfTqdm.update = _patched_update
+        try:
+            hf_hub_download(
+                repo_id=spec.repo_id,
+                filename=spec.filename,
+                local_dir=str(dest_dir),
+            )
+        finally:
+            HfTqdm.__init__ = _orig_init
+            HfTqdm.update = _orig_update
+
+    _rag_download["status"] = "loading"
+    _rag_llm = LocalLLM(local_path, n_ctx=4096)
+    _rag_download["status"] = "ready"
+
+
+@app.get("/rag/models")
+async def rag_models() -> dict:
+    """Return available model tiers with a recommended flag."""
+    from docfinder.rag.llm import MODEL_TIERS, select_model, _DEFAULT_MODELS_DIR
+
+    recommended = select_model()
+    total_ram = await asyncio.to_thread(_get_total_ram_for_rag)
+
+    models = []
+    for spec in MODEL_TIERS:
+        local_path = _DEFAULT_MODELS_DIR / spec.filename
+        models.append({
+            "name": spec.name,
+            "filename": spec.filename,
+            "ram_min_mb": spec.ram_min_mb,
+            "recommended": spec.name == recommended.name,
+            "downloaded": local_path.exists(),
+            "size_label": _format_size_label(spec),
+        })
+    return {"models": models, "total_ram_mb": total_ram}
+
+
+def _get_total_ram_for_rag() -> int:
+    from docfinder.rag.llm import _get_total_ram_mb
+    return _get_total_ram_mb()
+
+
+def _format_size_label(spec) -> str:
+    """Return a human-readable approximate download size."""
+    sizes = {
+        "Qwen2.5-7B-Instruct": "~4.7 GB",
+        "Qwen2.5-3B-Instruct": "~2.1 GB",
+        "Qwen2.5-1.5B-Instruct": "~1.1 GB",
+    }
+    return sizes.get(spec.name, "unknown")
+
+
+@app.post("/rag/download")
+async def rag_download(model_name: str | None = None) -> dict:
+    """Start downloading and loading the RAG model in background."""
+    if _rag_download["status"] in ("downloading", "loading"):
+        return {"status": "already_running"}
+
+    _rag_download["status"] = "downloading"
+    _rag_download["error"] = None
+
+    # Read user preference from settings
+    settings = load_settings()
+    chosen = model_name or settings.get("rag_model")
+
+    async def _run():
+        try:
+            await asyncio.to_thread(_load_rag_llm, chosen)
+        except Exception as exc:
+            LOGGER.exception("RAG model download/load failed: %s", exc)
+            _rag_download["status"] = "error"
+            _rag_download["error"] = str(exc)
+
+    asyncio.create_task(_run())
+    return {"status": "started"}
+
+
+@app.get("/rag/download/status")
+async def rag_download_status() -> dict:
+    """Poll download / load progress."""
+    return dict(_rag_download)
+
+
+@app.post("/rag/chat")
+async def rag_chat(payload: RAGPayload) -> dict:
+    """Answer a question using RAG over the context window of a specific chunk."""
+    question = payload.question.strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="Empty question")
+
+    if _rag_llm is None:
+        raise HTTPException(
+            status_code=503,
+            detail="RAG model not loaded. Enable AI Chat in Settings and download a model first.",
+        )
+
+    resolved_db = _resolve_db_path(payload.db)
+    if not resolved_db.exists():
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    embedder = _get_embedder()
+    store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
+
+    try:
+        # Look up document_id
+        row = store.connection.execute(
+            "SELECT id FROM documents WHERE path = ?", (payload.document_path,)
+        ).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Document not found in index")
+        doc_id = row["id"]
+
+        # Get context: try page-based first, fall back to fixed window
+        import json as _json
+
+        max_chars = 4000 * 4  # ~4000 tokens
+
+        # Find the page of the clicked chunk
+        chunk_row = store.connection.execute(
+            "SELECT metadata FROM chunks WHERE document_id = ? AND chunk_index = ?",
+            (doc_id, payload.chunk_index),
+        ).fetchone()
+        chunk_meta = _json.loads(chunk_row["metadata"]) if chunk_row and chunk_row["metadata"] else {}
+        center_page = chunk_meta.get("page") if chunk_row else None
+
+        if center_page is not None:
+            # Page-based context: same page + expand to adjacent pages
+            context_chunks = store.get_context_by_page(
+                doc_id, center_page, max_chars=max_chars
+            )
+        else:
+            # Fallback for old indexes without page metadata
+            context_chunks = store.get_context_window(
+                doc_id, payload.chunk_index, window_size=10
+            )
+
+        if not context_chunks:
+            raise HTTPException(status_code=404, detail="No chunks found for this document")
+
+        # Assemble context text respecting the token budget
+        parts = []
+        total = 0
+        for c in context_chunks:
+            text = c["text"]
+            if total + len(text) > max_chars:
+                remaining = max_chars - total
+                if remaining > 100:
+                    parts.append(text[:remaining] + " [...]")
+                break
+            parts.append(text)
+            total += len(text)
+        context_text = "\n\n".join(parts)
+
+        # Generate answer
+        system_prompt = (
+            "You are a helpful assistant that answers questions based on the provided document "
+            "context. Use ONLY the information from the context below. "
+            "If the context does not contain enough information, say so clearly. "
+            "Answer in the same language as the user's question."
+        )
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": f"Context:\n{context_text}\n\nQuestion: {question}",
+            },
+        ]
+        answer = await asyncio.to_thread(
+            _rag_llm.chat, messages, max_tokens=1024, temperature=0.2
+        )
+    finally:
+        store.close()
+
+    return {"answer": answer, "context_chunks_used": len(context_chunks)}
 
 
 @app.post("/open")
@@ -262,6 +502,10 @@ async def update_settings(payload: SettingsPayload) -> dict:
         current["hotkey"] = payload.hotkey
     if payload.hotkey_enabled is not None:
         current["hotkey_enabled"] = payload.hotkey_enabled
+    if payload.rag_enabled is not None:
+        current["rag_enabled"] = payload.rag_enabled
+    if payload.rag_model is not None:
+        current["rag_model"] = payload.rag_model
     _save_settings(current)
     return current
 

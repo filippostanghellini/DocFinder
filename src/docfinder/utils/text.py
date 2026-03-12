@@ -41,6 +41,41 @@ def chunk_text_stream(
         yield buffer
 
 
+def chunk_text_stream_paged(
+    pages: Iterable[tuple[int, str]], *, max_chars: int = 1200, overlap: int = 200
+) -> Iterator[tuple[str, int]]:
+    """Split a stream of (page_number, text) into overlapping chunks.
+
+    Yields ``(chunk_text, page_number)`` where ``page_number`` is the page
+    that contributed the **start** of the chunk.
+
+    This preserves page provenance so that downstream code can store the
+    originating page in chunk metadata.
+    """
+    buffer = ""
+    # Track which page the start of the buffer came from
+    buf_page = 0
+    step = max(max_chars - overlap, 1)
+
+    for page_num, part in pages:
+        if not buffer:
+            buf_page = page_num
+        buffer += part
+        while len(buffer) >= max_chars:
+            yield buffer[:max_chars], buf_page
+            buffer = buffer[step:]
+            # After slicing, the start of the buffer has shifted.
+            # The overlap region still belongs to the old page, so
+            # we keep buf_page unchanged — it's the page of the
+            # beginning of the chunk.  It will be updated when new
+            # text is appended from the next page.
+            if not buffer:
+                buf_page = page_num
+
+    if buffer:
+        yield buffer, buf_page
+
+
 def normalize_whitespace(lines: Iterable[str]) -> str:
     """Collapse whitespace and join lines."""
     return "\n".join(line.strip() for line in lines if line.strip())

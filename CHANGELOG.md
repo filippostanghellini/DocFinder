@@ -7,15 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.0.0-beta] - 2026-03-12
+## [2.0.0] - 2026-03-12
 
 ### Added
-- **Multi-format document support** — DocFinder now indexes PDF, plain text (`.txt`), Markdown (`.md`), and Word (`.docx`) files.
-- **Spotlight-style quick-search panel** *(experimental)* — a floating `NSPanel` + `WKWebView` can be summoned via the global hotkey to search documents without switching to the main window. The panel dismisses automatically when it loses focus (Esc or click away). Keyboard input (typing, arrows, Enter, Backspace) is forwarded to the search field via a `CGEventTap`. Note: this feature is still being refined and may behave unexpectedly in some scenarios.
+- **Local RAG (AI Chat)** — ask questions about your documents using a fully local LLM. No data leaves your machine.
+  - Automatic model selection based on system RAM: Qwen2.5-7B (16 GB+), Qwen2.5-3B (8-16 GB), or Qwen2.5-1.5B (any)
+  - GPU acceleration: Apple Metal on Apple Silicon, CUDA on NVIDIA, CPU fallback
+  - Models downloaded once to `~/.cache/docfinder/models/` via Hugging Face Hub
+  - Chat button appears on search results when RAG is enabled in Settings
+  - Chat panel slides up from bottom-right with full conversation history per session
+- **Page-aware context retrieval** — RAG uses document structure for smarter context:
+  - PDF: real page boundaries
+  - Markdown: heading-based sections
+  - Word (.docx): groups of 10 paragraphs
+  - Plain text: virtual pages of ~3000 characters
+  - Context expands symmetrically to adjacent pages/sections until the token budget is filled
+- **RAG Settings UI** — new "AI Chat (RAG)" section in Settings:
+  - Toggle to enable/disable AI Chat
+  - Hardware detection shows available RAM
+  - Three model cards with size, RAM requirements, and "Recommended" badge
+  - Download progress bar with real-time bytes/percentage tracking
+  - Model status persisted across sessions
+- **Multi-format document support** — DocFinder now indexes PDF, plain text (`.txt`), Markdown (`.md`), and Word (`.docx`) files
+- **Spotlight-style quick-search panel** *(experimental)* — a floating `NSPanel` + `WKWebView` can be summoned via the global hotkey to search documents without switching to the main window
+- New `[rag]` optional dependency group (`pip install docfinder[rag]`)
+- New storage method `get_context_window()` for fixed-window chunk retrieval
+- New storage method `get_context_by_page()` for page-aware chunk retrieval
+- Search results now include `document_id` for downstream RAG integration
 
 ### Changed
 - **Redesigned UI theme**
-- `EmbeddingModel.embed()` accepts an optional `batch_size` override for low-RAM scenarios.
+- `EmbeddingModel.embed()` accepts an optional `batch_size` override for low-RAM scenarios
+- `build_chunks()` now stores `page` number in chunk metadata for all document formats
+- Chunking pipeline uses page-aware `chunk_text_stream_paged()` to preserve page provenance
+
+### New dependencies
+- `llama-cpp-python >= 0.3.0` (optional, in `[rag]` extra)
 
 ## [1.2.0] - 2026-03-10
 
@@ -190,8 +217,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed linting issues for consistent code style
 - Updated ruff configuration to use non-deprecated settings
 
-[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v2.0.0-beta...HEAD
-[2.0.0-beta]: https://github.com/filippostanghellini/DocFinder/compare/v1.2.0...v2.0.0-beta
+[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/filippostanghellini/DocFinder/compare/v1.2.0...v2.0.0
 [1.2.0]: https://github.com/filippostanghellini/DocFinder/compare/v1.1.2...v1.2.0
 [1.1.2]: https://github.com/filippostanghellini/DocFinder/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/filippostanghellini/DocFinder/compare/v1.0.1...v1.1.1

@@ -698,6 +698,170 @@
         margin-top: 0.65rem;
       }
 
+      .btn-accent {
+        background: var(--accent);
+        color: #fff;
+      }
+      .btn-accent:hover:not(:disabled) {
+        background: #7c3aed;
+      }
+
+      /* ── Chat panel ────────────────────────────────────────────────────── */
+      .chat-panel {
+        position: fixed;
+        bottom: 0;
+        right: 0;
+        width: 420px;
+        max-height: 70vh;
+        background: var(--bg-1);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        box-shadow: var(--shadow-xl);
+        display: flex;
+        flex-direction: column;
+        z-index: 900;
+        transform: translateY(100%);
+        opacity: 0;
+        transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s;
+      }
+      .chat-panel.visible {
+        transform: translateY(0);
+        opacity: 1;
+      }
+      .chat-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+      .chat-header h3 {
+        font-size: 0.85rem;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .chat-close {
+        background: none;
+        border: none;
+        color: var(--text-2);
+        cursor: pointer;
+        padding: 0.25rem;
+        border-radius: var(--radius-xs);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .chat-close:hover { color: var(--text-0); background: var(--bg-2); }
+      .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 0.75rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        min-height: 120px;
+      }
+      .chat-msg {
+        max-width: 88%;
+        padding: 0.55rem 0.8rem;
+        border-radius: var(--radius-sm);
+        font-size: 0.82rem;
+        line-height: 1.5;
+        word-wrap: break-word;
+        white-space: pre-wrap;
+      }
+      .chat-msg.user {
+        align-self: flex-end;
+        background: var(--primary);
+        color: #fff;
+      }
+      .chat-msg.assistant {
+        align-self: flex-start;
+        background: var(--bg-2);
+        color: var(--text-0);
+      }
+      .chat-msg.system {
+        align-self: center;
+        background: var(--bg-3);
+        color: var(--text-2);
+        font-size: 0.75rem;
+        text-align: center;
+      }
+      .chat-input-row {
+        display: flex;
+        gap: 0.4rem;
+        padding: 0.65rem 0.85rem;
+        border-top: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+      .chat-input {
+        flex: 1;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 0.5rem 0.7rem;
+        font-size: 0.82rem;
+        background: var(--bg-0);
+        color: var(--text-0);
+        outline: none;
+        transition: border-color var(--transition);
+      }
+      .chat-input:focus { border-color: var(--border-focus); }
+      .chat-send {
+        padding: 0.5rem 0.85rem;
+        border-radius: var(--radius-sm);
+      }
+      @media (max-width: 500px) {
+        .chat-panel { width: 100%; }
+      }
+
+      /* ── RAG model card ────────────────────────────────────────────────── */
+      .model-card {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.7rem 0.85rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--bg-0);
+        cursor: pointer;
+        transition: all var(--transition);
+      }
+      .model-card:hover { border-color: var(--primary-light); background: var(--bg-2); }
+      .model-card.selected { border-color: var(--primary); background: var(--primary-light); }
+      .model-card.disabled { opacity: 0.45; cursor: not-allowed; }
+      .model-radio {
+        width: 16px; height: 16px;
+        border: 2px solid var(--text-3);
+        border-radius: 50%;
+        flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        transition: border-color var(--transition);
+      }
+      .model-card.selected .model-radio { border-color: var(--primary); }
+      .model-card.selected .model-radio::after {
+        content: '';
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        background: var(--primary);
+      }
+      .model-info { flex: 1; min-width: 0; }
+      .model-name { font-size: 0.82rem; font-weight: 600; color: var(--text-0); }
+      .model-meta { font-size: 0.72rem; color: var(--text-2); margin-top: 0.1rem; }
+      .model-badge {
+        font-size: 0.65rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 0.15rem 0.45rem;
+        border-radius: 9999px;
+        flex-shrink: 0;
+      }
+      .model-badge.recommended { background: var(--success-light); color: var(--success); }
+      .model-badge.downloaded { background: var(--primary-light); color: var(--primary); }
+
       /* ── Documents table ──────────────────────────────────────────────────── */
       .documents-table {
         width: 100%;
@@ -1335,6 +1499,48 @@
           <div style="margin-top:1rem; display:flex; justify-content:flex-end;">
             <button id="save-settings-btn" class="btn btn-primary">Save settings</button>
           </div>
+
+          <!-- ── AI Chat (RAG) ──────────────────────────────────────────── -->
+          <div style="margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--border);">
+            <h3 style="font-size:0.75rem; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.4rem;">
+              AI Chat (RAG)
+            </h3>
+            <p style="font-size:0.82rem; color:var(--text-2); margin-bottom:0.65rem; line-height:1.5;">
+              Enable a local AI assistant that can answer questions about your documents.
+              A language model will be downloaded once and runs entirely on your machine &mdash; no data leaves your computer.
+            </p>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-label">Enable AI Chat</span>
+                <span class="setting-sub">Adds a Chat button on search results</span>
+              </div>
+              <label class="toggle" title="Enable or disable AI Chat">
+                <input type="checkbox" id="rag-enabled" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div id="rag-models-section" style="display:none; margin-top:0.75rem;">
+              <p style="font-size:0.82rem; color:var(--text-2); margin-bottom:0.65rem;">
+                Choose a model based on your available RAM (<span id="rag-ram-label">detecting&hellip;</span>):
+              </p>
+              <div id="rag-models-list" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+
+              <div id="rag-download-progress" style="display:none; margin-top:0.75rem;">
+                <div style="display:flex; justify-content:space-between; font-size:0.78rem; color:var(--text-2); margin-bottom:0.3rem;">
+                  <span id="rag-dl-label">Downloading model&hellip;</span>
+                  <span id="rag-dl-pct">0%</span>
+                </div>
+                <div style="background:var(--bg-3); border-radius:9999px; height:6px; overflow:hidden;">
+                  <div id="rag-dl-bar" style="background:var(--primary); height:100%; width:0%; transition:width 0.3s;"></div>
+                </div>
+                <p id="rag-dl-detail" style="font-size:0.72rem; color:var(--text-3); margin-top:0.25rem;"></p>
+              </div>
+
+              <div id="rag-status-msg" style="display:none; margin-top:0.5rem; font-size:0.82rem; padding:0.5rem 0.7rem; border-radius:var(--radius-sm);"></div>
+            </div>
+          </div>
         </div>
       </div>
     </main>
@@ -1382,6 +1588,21 @@
           <button class="btn btn-secondary" id="cancel-index-warn">Cancel</button>
           <button class="btn btn-primary" id="confirm-index-warn">Index anyway</button>
         </div>
+      </div>
+    </div>
+
+    <!-- ── Chat panel ────────────────────────────────────────────────────── -->
+    <div id="chat-panel" class="chat-panel">
+      <div class="chat-header">
+        <h3 id="chat-doc-title">Chat</h3>
+        <button class="chat-close" id="chat-close" title="Close chat">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-input-row">
+        <input id="chat-input" class="chat-input" type="text" placeholder="Ask about this document..." autocomplete="off" />
+        <button id="chat-send" class="btn btn-primary chat-send">Send</button>
       </div>
     </div>
 
@@ -1473,6 +1694,10 @@
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4h8l2 2v8H2V4z" stroke="white" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 2h4v4" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 7l5-5" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>
               Open
             </button>
+            <button class="btn btn-accent btn-sm chat-btn" data-path="${escHtml(r.path)}" data-chunk="${r.chunk_index}" data-title="${escHtml(title)}" style="display:${ragEnabled ? 'inline-flex' : 'none'}">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 3h12v8H5l-3 3V3z" stroke="white" stroke-width="1.5" stroke-linejoin="round"/><path d="M5 6h6M5 8.5h4" stroke="white" stroke-width="1.3" stroke-linecap="round"/></svg>
+              Chat
+            </button>
           </div>`;
         return li;
       }
@@ -1508,6 +1733,11 @@
           resultsMeta.textContent = `${data.results.length} result${data.results.length !== 1 ? 's' : ''} found`;
           resultsMeta.style.display = 'block';
           data.results.forEach(r => resultsList.appendChild(renderResult(r)));
+          resultsList.querySelectorAll('.chat-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+              openChat(btn.dataset.path, parseInt(btn.dataset.chunk), btn.dataset.title);
+            });
+          });
         } catch (err) {
           resultsMeta.style.display = 'none';
           resultsList.innerHTML = `<div class="empty-state"><div class="icon">\u26a0\ufe0f</div><p style="color:var(--danger);">${escHtml(err.message)}</p></div>`;
@@ -2046,6 +2276,14 @@
             document.getElementById('hotkey-permission-sub').textContent =
               'Requires Accessibility permission on macOS';
           }
+
+          // RAG settings
+          ragEnabled = s.rag_enabled === true;
+          ragEnabledToggle.checked = ragEnabled;
+          if (ragEnabled) {
+            ragModelsSection.style.display = '';
+            loadRagModels();
+          }
         } catch (err) {
           console.warn('Could not load settings:', err);
         }
@@ -2069,7 +2307,211 @@
         }
       });
 
-      // Hotkey capture modal
+      // ── RAG settings logic ──────────────────────────────────────────────
+      const ragEnabledToggle = document.getElementById('rag-enabled');
+      const ragModelsSection = document.getElementById('rag-models-section');
+      const ragModelsList    = document.getElementById('rag-models-list');
+      const ragRamLabel      = document.getElementById('rag-ram-label');
+      const ragDlProgress    = document.getElementById('rag-download-progress');
+      const ragDlLabel       = document.getElementById('rag-dl-label');
+      const ragDlPct         = document.getElementById('rag-dl-pct');
+      const ragDlBar         = document.getElementById('rag-dl-bar');
+      const ragDlDetail      = document.getElementById('rag-dl-detail');
+      const ragStatusMsg     = document.getElementById('rag-status-msg');
+
+      let ragEnabled = false;
+      let ragSelectedModel = null;
+      let ragModelsData = [];
+      let ragPollTimer = null;
+
+      function formatBytes(b) {
+        if (b >= 1e9) return (b / 1e9).toFixed(1) + ' GB';
+        if (b >= 1e6) return (b / 1e6).toFixed(0) + ' MB';
+        return (b / 1e3).toFixed(0) + ' KB';
+      }
+
+      ragEnabledToggle.addEventListener('change', async () => {
+        ragEnabled = ragEnabledToggle.checked;
+        await fetch(`${apiBase}/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rag_enabled: ragEnabled }),
+        });
+        if (ragEnabled) {
+          ragModelsSection.style.display = '';
+          loadRagModels();
+        } else {
+          ragModelsSection.style.display = 'none';
+        }
+      });
+
+      async function loadRagModels() {
+        try {
+          const [modelsRes, settingsRes, dlStatusRes] = await Promise.all([
+            fetch(`${apiBase}/rag/models`),
+            fetch(`${apiBase}/settings`),
+            fetch(`${apiBase}/rag/download/status`),
+          ]);
+          const data = await modelsRes.json();
+          const settings = await settingsRes.json();
+          const dlStatus = await dlStatusRes.json();
+
+          ragModelsData = data.models;
+          const ramGB = (data.total_ram_mb / 1024).toFixed(0);
+          ragRamLabel.textContent = ramGB + ' GB total RAM';
+
+          const savedModel = settings.rag_model;
+          const isDownloading = dlStatus.status === 'downloading' || dlStatus.status === 'loading';
+
+          ragModelsList.innerHTML = '';
+          ragModelsData.forEach(m => {
+            const canRun = data.total_ram_mb >= m.ram_min_mb;
+            const isSelected = savedModel ? savedModel === m.name : m.recommended;
+            const div = document.createElement('div');
+            div.className = 'model-card' + (isSelected ? ' selected' : '') + (!canRun ? ' disabled' : '');
+            div.dataset.model = m.name;
+
+            const ramReq = m.ram_min_mb > 0 ? (m.ram_min_mb / 1024).toFixed(0) + ' GB RAM' : 'Any';
+            let badges = '';
+            if (m.recommended) badges += '<span class="model-badge recommended">Recommended</span>';
+            if (m.downloaded) badges += '<span class="model-badge downloaded">Downloaded</span>';
+
+            div.innerHTML = `
+              <div class="model-radio"></div>
+              <div class="model-info">
+                <div class="model-name">${escHtml(m.name)}</div>
+                <div class="model-meta">${escHtml(m.size_label)} &middot; Requires ${ramReq}</div>
+              </div>
+              ${badges}
+            `;
+
+            if (canRun && !isDownloading) {
+              div.addEventListener('click', () => selectRagModel(m.name));
+            }
+            ragModelsList.appendChild(div);
+
+            if (isSelected && canRun) ragSelectedModel = m.name;
+          });
+
+          // If download is in progress, show progress bar and start polling
+          if (isDownloading) {
+            ragStatusMsg.style.display = 'none';
+            startRagPoll();
+          } else {
+            updateRagDownloadUI();
+          }
+        } catch (err) {
+          console.warn('Failed to load RAG models:', err);
+        }
+      }
+
+      function selectRagModel(name) {
+        ragSelectedModel = name;
+        ragModelsList.querySelectorAll('.model-card').forEach(c => {
+          c.classList.toggle('selected', c.dataset.model === name);
+        });
+        fetch(`${apiBase}/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rag_model: name }),
+        });
+        updateRagDownloadUI();
+      }
+
+      function updateRagDownloadUI() {
+        const m = ragModelsData.find(x => x.name === ragSelectedModel);
+        if (!m) return;
+        ragStatusMsg.style.display = '';
+        if (m.downloaded) {
+          ragStatusMsg.style.background = 'var(--success-light)';
+          ragStatusMsg.style.color = 'var(--success)';
+          ragStatusMsg.innerHTML = 'Model ready. Chat buttons are now visible on search results.';
+          ragDlProgress.style.display = 'none';
+          // Auto-load model if not loaded yet
+          fetch(`${apiBase}/rag/download/status`).then(r => r.json()).then(s => {
+            if (s.status !== 'ready' && s.status !== 'loading') {
+              fetch(`${apiBase}/rag/download`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+            }
+          });
+        } else {
+          ragStatusMsg.style.background = 'var(--primary-light)';
+          ragStatusMsg.style.color = 'var(--primary)';
+          ragStatusMsg.innerHTML = `<button class="btn btn-primary btn-sm" id="rag-download-btn" style="margin-right:0.5rem;">Download ${escHtml(m.size_label)}</button> Download to start using AI Chat`;
+          ragDlProgress.style.display = 'none';
+          document.getElementById('rag-download-btn')?.addEventListener('click', startRagDownload);
+        }
+      }
+
+      async function startRagDownload() {
+        ragStatusMsg.style.display = 'none';
+        ragDlProgress.style.display = '';
+        ragDlLabel.textContent = 'Downloading model\u2026';
+        ragDlPct.textContent = '0%';
+        ragDlBar.style.width = '0%';
+        ragDlDetail.textContent = '';
+
+        await fetch(`${apiBase}/rag/download`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+
+        startRagPoll();
+      }
+
+      function stopRagPoll() {
+        if (ragPollTimer) {
+          clearInterval(ragPollTimer);
+          ragPollTimer = null;
+        }
+      }
+
+      function startRagPoll() {
+        // Always restart — ensures fresh polling when returning to settings tab
+        stopRagPoll();
+        ragDlProgress.style.display = '';
+        ragStatusMsg.style.display = 'none';
+
+        // Do an immediate tick so UI updates instantly on tab switch
+        pollRagOnce();
+
+        ragPollTimer = setInterval(pollRagOnce, 800);
+      }
+
+      async function pollRagOnce() {
+        try {
+          const res = await fetch(`${apiBase}/rag/download/status`);
+          const s = await res.json();
+          if (s.status === 'downloading') {
+            const pct = s.total_bytes > 0 ? Math.round(s.downloaded_bytes / s.total_bytes * 100) : 0;
+            ragDlPct.textContent = pct + '%';
+            ragDlBar.style.width = pct + '%';
+            ragDlLabel.textContent = 'Downloading model\u2026';
+            ragDlDetail.textContent = formatBytes(s.downloaded_bytes) + ' / ' + formatBytes(s.total_bytes);
+          } else if (s.status === 'loading') {
+            ragDlPct.textContent = '100%';
+            ragDlBar.style.width = '100%';
+            ragDlLabel.textContent = 'Loading model into memory\u2026';
+            ragDlDetail.textContent = 'This may take a moment';
+          } else if (s.status === 'ready') {
+            stopRagPoll();
+            ragDlProgress.style.display = 'none';
+            const m = ragModelsData.find(x => x.name === ragSelectedModel);
+            if (m) m.downloaded = true;
+            loadRagModels();
+            showToast('AI Chat model is ready');
+          } else if (s.status === 'error') {
+            stopRagPoll();
+            ragDlProgress.style.display = 'none';
+            ragStatusMsg.style.display = '';
+            ragStatusMsg.style.background = 'var(--danger-light)';
+            ragStatusMsg.style.color = 'var(--danger)';
+            ragStatusMsg.textContent = 'Download failed: ' + (s.error || 'Unknown error');
+          }
+        } catch { /* ignore transient fetch errors */ }
+      }
+
+      // ── Hotkey capture modal
       const hotkeyModal    = document.getElementById('hotkey-modal');
       const captureDisplay = document.getElementById('hotkey-capture-display');
       const confirmHotkeyBtn = document.getElementById('confirm-hotkey');
@@ -2122,6 +2564,88 @@
       } else {
         window.addEventListener('pywebviewready', enableBrowseButton);
       }
+
+      // ── Chat panel ────────────────────────────────────────────────────────
+      const chatPanel    = document.getElementById('chat-panel');
+      const chatMessages = document.getElementById('chat-messages');
+      const chatInput    = document.getElementById('chat-input');
+      const chatSend     = document.getElementById('chat-send');
+      const chatDocTitle = document.getElementById('chat-doc-title');
+      const chatClose    = document.getElementById('chat-close');
+
+      let chatDocPath  = '';
+      let chatChunkIdx = 0;
+
+      function openChat(path, chunkIndex, title) {
+        chatDocPath  = path;
+        chatChunkIdx = chunkIndex;
+        chatDocTitle.textContent = title || 'Chat';
+        chatMessages.innerHTML = '';
+        addChatMsg('system', 'Ask anything about this document. The AI will use the surrounding context to answer.');
+        chatPanel.classList.add('visible');
+        chatInput.focus();
+      }
+
+      function closeChat() {
+        chatPanel.classList.remove('visible');
+      }
+
+      function addChatMsg(role, text) {
+        const div = document.createElement('div');
+        div.className = 'chat-msg ' + role;
+        div.textContent = text;
+        chatMessages.appendChild(div);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      async function sendChat() {
+        const q = chatInput.value.trim();
+        if (!q) return;
+
+        addChatMsg('user', q);
+        chatInput.value = '';
+        chatSend.disabled = true;
+        chatInput.disabled = true;
+
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'chat-msg system';
+        loadingDiv.textContent = 'Thinking\u2026';
+        chatMessages.appendChild(loadingDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        try {
+          const res = await fetch(`${apiBase}/rag/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              question: q,
+              document_path: chatDocPath,
+              chunk_index: chatChunkIdx,
+            }),
+          });
+          loadingDiv.remove();
+          if (!res.ok) {
+            const err = await res.json();
+            addChatMsg('system', err.detail || 'Error generating answer');
+            return;
+          }
+          const data = await res.json();
+          addChatMsg('assistant', data.answer);
+        } catch (err) {
+          loadingDiv.remove();
+          addChatMsg('system', 'Connection error: ' + err.message);
+        } finally {
+          chatSend.disabled = false;
+          chatInput.disabled = false;
+          chatInput.focus();
+        }
+      }
+
+      chatClose.addEventListener('click', closeChat);
+      chatSend.addEventListener('click', sendChat);
+      chatInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+      });
 
       // ── Spotlight overlay ─────────────────────────────────────────────────
       (function () {
