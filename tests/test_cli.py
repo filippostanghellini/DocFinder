@@ -51,15 +51,15 @@ class TestEnsureDbParent:
 class TestIndexCommand:
     """Tests for the index command."""
 
-    def test_index_no_pdfs_found(self, tmp_path: Path) -> None:
-        """Shows warning when no PDFs are found."""
+    def test_index_no_documents_found(self, tmp_path: Path) -> None:
+        """Shows warning when no supported documents are found."""
         empty_dir = tmp_path / "empty"
         empty_dir.mkdir()
         db_path = tmp_path / "test.db"
 
         result = runner.invoke(app, ["index", str(empty_dir), "--db", str(db_path)])
         assert result.exit_code == 0
-        assert "No PDFs found" in result.stdout
+        assert "No supported documents found" in result.stdout
 
     @patch("docfinder.cli.EmbeddingModel")
     @patch("docfinder.cli.SQLiteVectorStore")

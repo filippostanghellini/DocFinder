@@ -15,10 +15,10 @@ from docfinder.embedding.encoder import EmbeddingConfig, EmbeddingModel
 from docfinder.index.indexer import Indexer
 from docfinder.index.search import Searcher
 from docfinder.index.storage import SQLiteVectorStore
-from docfinder.utils.files import iter_pdf_paths
+from docfinder.utils.files import iter_document_paths
 
 console = Console()
-app = typer.Typer(help="DocFinder - local semantic search for PDFs")
+app = typer.Typer(help="DocFinder - local semantic search for your documents")
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -32,14 +32,16 @@ def _ensure_db_parent(db_path: Path) -> None:
 
 @app.command()
 def index(
-    inputs: List[Path] = typer.Argument(..., help="Paths with PDFs to index.", resolve_path=True),
+    inputs: List[Path] = typer.Argument(
+        ..., help="Paths with documents to index.", resolve_path=True
+    ),
     db: Path = typer.Option(None, "--db", help="SQLite database path"),
     model: str = typer.Option(AppConfig().model_name, help="Sentence-transformer model name"),
     chunk_chars: int = typer.Option(AppConfig().chunk_chars, help="Chunk size in characters"),
     overlap: int = typer.Option(AppConfig().overlap, help="Chunk overlap"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose logging"),
 ) -> None:
-    """Index one or more paths containing PDF files."""
+    """Index one or more paths containing documents (PDF, DOCX, MD, TXT)."""
     _setup_logging(verbose)
     config = AppConfig(
         db_path=db if db is not None else AppConfig().db_path,
@@ -56,13 +58,13 @@ def index(
     indexer = Indexer(embedder, store, chunk_chars=config.chunk_chars, overlap=config.overlap)
 
     console.print(f"Indexing into [bold]{resolved_db}[/bold]...")
-    pdf_paths = list(iter_pdf_paths(inputs))
-    if not pdf_paths:
-        console.print("[yellow]No PDFs found.[/yellow]")
+    doc_paths = list(iter_document_paths(inputs))
+    if not doc_paths:
+        console.print("[yellow]No supported documents found.[/yellow]")
         store.close()
         return
 
-    stats = indexer.index(pdf_paths)
+    stats = indexer.index(doc_paths)
     console.print(
         f"Inserted: {stats.inserted}, updated: {stats.updated}, "
         f"skipped: {stats.skipped}, failed: {stats.failed}"

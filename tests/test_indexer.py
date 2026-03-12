@@ -131,7 +131,7 @@ class TestIndexer:
         assert indexer.chunk_chars == 1200
         assert indexer.overlap == 200
 
-    @patch("docfinder.index.indexer.iter_pdf_paths")
+    @patch("docfinder.index.indexer.iter_document_paths")
     @patch("docfinder.index.indexer.build_chunks")
     @patch("docfinder.index.indexer.compute_sha256")
     def test_index_single_file(
@@ -172,7 +172,7 @@ class TestIndexer:
         indexer.store.init_document.assert_called_once()
         indexer.store.insert_chunks.assert_called_once()
 
-    @patch("docfinder.index.indexer.iter_pdf_paths")
+    @patch("docfinder.index.indexer.iter_document_paths")
     @patch("docfinder.index.indexer.build_chunks")
     @patch("docfinder.index.indexer.compute_sha256")
     def test_index_updated_file(
@@ -194,7 +194,7 @@ class TestIndexer:
         assert stats.updated == 1
         assert stats.inserted == 0
 
-    @patch("docfinder.index.indexer.iter_pdf_paths")
+    @patch("docfinder.index.indexer.iter_document_paths")
     @patch("docfinder.index.indexer.build_chunks")
     @patch("docfinder.index.indexer.compute_sha256")
     def test_index_skipped_file(
@@ -219,7 +219,7 @@ class TestIndexer:
         indexer.embedder.embed.assert_not_called()
         indexer.store.insert_chunks.assert_not_called()
 
-    @patch("docfinder.index.indexer.iter_pdf_paths")
+    @patch("docfinder.index.indexer.iter_document_paths")
     @patch("docfinder.index.indexer.build_chunks")
     def test_index_empty_document(self, mock_build_chunks, mock_iter_pdfs, indexer, tmp_path):
         """Test indexing a document with no extractable text."""
@@ -237,7 +237,7 @@ class TestIndexer:
         indexer.embedder.embed.assert_not_called()
         indexer.store.init_document.assert_not_called()
 
-    @patch("docfinder.index.indexer.iter_pdf_paths")
+    @patch("docfinder.index.indexer.iter_document_paths")
     @patch("docfinder.index.indexer.build_chunks")
     def test_index_exception_handling(self, mock_build_chunks, mock_iter_pdfs, indexer, tmp_path):
         """Test that exceptions are caught and logged."""
@@ -259,7 +259,7 @@ class TestIndexer:
         assert stats.inserted == 0
         assert pdf_path in stats.processed_files
 
-    @patch("docfinder.index.indexer.iter_pdf_paths")
+    @patch("docfinder.index.indexer.iter_document_paths")
     @patch("docfinder.index.indexer.build_chunks")
     @patch("docfinder.index.indexer.compute_sha256")
     def test_index_multiple_files(
@@ -287,7 +287,7 @@ class TestIndexer:
         assert stats.inserted == 2
         assert len(stats.processed_files) == 2
 
-    @patch("docfinder.index.indexer.iter_pdf_paths")
+    @patch("docfinder.index.indexer.iter_document_paths")
     @patch("docfinder.index.indexer.build_chunks")
     @patch("docfinder.index.indexer.compute_sha256")
     def test_index_mixed_results(
@@ -320,7 +320,7 @@ class TestIndexer:
         assert stats.failed == 1
         assert len(stats.processed_files) == 3
 
-    @patch("docfinder.index.indexer.iter_pdf_paths")
+    @patch("docfinder.index.indexer.iter_document_paths")
     @patch("docfinder.index.indexer.build_chunks")
     @patch("docfinder.index.indexer.compute_sha256")
     def test_index_uses_title_from_metadata(
@@ -349,7 +349,7 @@ class TestIndexer:
         document = call_args[0][0]
         assert document.title == "Custom Title"
 
-    @patch("docfinder.index.indexer.iter_pdf_paths")
+    @patch("docfinder.index.indexer.iter_document_paths")
     @patch("docfinder.index.indexer.build_chunks")
     @patch("docfinder.index.indexer.compute_sha256")
     def test_index_uses_filename_when_no_title(
@@ -375,7 +375,7 @@ class TestIndexer:
         document = call_args[0][0]
         assert document.title == "my_document"
 
-    @patch("docfinder.index.indexer.iter_pdf_paths")
+    @patch("docfinder.index.indexer.iter_document_paths")
     @patch("docfinder.index.indexer.build_chunks")
     @patch("docfinder.index.indexer.compute_sha256")
     def test_index_preserves_file_stats(

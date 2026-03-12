@@ -175,6 +175,7 @@ class SQLiteVectorStore:
         rows = self._conn.execute(
             """
             SELECT
+                c.document_id AS document_id,
                 d.path AS path,
                 d.title AS title,
                 c.chunk_index AS chunk_index,
@@ -203,6 +204,7 @@ class SQLiteVectorStore:
             row = rows[idx]
             results.append(
                 {
+                    "document_id": row["document_id"],
                     "path": row["path"],
                     "title": row["title"],
                     "chunk_index": row["chunk_index"],
@@ -212,6 +214,117 @@ class SQLiteVectorStore:
                 }
             )
         return results
+
+    def get_context_window(
+        self, document_id: int, center_index: int, window_size: int = 10
+    ) -> List[dict]:
+        """Return chunks surrounding *center_index* within the same document.
+
+        Retrieves up to *window_size* chunks before and after (inclusive of center),
+        ordered by ``chunk_index``.
+        """
+        low = max(0, center_index - window_size)
+        high = center_index + window_size
+
+        rows = self._conn.execute(
+            """
+            SELECT
+                c.chunk_index AS chunk_index,
+                c.text AS text,
+                c.metadata AS metadata
+            FROM chunks c
+            WHERE c.document_id = ? AND c.chunk_index BETWEEN ? AND ?
+            ORDER BY c.chunk_index
+            """,
+            (document_id, low, high),
+        ).fetchall()
+
+        return [
+            {
+                "chunk_index": row["chunk_index"],
+                "text": row["text"],
+                "metadata": row["metadata"],
+            }
+            for row in rows
+        ]
+
+    def get_context_by_page(
+        self, document_id: int, center_page: int, *, max_chars: int = 16000
+    ) -> List[dict]:
+        """Return chunks belonging to *center_page* and, if needed, adjacent pages.
+
+        Expands symmetrically to neighbouring pages until *max_chars* is reached
+        or no more pages are available.
+        """
+        # First get all chunks for this document with their page metadata
+        rows = self._conn.execute(
+            """
+            SELECT
+                c.chunk_index AS chunk_index,
+                c.text AS text,
+                c.metadata AS metadata
+            FROM chunks c
+            WHERE c.document_id = ?
+            ORDER BY c.chunk_index
+            """,
+            (document_id,),
+        ).fetchall()
+
+        if not rows:
+            return []
+
+        # Parse page numbers from metadata
+        chunks_with_page = []
+        for row in rows:
+            meta = json.loads(row["metadata"]) if row["metadata"] else {}
+            page = meta.get("page", 0)
+            chunks_with_page.append(
+                {
+                    "chunk_index": row["chunk_index"],
+                    "text": row["text"],
+                    "metadata": row["metadata"],
+                    "page": page,
+                }
+            )
+
+        # Collect pages: start with center_page, then expand symmetrically
+        collected: List[dict] = []
+        total_chars = 0
+
+        # Add center page first
+        for c in chunks_with_page:
+            if c["page"] == center_page:
+                collected.append(c)
+                total_chars += len(c["text"])
+
+        # Expand to adjacent pages
+        expand = 1
+        while total_chars < max_chars:
+            added = False
+            for offset_page in (center_page - expand, center_page + expand):
+                if offset_page < 0:
+                    continue
+                for c in chunks_with_page:
+                    if c["page"] == offset_page and total_chars < max_chars:
+                        collected.append(c)
+                        total_chars += len(c["text"])
+                        added = True
+            if not added:
+                break
+            expand += 1
+
+        # Sort by chunk_index for coherent reading order
+        collected.sort(key=lambda c: c["chunk_index"])
+
+        # Remove the internal 'page' key before returning
+        return [
+            {
+                "chunk_index": c["chunk_index"],
+                "text": c["text"],
+                "metadata": c["metadata"],
+            }
+            for c in collected
+        ]
 
     def remove_missing_files(self) -> int:
         """Remove documents whose files no longer exist."""

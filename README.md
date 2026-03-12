@@ -12,20 +12,18 @@
 </p>
 
 <p align="center">
-  <strong>Local-first semantic search for your PDF documents.</strong><br>
+  <strong>Local-first semantic search for your documents.</strong><br>
+  Supports PDF, Word (.docx), Markdown, and plain text files.<br>
   Everything runs on your machine — no cloud, no accounts, complete privacy.
 </p>
 
-<table width="100%">                                                            
-  <tr>                                                                          
-    <td width="50%"><img src="images/search.png" alt="Search" width="100%"></td>
-    <td width="50%"><img src="images/index.png" alt="Index" width="100%"></td>  
-  </tr>                                                                         
-</table>                                                                        
+<p align="center">
+  <img src="images/demo.gif" alt="DocFinder Demo" width="700">
+</p>                                                                        
 
 ## Features
 
-- **Semantic search** — find documents by meaning, not just keywords
+- **Semantic search** — find documents by meaning, not just keywords (PDF, DOCX, Markdown, TXT)
 - **100% local** — your files never leave your machine
 - **GPU accelerated** — auto-detects Apple Silicon (Metal), NVIDIA (CUDA), AMD (ROCm)
 - **Cross-platform** — native apps for macOS, Windows, and Linux
