@@ -1,7 +1,7 @@
 """Document loading and chunking utilities.
 
 Supports PDF (via PyMuPDF), plain text (.txt), Markdown (.md),
-and Word documents (.docx, requires python-docx).
+and Word documents (.docx via python-docx).
 """
 
 from __future__ import annotations
@@ -92,7 +92,7 @@ def iter_text_parts_md(path: Path) -> Iterator[str]:
 # ── Word (.docx) ──────────────────────────────────────────────────────────────
 
 def iter_text_parts_docx(path: Path) -> Iterator[str]:
-    """Yield paragraph text from a .docx file (requires python-docx)."""
+    """Yield paragraph text from a .docx file."""
     try:
         from docx import Document  # type: ignore[import-untyped]
     except ImportError:

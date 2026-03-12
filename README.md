@@ -12,7 +12,8 @@
 </p>
 
 <p align="center">
-  <strong>Local-first semantic search for your PDF documents.</strong><br>
+  <strong>Local-first semantic search for your documents.</strong><br>
+  Supports PDF, Word (.docx), Markdown, and plain text files.<br>
   Everything runs on your machine — no cloud, no accounts, complete privacy.
 </p>
 
@@ -22,7 +23,7 @@
 
 ## Features
 
-- **Semantic search** — find documents by meaning, not just keywords
+- **Semantic search** — find documents by meaning, not just keywords (PDF, DOCX, Markdown, TXT)
 - **100% local** — your files never leave your machine
 - **GPU accelerated** — auto-detects Apple Silicon (Metal), NVIDIA (CUDA), AMD (ROCm)
 - **Cross-platform** — native apps for macOS, Windows, and Linux
