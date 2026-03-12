@@ -24,10 +24,15 @@
 ## Features
 
 - **Semantic search** — find documents by meaning, not just keywords (PDF, DOCX, Markdown, TXT)
+- **AI chat** — ask questions about any document and get precise answers from its content
 - **100% local** — your files never leave your machine
 - **GPU accelerated** — auto-detects Apple Silicon (Metal), NVIDIA (CUDA), AMD (ROCm)
 - **Cross-platform** — native apps for macOS, Windows, and Linux
-- **Global shortcut** — bring DocFinder to front from anywhere with a configurable hotkey
+- **Global shortcut** (Experimental) — bring DocFinder to front from anywhere with a configurable hotkey
+
+<p align="center">
+  <img src="images/chat.png" alt="DocFinder Chat" width="700">
+</p>
 
 ## Download
 
