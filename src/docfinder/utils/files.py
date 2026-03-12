@@ -14,7 +14,8 @@ def iter_document_paths(inputs: Iterable[Path]) -> Iterator[Path]:
     for item in inputs:
         if item.is_dir():
             yield from sorted(
-                p for p in item.rglob("*")
+                p
+                for p in item.rglob("*")
                 if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS
             )
         elif item.is_file() and item.suffix.lower() in SUPPORTED_EXTENSIONS:

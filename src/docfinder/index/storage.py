@@ -278,12 +278,14 @@ class SQLiteVectorStore:
         for row in rows:
             meta = json.loads(row["metadata"]) if row["metadata"] else {}
             page = meta.get("page", 0)
-            chunks_with_page.append({
-                "chunk_index": row["chunk_index"],
-                "text": row["text"],
-                "metadata": row["metadata"],
-                "page": page,
-            })
+            chunks_with_page.append(
+                {
+                    "chunk_index": row["chunk_index"],
+                    "text": row["text"],
+                    "metadata": row["metadata"],
+                    "page": page,
+                }
+            )
 
         # Collect pages: start with center_page, then expand symmetrically
         collected: List[dict] = []

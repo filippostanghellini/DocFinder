@@ -21,6 +21,7 @@ LOGGER = logging.getLogger(__name__)
 
 # ── PDF ───────────────────────────────────────────────────────────────────────
 
+
 def iter_text_parts(path: Path) -> Iterator[str]:
     """Yield text content from a PDF file, page by page."""
     try:
@@ -105,10 +106,10 @@ def iter_text_parts_txt_paged(path: Path) -> Iterator[tuple[int, str]]:
 _MD_HEADING_LINE = re.compile(r"^#{1,6}\s+", re.MULTILINE)
 _MD_HEADING_SPLIT = re.compile(r"(?=^#{1,6}\s)", re.MULTILINE)
 _MD_BOLD_ITAL = re.compile(r"\*{1,3}([^*\n]+)\*{1,3}")
-_MD_CODE      = re.compile(r"`{1,3}[^`]*`{1,3}", re.DOTALL)
-_MD_IMAGE     = re.compile(r"!\[.*?\]\([^)]*\)")
-_MD_LINK      = re.compile(r"\[([^\]]+)\]\([^)]+\)")
-_MD_HR        = re.compile(r"^[-*_]{3,}\s*$", re.MULTILINE)
+_MD_CODE = re.compile(r"`{1,3}[^`]*`{1,3}", re.DOTALL)
+_MD_IMAGE = re.compile(r"!\[.*?\]\([^)]*\)")
+_MD_LINK = re.compile(r"\[([^\]]+)\]\([^)]+\)")
+_MD_HR = re.compile(r"^[-*_]{3,}\s*$", re.MULTILINE)
 
 
 def _clean_md(text: str) -> str:
@@ -158,15 +159,24 @@ def iter_text_parts_md_paged(path: Path) -> Iterator[tuple[int, str]]:
 _DOCX_PARAS_PER_PAGE = 10
 
 
-def iter_text_parts_docx(path: Path) -> Iterator[str]:
-    """Yield paragraph text from a .docx file."""
+def _import_docx_document():
+    """Import and return the ``Document`` class from python-docx, or *None*."""
     try:
         from docx import Document  # type: ignore[import-untyped]
+
+        return Document
     except ImportError:
         LOGGER.warning(
             "python-docx not installed — cannot index .docx files. "
             "Install with: pip install python-docx"
         )
+        return None
+
+
+def iter_text_parts_docx(path: Path) -> Iterator[str]:
+    """Yield paragraph text from a .docx file."""
+    Document = _import_docx_document()
+    if Document is None:
         return
     try:
         doc = Document(str(path))
@@ -183,13 +193,8 @@ def iter_text_parts_docx_paged(path: Path) -> Iterator[tuple[int, str]]:
 
     Groups every 10 consecutive non-empty paragraphs into one virtual page.
     """
-    try:
-        from docx import Document  # type: ignore[import-untyped]
-    except ImportError:
-        LOGGER.warning(
-            "python-docx not installed — cannot index .docx files. "
-            "Install with: pip install python-docx"
-        )
+    Document = _import_docx_document()
+    if Document is None:
         return
     try:
         doc = Document(str(path))
@@ -211,6 +216,7 @@ def iter_text_parts_docx_paged(path: Path) -> Iterator[tuple[int, str]]:
 
 
 # ── Dispatcher ────────────────────────────────────────────────────────────────
+
 
 def _iter_text_by_suffix(path: Path) -> Iterator[str]:
     suffix = path.suffix.lower()
@@ -278,7 +284,6 @@ def _iter_paged_text(path: Path) -> Iterator[tuple[int, str]]:
         yield from iter_text_parts_txt_paged(path)
     else:
         LOGGER.warning("Unsupported file type: %s", path.suffix)
-
 
 
 def build_chunks(path: Path, *, max_chars: int = 1200, overlap: int = 200) -> Iterable[ChunkRecord]:

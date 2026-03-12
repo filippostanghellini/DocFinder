@@ -171,6 +171,7 @@ def _load_rag_llm(model_name: str | None = None) -> None:
                 break
     if spec is None:
         from docfinder.rag.llm import select_model
+
         spec = select_model()
 
     dest_dir = _DEFAULT_MODELS_DIR
@@ -227,19 +228,22 @@ async def rag_models() -> dict:
     models = []
     for spec in MODEL_TIERS:
         local_path = _DEFAULT_MODELS_DIR / spec.filename
-        models.append({
-            "name": spec.name,
-            "filename": spec.filename,
-            "ram_min_mb": spec.ram_min_mb,
-            "recommended": spec.name == recommended.name,
-            "downloaded": local_path.exists(),
-            "size_label": _format_size_label(spec),
-        })
+        models.append(
+            {
+                "name": spec.name,
+                "filename": spec.filename,
+                "ram_min_mb": spec.ram_min_mb,
+                "recommended": spec.name == recommended.name,
+                "downloaded": local_path.exists(),
+                "size_label": _format_size_label(spec),
+            }
+        )
     return {"models": models, "total_ram_mb": total_ram}
 
 
 def _get_total_ram_for_rag() -> int:
     from docfinder.rag.llm import _get_total_ram_mb
+
     return _get_total_ram_mb()
 
 
@@ -324,22 +328,16 @@ async def rag_chat(payload: RAGPayload) -> dict:
             (doc_id, payload.chunk_index),
         ).fetchone()
         chunk_meta = (
-            _json.loads(chunk_row["metadata"])
-            if chunk_row and chunk_row["metadata"]
-            else {}
+            _json.loads(chunk_row["metadata"]) if chunk_row and chunk_row["metadata"] else {}
         )
         center_page = chunk_meta.get("page") if chunk_row else None
 
         if center_page is not None:
             # Page-based context: same page + expand to adjacent pages
-            context_chunks = store.get_context_by_page(
-                doc_id, center_page, max_chars=max_chars
-            )
+            context_chunks = store.get_context_by_page(doc_id, center_page, max_chars=max_chars)
         else:
             # Fallback for old indexes without page metadata
-            context_chunks = store.get_context_window(
-                doc_id, payload.chunk_index, window_size=10
-            )
+            context_chunks = store.get_context_window(doc_id, payload.chunk_index, window_size=10)
 
         if not context_chunks:
             raise HTTPException(status_code=404, detail="No chunks found for this document")
@@ -372,9 +370,7 @@ async def rag_chat(payload: RAGPayload) -> dict:
                 "content": f"Context:\n{context_text}\n\nQuestion: {question}",
             },
         ]
-        answer = await asyncio.to_thread(
-            _rag_llm.chat, messages, max_tokens=1024, temperature=0.2
-        )
+        answer = await asyncio.to_thread(_rag_llm.chat, messages, max_tokens=1024, temperature=0.2)
     finally:
         store.close()
 

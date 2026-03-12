@@ -183,9 +183,7 @@ class SpotlightPanel:
         # culprit in the original pywebview crash).  The spotlight.html body
         # background is set to the same dark color so no white edges show.
         webview.setUnderPageBackgroundColor_(
-            AppKit.NSColor.colorWithSRGBRed_green_blue_alpha_(
-                22 / 255, 27 / 255, 42 / 255, 1.0
-            )
+            AppKit.NSColor.colorWithSRGBRed_green_blue_alpha_(22 / 255, 27 / 255, 42 / 255, 1.0)
         )
 
         # ── NSPanel ───────────────────────────────────────────────────────────
@@ -205,9 +203,7 @@ class SpotlightPanel:
         panel.setWorksWhenModal_(True)
         panel.setBecomesKeyOnlyIfNeeded_(False)
         panel.setBackgroundColor_(
-            AppKit.NSColor.colorWithSRGBRed_green_blue_alpha_(
-                22 / 255, 27 / 255, 42 / 255, 1.0
-            )
+            AppKit.NSColor.colorWithSRGBRed_green_blue_alpha_(22 / 255, 27 / 255, 42 / 255, 1.0)
         )
         panel.setContentView_(webview)
 
@@ -306,8 +302,7 @@ class SpotlightPanel:
             )
         elif keycode == _RETURN:
             self._webview.evaluateJavaScript_completionHandler_(
-                "document.dispatchEvent(new KeyboardEvent("
-                "'keydown',{key:'Enter',bubbles:true}));",
+                "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));",
                 None,
             )
         elif keycode == _BACKSPACE:
@@ -319,10 +314,7 @@ class SpotlightPanel:
             )
         elif chars:
             safe = (
-                chars.replace("\\", "\\\\")
-                .replace("'", "\\'")
-                .replace("\n", "")
-                .replace("\r", "")
+                chars.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "").replace("\r", "")
             )
             if safe:
                 self._webview.evaluateJavaScript_completionHandler_(
@@ -363,30 +355,84 @@ def _parse_pynput_hotkey(hotkey_str: str) -> tuple[int, int] | None:
     """
     # Mapping of pynput modifier names to CGEvent modifier flag bits
     _MOD_MAP: dict[str, int] = {
-        "cmd": 1 << 20,   # kCGEventFlagMaskCommand = 0x00100000
+        "cmd": 1 << 20,  # kCGEventFlagMaskCommand = 0x00100000
         "shift": 1 << 17,  # kCGEventFlagMaskShift   = 0x00020000
-        "alt": 1 << 19,   # kCGEventFlagMaskAlternate = 0x00080000
+        "alt": 1 << 19,  # kCGEventFlagMaskAlternate = 0x00080000
         "ctrl": 1 << 18,  # kCGEventFlagMaskControl = 0x00040000
     }
 
     # macOS virtual keycodes for A-Z (lowercase key name → keycode)
     _KEY_MAP: dict[str, int] = {
-        "a": 0, "b": 11, "c": 8, "d": 2, "e": 14, "f": 3, "g": 5,
-        "h": 4, "i": 34, "j": 38, "k": 40, "l": 37, "m": 46, "n": 45,
-        "o": 31, "p": 35, "q": 12, "r": 15, "s": 1, "t": 17, "u": 32,
-        "v": 9, "w": 13, "x": 7, "y": 16, "z": 6,
-        "space": 49, "f1": 122, "f2": 120, "f3": 99, "f4": 118,
-        "f5": 96, "f6": 97, "f7": 98, "f8": 100, "f9": 101,
-        "f10": 109, "f11": 103, "f12": 111,
+        "a": 0,
+        "b": 11,
+        "c": 8,
+        "d": 2,
+        "e": 14,
+        "f": 3,
+        "g": 5,
+        "h": 4,
+        "i": 34,
+        "j": 38,
+        "k": 40,
+        "l": 37,
+        "m": 46,
+        "n": 45,
+        "o": 31,
+        "p": 35,
+        "q": 12,
+        "r": 15,
+        "s": 1,
+        "t": 17,
+        "u": 32,
+        "v": 9,
+        "w": 13,
+        "x": 7,
+        "y": 16,
+        "z": 6,
+        "space": 49,
+        "f1": 122,
+        "f2": 120,
+        "f3": 99,
+        "f4": 118,
+        "f5": 96,
+        "f6": 97,
+        "f7": 98,
+        "f8": 100,
+        "f9": 101,
+        "f10": 109,
+        "f11": 103,
+        "f12": 111,
     }
 
     # macOS Option+key produces dead-key characters — map them back to base keys.
     # e.g. Option+D → ∂, Option+S → ß, Option+F → ƒ, etc.
     _DEADKEY_MAP: dict[str, str] = {
-        "å": "a", "∫": "b", "ç": "c", "∂": "d", "´": "e", "ƒ": "f", "©": "g",
-        "˙": "h", "ˆ": "i", "∆": "j", "˚": "k", "¬": "l", "µ": "m", "˜": "n",
-        "ø": "o", "π": "p", "œ": "q", "®": "r", "ß": "s", "†": "t", "¨": "u",
-        "√": "v", "∑": "w", "≈": "x", "¥": "y", "ω": "z",
+        "å": "a",
+        "∫": "b",
+        "ç": "c",
+        "∂": "d",
+        "´": "e",
+        "ƒ": "f",
+        "©": "g",
+        "˙": "h",
+        "ˆ": "i",
+        "∆": "j",
+        "˚": "k",
+        "¬": "l",
+        "µ": "m",
+        "˜": "n",
+        "ø": "o",
+        "π": "p",
+        "œ": "q",
+        "®": "r",
+        "ß": "s",
+        "†": "t",
+        "¨": "u",
+        "√": "v",
+        "∑": "w",
+        "≈": "x",
+        "¥": "y",
+        "ω": "z",
     }
 
     parts = [p.strip().lower().strip("<>") for p in hotkey_str.split("+")]
@@ -468,18 +514,54 @@ class GlobalHotkeyManager:
 
         # macOS keycode → character (US keyboard layout, unshifted / shifted)
         _KC_CHARS: dict[int, tuple[str, str]] = {
-            0: ("a", "A"), 1: ("s", "S"), 2: ("d", "D"), 3: ("f", "F"),
-            4: ("h", "H"), 5: ("g", "G"), 6: ("z", "Z"), 7: ("x", "X"),
-            8: ("c", "C"), 9: ("v", "V"), 11: ("b", "B"), 12: ("q", "Q"),
-            13: ("w", "W"), 14: ("e", "E"), 15: ("r", "R"), 16: ("y", "Y"),
-            17: ("t", "T"), 18: ("1", "!"), 19: ("2", "@"), 20: ("3", "#"),
-            21: ("4", "$"), 22: ("6", "^"), 23: ("5", "%"), 24: ("=", "+"),
-            25: ("9", "("), 26: ("7", "&"), 27: ("-", "_"), 28: ("8", "*"),
-            29: ("0", ")"), 30: ("]", "}"), 31: ("o", "O"), 32: ("u", "U"),
-            33: ("[", "{"), 34: ("i", "I"), 35: ("p", "P"), 37: ("l", "L"),
-            38: ("j", "J"), 39: ("'", '"'), 40: ("k", "K"), 41: (";", ":"),
-            42: ("\\", "|"), 43: (",", "<"), 44: ("/", "?"), 45: ("n", "N"),
-            46: ("m", "M"), 47: (".", ">"), 49: (" ", " "), 50: ("`", "~"),
+            0: ("a", "A"),
+            1: ("s", "S"),
+            2: ("d", "D"),
+            3: ("f", "F"),
+            4: ("h", "H"),
+            5: ("g", "G"),
+            6: ("z", "Z"),
+            7: ("x", "X"),
+            8: ("c", "C"),
+            9: ("v", "V"),
+            11: ("b", "B"),
+            12: ("q", "Q"),
+            13: ("w", "W"),
+            14: ("e", "E"),
+            15: ("r", "R"),
+            16: ("y", "Y"),
+            17: ("t", "T"),
+            18: ("1", "!"),
+            19: ("2", "@"),
+            20: ("3", "#"),
+            21: ("4", "$"),
+            22: ("6", "^"),
+            23: ("5", "%"),
+            24: ("=", "+"),
+            25: ("9", "("),
+            26: ("7", "&"),
+            27: ("-", "_"),
+            28: ("8", "*"),
+            29: ("0", ")"),
+            30: ("]", "}"),
+            31: ("o", "O"),
+            32: ("u", "U"),
+            33: ("[", "{"),
+            34: ("i", "I"),
+            35: ("p", "P"),
+            37: ("l", "L"),
+            38: ("j", "J"),
+            39: ("'", '"'),
+            40: ("k", "K"),
+            41: (";", ":"),
+            42: ("\\", "|"),
+            43: (",", "<"),
+            44: ("/", "?"),
+            45: ("n", "N"),
+            46: ("m", "M"),
+            47: (".", ">"),
+            49: (" ", " "),
+            50: ("`", "~"),
         }
         _SHIFT_FLAG = 1 << 17
 
@@ -527,9 +609,7 @@ class GlobalHotkeyManager:
                         try:
                             from PyObjCTools import AppHelper  # type: ignore[import-untyped]
 
-                            AppHelper.callAfter(
-                                self.spotlight_panel.forward_key, keycode, chars
-                            )
+                            AppHelper.callAfter(self.spotlight_panel.forward_key, keycode, chars)
                         except Exception:
                             pass
                         return None  # suppress
@@ -625,9 +705,7 @@ class GlobalHotkeyManager:
                 Quartz.CGEventTapEnable(self._tap, False)
                 if self._tap_source is not None:
                     # Stop the run loop so the thread exits
-                    Quartz.CFRunLoopStop(
-                        Quartz.CFRunLoopGetMain()
-                    )
+                    Quartz.CFRunLoopStop(Quartz.CFRunLoopGetMain())
             except Exception:
                 pass
             self._tap = None

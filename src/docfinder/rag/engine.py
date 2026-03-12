@@ -127,9 +127,7 @@ class RAGEngine:
                 continue
             doc_id = row["id"]
 
-            window = self.store.get_context_window(
-                doc_id, result.chunk_index, self.window_size
-            )
+            window = self.store.get_context_window(doc_id, result.chunk_index, self.window_size)
             for chunk in window:
                 key = (doc_id, chunk["chunk_index"])
                 if key not in seen:

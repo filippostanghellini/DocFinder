@@ -375,8 +375,7 @@ class TestRAGEngineContextAssembly:
 
         # Create chunks that together exceed _MAX_CONTEXT_CHARS
         chunks = [
-            {"chunk_index": i, "text": "x" * 2000, "path": "/tmp/test.pdf"}
-            for i in range(20)
+            {"chunk_index": i, "text": "x" * 2000, "path": "/tmp/test.pdf"} for i in range(20)
         ]
         results = []  # not used by _assemble_context_text
 
@@ -389,8 +388,7 @@ class TestRAGEngineContextAssembly:
         from docfinder.rag.engine import RAGEngine
 
         chunks = [
-            {"chunk_index": i, "text": f"chunk_{i}", "path": "/tmp/test.pdf"}
-            for i in range(5)
+            {"chunk_index": i, "text": f"chunk_{i}", "path": "/tmp/test.pdf"} for i in range(5)
         ]
         text = RAGEngine._assemble_context_text(chunks, [])
 
