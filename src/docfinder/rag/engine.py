@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 
-from docfinder.index.search import SearchResult, Searcher
+from docfinder.index.search import Searcher, SearchResult
 from docfinder.index.storage import SQLiteVectorStore
 from docfinder.rag.llm import LocalLLM, ModelSpec, ensure_model, select_model
 
@@ -105,7 +105,9 @@ class RAGEngine:
 
         context_chunks = self._build_context(results)
         context_text = self._assemble_context_text(context_chunks, results)
-        answer = self._generate(question, context_text, max_tokens=max_tokens, temperature=temperature)
+        answer = self._generate(
+            question, context_text, max_tokens=max_tokens, temperature=temperature
+        )
 
         return RAGResult(answer=answer, sources=results, context_chunks=context_chunks)
 

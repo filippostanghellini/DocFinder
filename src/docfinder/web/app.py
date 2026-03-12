@@ -147,7 +147,7 @@ async def search_documents(payload: SearchPayload) -> dict[str, List[SearchResul
 
 
 # ── RAG singleton + download progress ─────────────────────────────────────
-_rag_llm: "LocalLLM | None" = None
+_rag_llm: Any = None
 _rag_llm_lock = threading.Lock()
 _rag_download: dict[str, Any] = {
     "status": "idle",  # idle | downloading | loading | ready | error
@@ -160,7 +160,7 @@ _rag_download: dict[str, Any] = {
 def _load_rag_llm(model_name: str | None = None) -> None:
     """Download (if needed) and load the RAG LLM.  Updates _rag_download state."""
     global _rag_llm
-    from docfinder.rag.llm import MODEL_TIERS, LocalLLM, ModelSpec, _DEFAULT_MODELS_DIR
+    from docfinder.rag.llm import _DEFAULT_MODELS_DIR, MODEL_TIERS, LocalLLM, ModelSpec
 
     # Pick the requested model or auto-select
     spec: ModelSpec | None = None
@@ -219,7 +219,7 @@ def _load_rag_llm(model_name: str | None = None) -> None:
 @app.get("/rag/models")
 async def rag_models() -> dict:
     """Return available model tiers with a recommended flag."""
-    from docfinder.rag.llm import MODEL_TIERS, select_model, _DEFAULT_MODELS_DIR
+    from docfinder.rag.llm import _DEFAULT_MODELS_DIR, MODEL_TIERS, select_model
 
     recommended = select_model()
     total_ram = await asyncio.to_thread(_get_total_ram_for_rag)
@@ -323,7 +323,11 @@ async def rag_chat(payload: RAGPayload) -> dict:
             "SELECT metadata FROM chunks WHERE document_id = ? AND chunk_index = ?",
             (doc_id, payload.chunk_index),
         ).fetchone()
-        chunk_meta = _json.loads(chunk_row["metadata"]) if chunk_row and chunk_row["metadata"] else {}
+        chunk_meta = (
+            _json.loads(chunk_row["metadata"])
+            if chunk_row and chunk_row["metadata"]
+            else {}
+        )
         center_page = chunk_meta.get("page") if chunk_row else None
 
         if center_page is not None:

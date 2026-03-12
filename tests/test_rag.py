@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+
 import numpy as np
 import pytest
 
 from docfinder.index.storage import SQLiteVectorStore
 from docfinder.models import ChunkRecord, DocumentMetadata
 from docfinder.rag.llm import MODEL_TIERS, select_model
-
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -371,7 +371,7 @@ class TestRAGEngineContextAssembly:
     """Test the context trimming logic of RAGEngine."""
 
     def test_context_trimmed_when_exceeding_budget(self):
-        from docfinder.rag.engine import RAGEngine, _MAX_CONTEXT_CHARS
+        from docfinder.rag.engine import _MAX_CONTEXT_CHARS, RAGEngine
 
         # Create chunks that together exceed _MAX_CONTEXT_CHARS
         chunks = [

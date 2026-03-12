@@ -32,7 +32,9 @@ def _ensure_db_parent(db_path: Path) -> None:
 
 @app.command()
 def index(
-    inputs: List[Path] = typer.Argument(..., help="Paths with documents to index.", resolve_path=True),
+    inputs: List[Path] = typer.Argument(
+        ..., help="Paths with documents to index.", resolve_path=True
+    ),
     db: Path = typer.Option(None, "--db", help="SQLite database path"),
     model: str = typer.Option(AppConfig().model_name, help="Sentence-transformer model name"),
     chunk_chars: int = typer.Option(AppConfig().chunk_chars, help="Chunk size in characters"),
