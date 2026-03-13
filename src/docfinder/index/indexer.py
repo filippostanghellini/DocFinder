@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gc
 import logging
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Sequence
@@ -13,6 +14,7 @@ from docfinder.index.storage import SQLiteVectorStore
 from docfinder.ingestion.pdf_loader import build_chunks
 from docfinder.models import DocumentMetadata
 from docfinder.utils.files import compute_sha256, iter_document_paths
+from docfinder.utils.memory import compute_embed_batch_size, get_memory_info
 
 LOGGER = logging.getLogger(__name__)
 
@@ -70,7 +72,7 @@ class Indexer:
         self.store = store
         self.chunk_chars = chunk_chars
         self.overlap = overlap
-        self.embed_batch_size = embed_batch_size
+        self._fixed_batch_size = embed_batch_size
         self.progress_callback = progress_callback
 
     def index(
@@ -106,6 +108,27 @@ class Indexer:
 
         return stats
 
+    def _get_batch_params(self) -> tuple[int, float]:
+        """Return (batch_size, sleep_between_batches) based on current RAM.
+
+        If a fixed batch size was provided at construction, uses that with no sleep.
+        Otherwise, checks available RAM and adapts dynamically.
+        """
+        if self._fixed_batch_size is not None:
+            return self._fixed_batch_size, 0.0
+
+        info = get_memory_info()
+        available = info.get("available_mb")
+        batch_size, sleep_s = compute_embed_batch_size(available)
+        if available is not None and available < 1024:
+            LOGGER.info(
+                "Low RAM detected (%d MB available) — using batch_size=%d, sleep=%.2fs",
+                available,
+                batch_size,
+                sleep_s,
+            )
+        return batch_size, sleep_s
+
     def _index_single(self, path: Path) -> str:
         """Index a single document file."""
         import itertools
@@ -133,7 +156,8 @@ class Indexer:
             if status == "skipped":
                 return status
 
-            batch_size = 64
+            # Check RAM at the start of each file to adapt batch size
+            batch_size, sleep_s = self._get_batch_params()
             current_batch = []
 
             for chunk in itertools.chain([first_chunk], chunk_gen):
@@ -141,15 +165,17 @@ class Indexer:
                 if len(current_batch) >= batch_size:
                     embeddings = self.embedder.embed(
                         [c.text for c in current_batch],
-                        batch_size=self.embed_batch_size,
+                        batch_size=batch_size,
                     )
                     self.store.insert_chunks(doc_id, current_batch, embeddings)
                     current_batch = []
+                    if sleep_s > 0:
+                        time.sleep(sleep_s)
 
             if current_batch:
                 embeddings = self.embedder.embed(
                     [c.text for c in current_batch],
-                    batch_size=self.embed_batch_size,
+                    batch_size=batch_size,
                 )
                 self.store.insert_chunks(doc_id, current_batch, embeddings)
 

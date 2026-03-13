@@ -817,6 +817,11 @@ def main() -> None:
 
         logger.info("Starting DocFinder server on %s", url)
 
+        # Mark as GUI mode so notifications fire on indexing completion
+        from docfinder.web.app import set_gui_mode
+
+        set_gui_mode(True)
+
         # Start the server in a background thread
         server_thread = ServerThread(host, port)
         server_thread.start()

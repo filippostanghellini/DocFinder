@@ -153,3 +153,6 @@ Thumbs.db
 # Project specific
 data/
 idea_and_info/
+
+# Todo
+TODO.md
