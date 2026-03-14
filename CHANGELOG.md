@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Cross-encoder reranking** — search results are re-scored by a cross-encoder (`cross-encoder/ms-marco-MiniLM-L-2-v2`) for significantly improved precision; the bi-encoder fetches 3× candidates and the cross-encoder selects the best matches
+- **Parallel document ingestion** — files are parsed in parallel via `ProcessPoolExecutor` (up to 4 workers) when indexing ≥ 4 documents; embedding and storage remain on the main process for thread-safety
+- **Hybrid RAG context strategy** — small documents (≤ 20 chunks) are loaded entirely into the RAG context, while large documents use a sliding window around the matched chunk
+- **Table extraction from PDFs** — PyMuPDF `find_tables()` extracts structured tables and converts them to Markdown for better embedding quality
+- New `Reranker` class with lazy model loading (`index/reranker.py`)
+- New storage methods `get_document_chunk_count()` and `get_all_chunks()` for hybrid context
+- Reranker model pre-loaded at startup alongside the embedding model
+
+### Changed
+- Spotlight panel (`spotlight.html`) redesigned to match the main app's visual style (indigo accent, smaller search bar, rounded result items)
+
+
 ## [2.0.0] - 2026-03-12
 
 ### Added

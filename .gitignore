@@ -154,5 +154,6 @@ Thumbs.db
 data/
 idea_and_info/
 
-# Todo
+# Todo and claude agents
 TODO.md
+/.claude
