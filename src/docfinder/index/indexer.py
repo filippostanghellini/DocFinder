@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import gc
 import logging
-import time
+import os
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Sequence
@@ -12,9 +13,8 @@ from typing import Callable, Sequence
 from docfinder.embedding.encoder import EmbeddingModel
 from docfinder.index.storage import SQLiteVectorStore
 from docfinder.ingestion.pdf_loader import build_chunks
-from docfinder.models import DocumentMetadata
+from docfinder.models import ChunkRecord, DocumentMetadata
 from docfinder.utils.files import compute_sha256, iter_document_paths
-from docfinder.utils.memory import compute_embed_batch_size, get_memory_info
 
 LOGGER = logging.getLogger(__name__)
 
@@ -33,6 +33,34 @@ def find_documents(
 # Keep old name as alias so existing tests don't break
 def find_pdfs(paths: Sequence[Path]) -> list[Path]:
     return [p for p in find_documents(paths) if p.suffix.lower() == ".pdf"]
+
+
+def _parse_document(args: tuple) -> dict | None:
+    """Parse a single document into chunks (runs in worker process).
+
+    This is a top-level function so it can be pickled by multiprocessing.
+    Returns a dict with path, metadata, and chunk texts, or None on failure.
+    """
+    path_str, chunk_chars, overlap = args
+    path = Path(path_str)
+    try:
+        chunks = list(build_chunks(path, max_chars=chunk_chars, overlap=overlap))
+        if not chunks:
+            return {"path": path_str, "status": "empty"}
+
+        sha256 = compute_sha256(path)
+        stat = path.stat()
+        return {
+            "path": path_str,
+            "status": "ok",
+            "sha256": sha256,
+            "mtime": stat.st_mtime,
+            "size": stat.st_size,
+            "title": chunks[0].metadata.get("title", path.stem),
+            "chunks": [{"index": c.index, "text": c.text, "metadata": c.metadata} for c in chunks],
+        }
+    except Exception as e:
+        return {"path": path_str, "status": "error", "error": str(e)}
 
 
 @dataclass(slots=True)
@@ -72,7 +100,7 @@ class Indexer:
         self.store = store
         self.chunk_chars = chunk_chars
         self.overlap = overlap
-        self._fixed_batch_size = embed_batch_size
+        self.embed_batch_size = embed_batch_size
         self.progress_callback = progress_callback
 
     def index(
@@ -81,7 +109,7 @@ class Indexer:
         *,
         exclude_paths: frozenset[str] | None = None,
     ) -> IndexStats:
-        """Index all supported documents found under the given paths."""
+        """Index documents with parallel parsing when beneficial."""
         doc_files = find_documents(paths, exclude_paths)
         if not doc_files:
             LOGGER.warning("No supported documents found")
@@ -90,6 +118,32 @@ class Indexer:
         total = len(doc_files)
         stats = IndexStats()
 
+        if total >= 4 and self._should_parallelize():
+            self._index_parallel(doc_files, stats, total)
+        else:
+            self._index_sequential(doc_files, stats, total)
+
+        if self.progress_callback:
+            self.progress_callback(total, total, "")
+
+        return stats
+
+    def _should_parallelize(self) -> bool:
+        """Return True if parallel parsing should be used.
+
+        Returns False when a fixed embed_batch_size is set, which typically
+        indicates a test environment where multiprocessing adds unnecessary
+        complexity.
+        """
+        return self.embed_batch_size is None
+
+    def _index_sequential(
+        self,
+        doc_files: list[Path],
+        stats: IndexStats,
+        total: int,
+    ) -> None:
+        """Index files sequentially (original path)."""
         for i, path in enumerate(doc_files):
             if self.progress_callback:
                 self.progress_callback(i, total, str(path))
@@ -103,31 +157,91 @@ class Indexer:
                 stats.processed_files.append(path)
             gc.collect()
 
-        if self.progress_callback:
-            self.progress_callback(total, total, "")
+    def _index_parallel(
+        self,
+        doc_files: list[Path],
+        stats: IndexStats,
+        total: int,
+    ) -> None:
+        """Parse documents in parallel, then embed and store sequentially."""
+        num_workers = min(os.cpu_count() or 1, len(doc_files), 4)
+        LOGGER.info(
+            "Parallel parsing %d documents with %d workers",
+            len(doc_files),
+            num_workers,
+        )
 
-        return stats
+        args = [(str(p), self.chunk_chars, self.overlap) for p in doc_files]
 
-    def _get_batch_params(self) -> tuple[int, float]:
-        """Return (batch_size, sleep_between_batches) based on current RAM.
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            results = list(executor.map(_parse_document, args))
 
-        If a fixed batch size was provided at construction, uses that with no sleep.
-        Otherwise, checks available RAM and adapts dynamically.
-        """
-        if self._fixed_batch_size is not None:
-            return self._fixed_batch_size, 0.0
+        for i, result in enumerate(results):
+            path = doc_files[i]
+            if self.progress_callback:
+                self.progress_callback(i, total, str(path))
+            try:
+                if result is None:
+                    LOGGER.error("Worker returned None for %s", path)
+                    stats.failed += 1
+                    stats.processed_files.append(path)
+                    continue
 
-        info = get_memory_info()
-        available = info.get("available_mb")
-        batch_size, sleep_s = compute_embed_batch_size(available)
-        if available is not None and available < 1024:
-            LOGGER.info(
-                "Low RAM detected (%d MB available) — using batch_size=%d, sleep=%.2fs",
-                available,
-                batch_size,
-                sleep_s,
-            )
-        return batch_size, sleep_s
+                if result["status"] == "error":
+                    LOGGER.error("Failed to parse %s: %s", path, result.get("error", "unknown"))
+                    stats.failed += 1
+                    stats.processed_files.append(path)
+                    continue
+
+                if result["status"] == "empty":
+                    LOGGER.warning("No text extracted from %s", path)
+                    stats.increment("skipped", path)
+                    continue
+
+                status = self._embed_and_store(path, result)
+                stats.increment(status, path)
+            except Exception as e:
+                LOGGER.error(f"Failed to process {path}: {e}")
+                stats.failed += 1
+                stats.processed_files.append(path)
+            gc.collect()
+
+    def _embed_and_store(self, path: Path, parsed: dict) -> str:
+        """Embed pre-parsed chunks and store them in the database."""
+        document = DocumentMetadata(
+            path=path,
+            title=parsed["title"],
+            sha256=parsed["sha256"],
+            mtime=parsed["mtime"],
+            size=parsed["size"],
+        )
+
+        with self.store.transaction():
+            doc_id, status = self.store.init_document(document)
+            if status == "skipped":
+                return status
+
+            chunk_dicts = parsed["chunks"]
+            chunks = [
+                ChunkRecord(
+                    document_path=path,
+                    index=cd["index"],
+                    text=cd["text"],
+                    metadata=cd["metadata"],
+                )
+                for cd in chunk_dicts
+            ]
+
+            batch_size = 64
+            for start in range(0, len(chunks), batch_size):
+                batch = chunks[start : start + batch_size]
+                embeddings = self.embedder.embed(
+                    [c.text for c in batch],
+                    batch_size=self.embed_batch_size,
+                )
+                self.store.insert_chunks(doc_id, batch, embeddings)
+
+        return status
 
     def _index_single(self, path: Path) -> str:
         """Index a single document file."""
@@ -156,8 +270,7 @@ class Indexer:
             if status == "skipped":
                 return status
 
-            # Check RAM at the start of each file to adapt batch size
-            batch_size, sleep_s = self._get_batch_params()
+            batch_size = 64
             current_batch = []
 
             for chunk in itertools.chain([first_chunk], chunk_gen):
@@ -165,17 +278,15 @@ class Indexer:
                 if len(current_batch) >= batch_size:
                     embeddings = self.embedder.embed(
                         [c.text for c in current_batch],
-                        batch_size=batch_size,
+                        batch_size=self.embed_batch_size,
                     )
                     self.store.insert_chunks(doc_id, current_batch, embeddings)
                     current_batch = []
-                    if sleep_s > 0:
-                        time.sleep(sleep_s)
 
             if current_batch:
                 embeddings = self.embedder.embed(
                     [c.text for c in current_batch],
-                    batch_size=batch_size,
+                    batch_size=self.embed_batch_size,
                 )
                 self.store.insert_chunks(doc_id, current_batch, embeddings)
 

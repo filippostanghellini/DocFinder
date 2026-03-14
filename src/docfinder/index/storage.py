@@ -215,6 +215,29 @@ class SQLiteVectorStore:
             )
         return results
 
+    def get_document_chunk_count(self, document_id: int) -> int:
+        """Return the total number of chunks for a document."""
+        row = self._conn.execute(
+            "SELECT COUNT(*) FROM chunks WHERE document_id = ?", (document_id,)
+        ).fetchone()
+        return row[0] if row else 0
+
+    def get_all_chunks(self, document_id: int) -> List[dict]:
+        """Return all chunks for a document, ordered by chunk_index."""
+        rows = self._conn.execute(
+            """
+            SELECT chunk_index, text, metadata
+            FROM chunks
+            WHERE document_id = ?
+            ORDER BY chunk_index
+            """,
+            (document_id,),
+        ).fetchall()
+        return [
+            {"chunk_index": row["chunk_index"], "text": row["text"], "metadata": row["metadata"]}
+            for row in rows
+        ]
+
     def get_context_window(
         self, document_id: int, center_index: int, window_size: int = 10
     ) -> List[dict]:

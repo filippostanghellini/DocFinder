@@ -18,6 +18,10 @@ _MAX_CONTEXT_TOKENS = 4000
 _CHARS_PER_TOKEN = 4
 _MAX_CONTEXT_CHARS = _MAX_CONTEXT_TOKENS * _CHARS_PER_TOKEN  # 16 000 chars
 
+# Documents with at most this many chunks are loaded in full (entire doc as context).
+# 20 chunks × ~500 chars ≈ 10 000 chars, well within the 16 000 char budget.
+_SMALL_DOC_THRESHOLD = 20
+
 _SYSTEM_PROMPT = (
     "You are a helpful assistant that answers questions based on the provided document context. "
     "Use ONLY the information from the context below to answer. "
@@ -114,7 +118,12 @@ class RAGEngine:
     # ── internals ───────────────────────────────────────────────────────
 
     def _build_context(self, results: List[SearchResult]) -> List[dict]:
-        """Retrieve surrounding chunks for each search hit."""
+        """Retrieve context chunks for each search hit.
+
+        Uses a hybrid strategy: small documents (<=``_SMALL_DOC_THRESHOLD`` chunks)
+        are loaded in full, while larger documents use a sliding window around
+        the search hit.
+        """
         all_chunks: List[dict] = []
         seen: set[tuple[int, int]] = set()  # (document_id, chunk_index)
 
@@ -127,8 +136,25 @@ class RAGEngine:
                 continue
             doc_id = row["id"]
 
-            window = self.store.get_context_window(doc_id, result.chunk_index, self.window_size)
-            for chunk in window:
+            chunk_count = self.store.get_document_chunk_count(doc_id)
+            if chunk_count <= _SMALL_DOC_THRESHOLD:
+                logger.debug(
+                    "Small doc strategy for %s (%d chunks): loading entire document",
+                    result.path,
+                    chunk_count,
+                )
+                chunks = self.store.get_all_chunks(doc_id)
+            else:
+                logger.debug(
+                    "Window strategy for %s (%d chunks): window=%d around chunk %d",
+                    result.path,
+                    chunk_count,
+                    self.window_size,
+                    result.chunk_index,
+                )
+                chunks = self.store.get_context_window(doc_id, result.chunk_index, self.window_size)
+
+            for chunk in chunks:
                 key = (doc_id, chunk["chunk_index"])
                 if key not in seen:
                     seen.add(key)

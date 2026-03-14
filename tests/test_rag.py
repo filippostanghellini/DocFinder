@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 
+from docfinder.index.search import SearchResult
 from docfinder.index.storage import SQLiteVectorStore
 from docfinder.models import ChunkRecord, DocumentMetadata
+from docfinder.rag.engine import _SMALL_DOC_THRESHOLD, RAGEngine
 from docfinder.rag.llm import MODEL_TIERS, select_model
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -395,3 +398,171 @@ class TestRAGEngineContextAssembly:
         # Chunks should appear in order
         for i in range(4):
             assert text.index(f"chunk_{i}") < text.index(f"chunk_{i + 1}")
+
+
+# ── Hybrid context strategy tests ─────────────────────────────────────────
+
+
+def _make_engine(store: SQLiteVectorStore) -> RAGEngine:
+    """Create a RAGEngine with a mocked searcher and llm."""
+    searcher = MagicMock()
+    llm = MagicMock()
+    return RAGEngine(searcher, store, llm, window_size=10)
+
+
+def _make_result(path: str, chunk_index: int) -> SearchResult:
+    return SearchResult(
+        path=Path(path),
+        title="Doc",
+        chunk_index=chunk_index,
+        score=0.9,
+        text="hit",
+        metadata={},
+    )
+
+
+class TestHybridContextStrategy:
+    """Test that _build_context picks the right strategy based on document size."""
+
+    def test_small_doc_uses_get_all_chunks(self, tmp_path):
+        """Documents with <= SMALL_DOC_THRESHOLD chunks should load entirely."""
+        db_path = tmp_path / "small.db"
+        store = SQLiteVectorStore(db_path, dimension=384)
+
+        n = _SMALL_DOC_THRESHOLD  # exactly at threshold
+        doc = DocumentMetadata(
+            path=Path("/tmp/small.pdf"),
+            title="Small",
+            sha256="small_hash",
+            mtime=1.0,
+            size=1000,
+        )
+        chunks = [
+            ChunkRecord(document_path=doc.path, index=i, text=f"Chunk {i}", metadata={})
+            for i in range(n)
+        ]
+        embeddings = np.random.rand(n, 384).astype("float32")
+        store.upsert_document(doc, chunks, embeddings)
+
+        engine = _make_engine(store)
+        result = _make_result("/tmp/small.pdf", chunk_index=5)
+
+        with (
+            patch.object(store, "get_all_chunks", wraps=store.get_all_chunks) as mock_all,
+            patch.object(
+                store, "get_context_window", wraps=store.get_context_window
+            ) as mock_window,
+        ):
+            ctx = engine._build_context([result])
+
+        mock_all.assert_called_once()
+        mock_window.assert_not_called()
+        # All chunks should be present
+        assert len(ctx) == n
+        store.close()
+
+    def test_large_doc_uses_get_context_window(self, tmp_path):
+        """Documents with > SMALL_DOC_THRESHOLD chunks should use window strategy."""
+        db_path = tmp_path / "large.db"
+        store = SQLiteVectorStore(db_path, dimension=384)
+
+        n = _SMALL_DOC_THRESHOLD + 5  # above threshold
+        doc = DocumentMetadata(
+            path=Path("/tmp/large.pdf"),
+            title="Large",
+            sha256="large_hash",
+            mtime=1.0,
+            size=50000,
+        )
+        chunks = [
+            ChunkRecord(document_path=doc.path, index=i, text=f"Chunk {i}", metadata={})
+            for i in range(n)
+        ]
+        embeddings = np.random.rand(n, 384).astype("float32")
+        store.upsert_document(doc, chunks, embeddings)
+
+        engine = _make_engine(store)
+        result = _make_result("/tmp/large.pdf", chunk_index=12)
+
+        with (
+            patch.object(store, "get_all_chunks", wraps=store.get_all_chunks) as mock_all,
+            patch.object(
+                store, "get_context_window", wraps=store.get_context_window
+            ) as mock_window,
+        ):
+            ctx = engine._build_context([result])
+
+        mock_all.assert_not_called()
+        mock_window.assert_called_once()
+        # Window around chunk 12 with window_size=10 -> indices 2..22
+        assert len(ctx) < n
+        store.close()
+
+    def test_mixed_small_and_large(self, tmp_path):
+        """Query hitting one small doc and one large doc uses both strategies."""
+        db_path = tmp_path / "mixed.db"
+        store = SQLiteVectorStore(db_path, dimension=384)
+
+        # Small document: 5 chunks
+        small_doc = DocumentMetadata(
+            path=Path("/tmp/small.pdf"),
+            title="Small",
+            sha256="s_hash",
+            mtime=1.0,
+            size=500,
+        )
+        small_n = 5
+        small_chunks = [
+            ChunkRecord(document_path=small_doc.path, index=i, text=f"S{i}", metadata={})
+            for i in range(small_n)
+        ]
+        small_emb = np.random.rand(small_n, 384).astype("float32")
+        store.upsert_document(small_doc, small_chunks, small_emb)
+
+        # Large document: 30 chunks
+        large_doc = DocumentMetadata(
+            path=Path("/tmp/large.pdf"),
+            title="Large",
+            sha256="l_hash",
+            mtime=1.0,
+            size=50000,
+        )
+        large_n = 30
+        large_chunks = [
+            ChunkRecord(document_path=large_doc.path, index=i, text=f"L{i}", metadata={})
+            for i in range(large_n)
+        ]
+        large_emb = np.random.rand(large_n, 384).astype("float32")
+        store.upsert_document(large_doc, large_chunks, large_emb)
+
+        engine = _make_engine(store)
+        results = [
+            _make_result("/tmp/small.pdf", chunk_index=2),
+            _make_result("/tmp/large.pdf", chunk_index=15),
+        ]
+
+        with (
+            patch.object(store, "get_all_chunks", wraps=store.get_all_chunks) as mock_all,
+            patch.object(
+                store, "get_context_window", wraps=store.get_context_window
+            ) as mock_window,
+        ):
+            ctx = engine._build_context(results)
+
+        # get_all_chunks called for the small doc
+        mock_all.assert_called_once()
+        # get_context_window called for the large doc
+        mock_window.assert_called_once()
+
+        # Context should contain all small doc chunks + window from large doc
+        paths = {c["path"] for c in ctx}
+        assert "/tmp/small.pdf" in paths
+        assert "/tmp/large.pdf" in paths
+
+        small_ctx = [c for c in ctx if c["path"] == "/tmp/small.pdf"]
+        assert len(small_ctx) == small_n
+
+        large_ctx = [c for c in ctx if c["path"] == "/tmp/large.pdf"]
+        assert len(large_ctx) < large_n
+
+        store.close()

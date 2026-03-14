@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from docfinder.config import AppConfig
 from docfinder.embedding.encoder import EmbeddingConfig, EmbeddingModel
 from docfinder.index.indexer import Indexer
+from docfinder.index.reranker import Reranker
 from docfinder.index.search import Searcher, SearchResult
 from docfinder.index.storage import SQLiteVectorStore
 from docfinder.settings import load_settings
@@ -42,6 +43,21 @@ def _get_embedder() -> EmbeddingModel:
                 config = AppConfig()
                 _embedder = EmbeddingModel(EmbeddingConfig(model_name=config.model_name))
     return _embedder
+
+
+# ── Singleton Reranker ────────────────────────────────────────────────────────
+_reranker: Reranker | None = None
+_reranker_lock = threading.Lock()
+
+
+def _get_reranker() -> Reranker:
+    """Return a cached Reranker, creating it on first call (lazy model load)."""
+    global _reranker
+    if _reranker is None:
+        with _reranker_lock:
+            if _reranker is None:
+                _reranker = Reranker()
+    return _reranker
 
 
 # ── Async indexing job registry ───────────────────────────────────────────────
@@ -81,11 +97,18 @@ def _notify_indexing_done(result: dict[str, Any] | None, *, error: str | None = 
         send_notification("DocFinder", f"Indexing complete: {total} documents processed.")
 
 
+def _preload_reranker() -> None:
+    """Pre-load the reranker model (singleton + ensure weights are downloaded)."""
+    reranker = _get_reranker()
+    reranker._ensure_model()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
-    # Pre-load the embedding model at startup so the first request is instant
+    # Pre-load models at startup so the first request is instant
     await asyncio.to_thread(_get_embedder)
+    await asyncio.to_thread(_preload_reranker)
     yield
 
 
@@ -163,8 +186,9 @@ async def search_documents(payload: SearchPayload) -> dict[str, List[SearchResul
         )
 
     embedder = _get_embedder()
+    reranker = _get_reranker()
     store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
-    searcher = Searcher(embedder, store)
+    searcher = Searcher(embedder, store, reranker=reranker)
     results = searcher.search(query, top_k=top_k)
     store.close()
     return {"results": results}
