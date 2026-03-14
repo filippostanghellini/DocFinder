@@ -10,59 +10,62 @@
     html, body {
       height: 100%;
       overflow: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-      /* Match the NSPanel/WKWebView background so no white edges appear
-         when the window uses a solid (non-transparent) background. */
-      background: rgb(22, 27, 42);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif;
+      font-size: 14px;
+      background: #0a0a0f;
     }
 
     .window {
       height: 100vh;
-      background: rgba(22, 27, 42, 0.97);
-      border: 1px solid rgba(255, 255, 255, 0.10);
-      border-radius: 14px;
+      background: rgba(18, 18, 26, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 16px;
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 32px 80px rgba(0,0,0,0.55), 0 4px 16px rgba(0,0,0,0.4);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
+      animation: spotlightIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes spotlightIn {
+      from { opacity: 0; transform: scale(0.98) translateY(-8px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
     }
 
     /* ── Search bar ─────────────────────────────────────────────────────── */
     .search-bar {
       display: flex;
       align-items: center;
-      padding: 0 18px;
-      height: 68px;
-      gap: 14px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      padding: 0 16px;
+      height: 56px;
+      gap: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
       flex-shrink: 0;
-      /* Allow dragging the frameless window by its header on Windows/Linux */
       -webkit-app-region: drag;
     }
 
-    /* Input and interactive elements must opt out of drag */
     #spotlight-input, .spinner-sm { -webkit-app-region: no-drag; }
 
-    .search-icon { color: rgba(255,255,255,0.35); flex-shrink: 0; }
+    .search-icon { color: #6b7280; flex-shrink: 0; }
 
     #spotlight-input {
       flex: 1;
       background: none;
       border: none;
       outline: none;
-      font-size: 1.3rem;
+      font-size: 1.05rem;
       font-weight: 400;
-      color: rgba(255,255,255,0.92);
-      caret-color: #60a5fa;
-      letter-spacing: 0.01em;
+      color: #f3f4f6;
+      caret-color: #818cf8;
+      font-family: inherit;
     }
 
-    #spotlight-input::placeholder { color: rgba(255,255,255,0.25); }
+    #spotlight-input::placeholder { color: #6b7280; }
 
     .spinner-sm {
-      width: 16px; height: 16px;
-      border: 2px solid rgba(255,255,255,0.12);
-      border-top-color: #60a5fa;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.06);
+      border-top-color: #818cf8;
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
       flex-shrink: 0;
@@ -75,41 +78,41 @@
     #results {
       overflow-y: auto;
       flex: 1;
-      padding: 6px 0;
+      padding: 4px;
     }
 
     #results::-webkit-scrollbar { width: 4px; }
     #results::-webkit-scrollbar-track { background: transparent; }
-    #results::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+    #results::-webkit-scrollbar-thumb { background: #6b7280; border-radius: 2px; opacity: 0.3; }
 
     .result-item {
       display: flex;
       flex-direction: column;
-      padding: 10px 18px;
+      padding: 8px 12px;
       cursor: pointer;
-      gap: 3px;
-      transition: background 0.1s;
-      border-left: 3px solid transparent;
+      gap: 2px;
+      transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: 8px;
+      margin: 1px 0;
     }
 
     .result-item.active,
     .result-item:hover {
-      background: rgba(96, 165, 250, 0.12);
-      border-left-color: #60a5fa;
+      background: rgba(129, 140, 248, 0.12);
     }
 
     .result-title {
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       font-weight: 500;
-      color: rgba(255,255,255,0.9);
+      color: #f3f4f6;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
     .result-snippet {
-      font-size: 0.77rem;
-      color: rgba(255,255,255,0.38);
+      font-size: 0.75rem;
+      color: #9ca3af;
       line-height: 1.4;
       display: -webkit-box;
       -webkit-line-clamp: 2;
@@ -120,13 +123,24 @@
     .result-meta {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-top: 1px;
+      gap: 8px;
+      margin-top: 2px;
+    }
+
+    .result-type {
+      font-size: 0.65rem;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: #22222f;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      flex-shrink: 0;
     }
 
     .result-path {
-      font-size: 0.7rem;
-      color: rgba(255,255,255,0.22);
+      font-size: 0.68rem;
+      color: #6b7280;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -134,47 +148,37 @@
     }
 
     .result-score {
-      font-size: 0.68rem;
-      color: rgba(96,165,250,0.6);
+      font-size: 0.65rem;
+      color: #818cf8;
       flex-shrink: 0;
       font-variant-numeric: tabular-nums;
-    }
-
-    .result-type {
-      font-size: 0.66rem;
-      padding: 1px 5px;
-      border-radius: 3px;
-      background: rgba(255,255,255,0.07);
-      color: rgba(255,255,255,0.35);
-      flex-shrink: 0;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+      opacity: 0.7;
     }
 
     .empty {
-      padding: 28px 20px;
+      padding: 24px 16px;
       text-align: center;
-      color: rgba(255,255,255,0.22);
-      font-size: 0.88rem;
+      color: #6b7280;
+      font-size: 0.85rem;
     }
 
     /* ── Hint bar ───────────────────────────────────────────────────────── */
     .hint-bar {
       display: flex;
       justify-content: space-between;
-      padding: 7px 18px;
-      font-size: 0.7rem;
-      color: rgba(255,255,255,0.18);
-      border-top: 1px solid rgba(255,255,255,0.05);
+      padding: 6px 16px;
+      font-size: 0.68rem;
+      color: #6b7280;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
       flex-shrink: 0;
     }
 
     kbd {
-      background: rgba(255,255,255,0.08);
+      background: #22222f;
       border-radius: 3px;
-      padding: 1px 5px;
+      padding: 1px 4px;
       font-family: inherit;
-      font-size: 0.68rem;
+      font-size: 0.65rem;
     }
   </style>
 </head>
@@ -182,7 +186,7 @@
   <div class="window">
     <div class="search-bar">
       <span class="search-icon">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
           <circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.7"/>
           <path d="M13.5 13.5L17 17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
         </svg>
@@ -190,7 +194,7 @@
       <input
         id="spotlight-input"
         type="text"
-        placeholder="Search your documents…"
+        placeholder="Search your documents… (min 3 chars)"
         autocomplete="off"
         spellcheck="false"
         autofocus
@@ -201,7 +205,7 @@
     <div id="results"></div>
 
     <div class="hint-bar">
-      <span><kbd>↑↓</kbd> navigate · <kbd>↵</kbd> open · <kbd>Esc</kbd> close</span>
+      <span><kbd>&uarr;&darr;</kbd> navigate &middot; <kbd>&crarr;</kbd> open &middot; <kbd>Esc</kbd> close</span>
       <span>DocFinder</span>
     </div>
   </div>
@@ -279,19 +283,17 @@
 
     function hideSpotlight() {
       if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.spotlight) {
-        // Native NSPanel via WKScriptMessageHandler
         window.webkit.messageHandlers.spotlight.postMessage({ action: 'hide' });
       } else if (window.pywebview) {
-        // pywebview fallback (non-macOS or legacy builds)
         window.pywebview.api.hide_spotlight();
       } else {
-        // HTTP fallback: native WKWebView (SpotlightPanel) without message handler
         fetch(apiBase + '/gui/spotlight/hide', { method: 'POST' }).catch(() => {});
       }
     }
 
     async function doSearch(query) {
-      if (!query.trim()) {
+      const trimmed = query.trim();
+      if (trimmed.length < 3) {
         results.innerHTML = '';
         currentResults = [];
         return;
@@ -301,13 +303,17 @@
         const res  = await fetch(`${apiBase}/search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: query.trim(), top_k: 8 }),
+          body: JSON.stringify({ query: trimmed, top_k: 10 }),
         });
         const data = await res.json();
-        if (res.ok) renderResults(data.results || []);
-        else results.innerHTML = `<div class="empty">${escHtml(data.detail || 'Error')}</div>`;
+        if (res.ok) {
+          const relevant = (data.results || []).filter(r => r.score >= 0.3);
+          renderResults(relevant);
+        } else {
+          results.innerHTML = `<div class="empty">${escHtml(data.detail || 'Error')}</div>`;
+        }
       } catch (_) {
-        results.innerHTML = '<div class="empty">Search unavailable — is DocFinder indexed?</div>';
+        results.innerHTML = '<div class="empty">Search unavailable \u2014 is DocFinder indexed?</div>';
       } finally {
         spinner.classList.remove('active');
       }
@@ -316,7 +322,9 @@
     // Debounced search
     input.addEventListener('input', () => {
       clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => doSearch(input.value), 300);
+      const q = input.value.trim();
+      if (q.length < 3) { results.innerHTML = ''; currentResults = []; return; }
+      debounceTimer = setTimeout(() => doSearch(input.value), 500);
     });
 
     // Keyboard navigation
