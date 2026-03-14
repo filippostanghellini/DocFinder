@@ -22,6 +22,79 @@ LOGGER = logging.getLogger(__name__)
 # ── PDF ───────────────────────────────────────────────────────────────────────
 
 
+def _table_to_markdown(table) -> str:
+    """Convert a PyMuPDF Table object to a Markdown table string."""
+    rows = table.extract()
+    if not rows:
+        return ""
+
+    lines: list[str] = []
+    # Header row
+    header = [str(cell or "").strip().replace("\n", " ") for cell in rows[0]]
+    lines.append("| " + " | ".join(header) + " |")
+    lines.append("| " + " | ".join("---" for _ in header) + " |")
+    # Data rows
+    for row in rows[1:]:
+        cells = [str(cell or "").strip().replace("\n", " ") for cell in row]
+        lines.append("| " + " | ".join(cells) + " |")
+    return "\n".join(lines)
+
+
+def _extract_page_text(page) -> str:
+    """Extract text from a PDF page, converting tables to Markdown.
+
+    If tables are detected, they are rendered as Markdown and inserted
+    in place of the raw table text.  Non-table text is extracted normally.
+    """
+    try:
+        tables = page.find_tables()
+    except Exception:
+        tables = None
+
+    if not tables or not tables.tables:
+        # No tables — fast path, same as before
+        return page.get_text() or ""
+
+    # Collect table bounding boxes and their Markdown representations
+    table_items: list[tuple[float, str]] = []  # (top_y, markdown)
+    table_rects: list[fitz.Rect] = []
+    for tab in tables.tables:
+        md = _table_to_markdown(tab)
+        if md:
+            rect = fitz.Rect(tab.bbox)
+            table_items.append((rect.y0, md))
+            table_rects.append(rect)
+
+    # Extract text blocks excluding table areas
+    text_blocks: list[tuple[float, str]] = []  # (top_y, text)
+    for block in page.get_text("blocks") or []:
+        # block = (x0, y0, x1, y1, text, block_no, block_type)
+        if block[6] != 0:  # skip image blocks
+            continue
+        block_rect = fitz.Rect(block[:4])
+        # Skip blocks that overlap significantly with any table
+        overlaps_table = False
+        for tr in table_rects:
+            intersection = block_rect & tr
+            if not intersection.is_empty:
+                block_area = block_rect.width * block_rect.height
+                if block_area > 0:
+                    overlap_ratio = (intersection.width * intersection.height) / block_area
+                    if overlap_ratio > 0.5:
+                        overlaps_table = True
+                        break
+        if not overlaps_table:
+            text = block[4].strip()
+            if text:
+                text_blocks.append((block[1], text))
+
+    # Merge text blocks and tables, sorted by vertical position
+    all_parts: list[tuple[float, str]] = text_blocks + table_items
+    all_parts.sort(key=lambda x: x[0])
+
+    return "\n\n".join(part[1] for part in all_parts)
+
+
 def iter_text_parts(path: Path) -> Iterator[str]:
     """Yield text content from a PDF file, page by page."""
     try:
@@ -34,7 +107,7 @@ def iter_text_parts(path: Path) -> Iterator[str]:
         for index in range(len(doc)):
             try:
                 page = doc[index]
-                text = page.get_text() or ""
+                text = _extract_page_text(page)
                 normalized = normalize_whitespace([text])
                 if normalized:
                     yield normalized + "\n"
@@ -244,7 +317,8 @@ def _get_title(path: Path) -> str:
 def iter_text_parts_paged(path: Path) -> Iterator[tuple[int, str]]:
     """Yield ``(page_number, text)`` for PDF files (1-based page numbers).
 
-    Uses PyMuPDF to extract text page by page.
+    Uses PyMuPDF to extract text page by page.  Tables are detected
+    automatically and rendered as Markdown to preserve structure.
     """
     try:
         doc = fitz.open(path)
@@ -255,7 +329,7 @@ def iter_text_parts_paged(path: Path) -> Iterator[tuple[int, str]]:
         for index in range(len(doc)):
             try:
                 page = doc[index]
-                text = page.get_text() or ""
+                text = _extract_page_text(page)
                 normalized = normalize_whitespace([text])
                 if normalized:
                     yield index + 1, normalized + "\n"
