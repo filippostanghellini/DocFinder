@@ -25,7 +25,7 @@ dependencies = [
   "rich>=13.7.0",
   "tqdm>=4.66.0",
   "mpmath<1.4",
-  "python-docx>=1.1.0"
+  "python-docx>=1.2.0"
 ]
 
 [project.optional-dependencies]
