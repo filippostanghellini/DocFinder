@@ -54,7 +54,7 @@ rag = [
   "llama-cpp-python>=0.3.0",
 ]
 gpu = [
-  "onnxruntime-gpu>=1.17.0"
+  "onnxruntime-gpu>=1.24.3"
 ]
 
 [project.scripts]
