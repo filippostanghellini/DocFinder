@@ -18,7 +18,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from docfinder.config import AppConfig
-from docfinder.embedding.encoder import EmbeddingConfig, EmbeddingModel
+from docfinder.embedding.encoder import (
+    EmbeddingConfig,
+    EmbeddingModel,
+    get_runtime_environment_info,
+)
 from docfinder.index.indexer import Indexer
 from docfinder.index.reranker import Reranker
 from docfinder.index.search import Searcher, SearchResult
@@ -616,6 +620,14 @@ def _get_memory_info() -> dict[str, Any]:
     return get_memory_info()
 
 
+def _get_runtime_info() -> dict[str, Any]:
+    """Return runtime backend/device and indexing strategy info."""
+    info = get_runtime_environment_info()
+    info["indexing_mode"] = "balanced"
+    info["cpu_count"] = os.cpu_count()
+    return info
+
+
 def _validate_paths(paths: List[str]) -> List[Path]:
     """Validate and resolve a list of raw path strings. Raises HTTPException on error."""
     logger = logging.getLogger(__name__)
@@ -723,8 +735,10 @@ async def get_index_status(job_id: str) -> dict[str, Any]:
 
 @app.get("/system/info")
 async def get_system_info() -> dict[str, Any]:
-    """Return available and total RAM in MB for the host machine."""
-    return await asyncio.to_thread(_get_memory_info)
+    """Return RAM + runtime backend and indexing strategy details."""
+    memory = await asyncio.to_thread(_get_memory_info)
+    runtime = await asyncio.to_thread(_get_runtime_info)
+    return {**memory, **runtime}
 
 
 class ScanPayload(BaseModel):

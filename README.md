@@ -63,6 +63,18 @@ make run     # desktop GUI
 make run-web # web interface at http://127.0.0.1:8000
 ```
 
+### Runtime acceleration (auto)
+
+DocFinder automatically selects the best available runtime on your machine:
+
+- NVIDIA: ONNX CUDA provider when available, otherwise PyTorch CUDA
+- AMD: ONNX ROCm provider when available, otherwise PyTorch fallback
+- Apple Silicon: optimized ONNX path
+- CPU-only hosts: ONNX or PyTorch CPU fallback
+
+Indexing uses a balanced parallel parser strategy by default, selected automatically based on your
+machine resources.
+
 ## Contributing
 
 Contributions are welcome, feel free to open an issue or submit a pull request.

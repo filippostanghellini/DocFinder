@@ -15,6 +15,7 @@ from docfinder.index.storage import SQLiteVectorStore
 from docfinder.ingestion.pdf_loader import build_chunks
 from docfinder.models import ChunkRecord, DocumentMetadata
 from docfinder.utils.files import compute_sha256, iter_document_paths
+from docfinder.utils.memory import get_memory_info
 
 LOGGER = logging.getLogger(__name__)
 
@@ -102,6 +103,7 @@ class Indexer:
         self.overlap = overlap
         self.embed_batch_size = embed_batch_size
         self.progress_callback = progress_callback
+        self.last_num_workers: int = 1
 
     def index(
         self,
@@ -156,6 +158,7 @@ class Indexer:
                 stats.failed += 1
                 stats.processed_files.append(path)
             gc.collect()
+        self.last_num_workers = 1
 
     def _index_parallel(
         self,
@@ -164,7 +167,8 @@ class Indexer:
         total: int,
     ) -> None:
         """Parse documents in parallel, then embed and store sequentially."""
-        num_workers = min(os.cpu_count() or 1, len(doc_files), 4)
+        num_workers = self._compute_parallel_workers(len(doc_files))
+        self.last_num_workers = num_workers
         LOGGER.info(
             "Parallel parsing %d documents with %d workers",
             len(doc_files),
@@ -242,6 +246,29 @@ class Indexer:
                 self.store.insert_chunks(doc_id, batch, embeddings)
 
         return status
+
+    def _compute_parallel_workers(self, doc_count: int) -> int:
+        """Compute balanced worker count for parallel document parsing."""
+        cpu_count = os.cpu_count() or 1
+        base_workers = min(cpu_count, max(1, doc_count))
+
+        # Balanced mode: keep one CPU for responsiveness when possible.
+        if base_workers > 2:
+            base_workers -= 1
+
+        mem_info = get_memory_info()
+        available_mb = mem_info.get("available_mb")
+        if isinstance(available_mb, int):
+            if available_mb < 2048:
+                base_workers = min(base_workers, 2)
+            elif available_mb < 4096:
+                base_workers = min(base_workers, 3)
+            elif available_mb < 8192:
+                base_workers = min(base_workers, 6)
+            else:
+                base_workers = min(base_workers, 8)
+
+        return max(1, min(base_workers, doc_count))
 
     def _index_single(self, path: Path) -> str:
         """Index a single document file."""

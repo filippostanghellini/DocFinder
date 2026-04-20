@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Cross-encoder reranking** — search results are re-scored by a cross-encoder (`cross-encoder/ms-marco-MiniLM-L-2-v2`) for significantly improved precision; the bi-encoder fetches 3× candidates and the cross-encoder selects the best matches
 - **Parallel document ingestion** — files are parsed in parallel via `ProcessPoolExecutor` (up to 4 workers) when indexing ≥ 4 documents; embedding and storage remain on the main process for thread-safety
+- **Balanced hardware auto-selection for embeddings** — DocFinder now chooses the best available runtime more robustly (e.g. NVIDIA systems without ONNX CUDA provider fall back to PyTorch CUDA instead of CPU)
+- **Balanced adaptive indexing workers** — parallel parser worker count now adapts automatically to CPU/RAM
+- **Runtime diagnostics in settings/system info** — backend/device/GPU/indexing mode are exposed for easier troubleshooting
 - **Hybrid RAG context strategy** — small documents (≤ 20 chunks) are loaded entirely into the RAG context, while large documents use a sliding window around the matched chunk
 - **Table extraction from PDFs** — PyMuPDF `find_tables()` extracts structured tables and converts them to Markdown for better embedding quality
 - New `Reranker` class with lazy model loading (`index/reranker.py`)

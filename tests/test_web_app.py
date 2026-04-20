@@ -36,6 +36,21 @@ class TestHelperFunctions:
         assert db_path.parent.exists()
 
 
+class TestSystemInfoEndpoint:
+    """Tests for GET /system/info endpoint."""
+
+    def test_system_info_contains_runtime_fields(self) -> None:
+        """Returns memory + runtime backend/indexing details."""
+        response = client.get("/system/info")
+        assert response.status_code == 200
+        data = response.json()
+        assert "available_mb" in data
+        assert "total_mb" in data
+        assert "selected_backend" in data
+        assert "selected_device" in data
+        assert "indexing_mode" in data
+
+
 class TestSearchEndpoint:
     """Tests for POST /search endpoint."""
 

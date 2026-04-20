@@ -84,47 +84,92 @@ def detect_optimal_backend() -> tuple[Literal["torch", "onnx"], str | None]:
         - Intel Mac: Use ONNX with standard model
         - CPU only: Use ONNX with standard model
     """
+    backend, onnx_model_file, _device = detect_optimal_backend_config()
+    return (backend, onnx_model_file)
+
+
+def detect_optimal_backend_config() -> tuple[
+    Literal["torch", "onnx"],
+    str | None,
+    str | None,
+]:
+    """Auto-detect backend and device with balanced best-available policy.
+
+    Returns:
+        (backend_name, onnx_model_file, device)
+    """
     try:
         has_gpu, gpu_type = _check_gpu_availability()
         onnx_providers = _check_onnx_providers()
 
-        # Apple Silicon - use quantized ONNX + CoreML
+        # Apple Silicon - prefer quantized ONNX model
         if sys.platform == "darwin" and (
             platform.processor() == "arm" or platform.machine() == "arm64"
         ):
-            logger.info("Detected Apple Silicon - using ONNX with ARM64 quantized model + CoreML")
-            return ("onnx", "onnx/model_qint8_arm64.onnx")
+            logger.info("Detected Apple Silicon - using ONNX with ARM64 quantized model")
+            return ("onnx", "onnx/model_qint8_arm64.onnx", None)
 
-        # NVIDIA GPU - use ONNX with CUDA if provider available
-        if gpu_type == "cuda" and "CUDAExecutionProvider" in onnx_providers:
-            logger.info("Detected NVIDIA GPU with CUDA - using ONNX with CUDA acceleration")
-            return ("onnx", None)
+        # NVIDIA GPU
+        if gpu_type == "cuda":
+            if "CUDAExecutionProvider" in onnx_providers:
+                logger.info("Detected NVIDIA GPU - using ONNX with CUDAExecutionProvider")
+                return ("onnx", None, None)
+            logger.info(
+                "Detected NVIDIA GPU but ONNX CUDA provider unavailable - "
+                "falling back to PyTorch CUDA"
+            )
+            return ("torch", None, "cuda")
 
-        # AMD GPU - use ONNX with ROCm if provider available
-        if gpu_type == "rocm" and "ROCMExecutionProvider" in onnx_providers:
-            logger.info("Detected AMD GPU with ROCm - using ONNX with ROCm acceleration")
-            return ("onnx", None)
+        # AMD GPU (ROCm)
+        if gpu_type == "rocm":
+            if "ROCMExecutionProvider" in onnx_providers:
+                logger.info("Detected AMD GPU - using ONNX with ROCMExecutionProvider")
+                return ("onnx", None, None)
+            logger.info(
+                "Detected AMD GPU but ONNX ROCm provider unavailable - "
+                "falling back to PyTorch ROCm device"
+            )
+            return ("torch", None, "cuda")
 
-        # Intel Mac or generic x86_64 with ONNX
-        if sys.platform == "darwin":
-            logger.info("Detected Intel Mac - using ONNX with standard model")
-            return ("onnx", None)
+        # Apple MPS GPU on non-ONNX path
+        if gpu_type == "mps":
+            if onnx_providers:
+                logger.info("Detected Apple MPS GPU - using ONNX backend")
+                return ("onnx", None, None)
+            logger.info("Detected Apple MPS GPU - ONNX unavailable, using PyTorch MPS")
+            return ("torch", None, "mps")
 
-        # Linux/Windows with ONNX (CPU)
+        # CPU only
         if onnx_providers:
             logger.info(
-                f"Detected platform {sys.platform} - using ONNX backend "
-                f"(providers: {', '.join(onnx_providers)})"
+                "Detected platform %s - using ONNX backend (providers: %s)",
+                sys.platform,
+                ", ".join(onnx_providers),
             )
-            return ("onnx", None)
+            return ("onnx", None, None)
 
-        # Fallback to PyTorch if ONNX not available
-        logger.info(f"ONNX not available, using PyTorch backend on {sys.platform}")
-        return ("torch", None)
+        logger.info("ONNX not available - using PyTorch CPU backend on %s", sys.platform)
+        return ("torch", None, "cpu" if not has_gpu else None)
 
     except Exception as e:
-        logger.warning(f"Failed to detect optimal backend: {e}, falling back to PyTorch")
-        return ("torch", None)
+        logger.warning("Failed to detect optimal backend: %s, falling back to PyTorch CPU", e)
+        return ("torch", None, "cpu")
+
+
+def get_runtime_environment_info() -> dict[str, object]:
+    """Return runtime environment information used for backend decisions."""
+    has_gpu, gpu_type = _check_gpu_availability()
+    onnx_providers = _check_onnx_providers()
+    backend, onnx_model_file, device = detect_optimal_backend_config()
+    return {
+        "platform": sys.platform,
+        "has_gpu": has_gpu,
+        "gpu_type": gpu_type,
+        "onnx_providers": onnx_providers,
+        "selected_backend": backend,
+        "selected_device": device,
+        "selected_onnx_model": onnx_model_file,
+    }
 
 
 @dataclass(slots=True)
@@ -149,23 +194,47 @@ class EmbeddingModel:
 
     def __init__(self, config: EmbeddingConfig | None = None) -> None:
         self.config = config or EmbeddingConfig()
+        self.runtime_info: dict[str, object] = {
+            "selected_backend": self.config.backend,
+            "selected_device": self.config.device,
+            "selected_onnx_model": self.config.onnx_model_file,
+        }
 
         # Auto-detect backend if not specified
         if self.config.backend is None:
-            self.config.backend, self.config.onnx_model_file = detect_optimal_backend()
+            backend, onnx_model_file, device = detect_optimal_backend_config()
+            self.config.backend = backend
+            self.config.onnx_model_file = onnx_model_file
+            if self.config.device is None:
+                self.config.device = device
+
+        self.runtime_info.update(get_runtime_environment_info())
+        self.runtime_info["selected_backend"] = self.config.backend
+        self.runtime_info["selected_device"] = self.config.device
+        self.runtime_info["selected_onnx_model"] = self.config.onnx_model_file
 
         # Try to load model with specified backend, fallback to PyTorch on error
         try:
             self._model = self._load_model()
-            logger.info(f"Successfully loaded model with backend: {self.config.backend}")
+            logger.info(
+                "Successfully loaded embedding model with backend=%s device=%s",
+                self.config.backend,
+                self.config.device or "auto",
+            )
         except Exception as e:
             if self.config.backend != "torch":
                 logger.warning(
-                    f"Failed to load model with backend '{self.config.backend}': {e}. "
-                    "Falling back to PyTorch."
+                    "Failed to load model with backend '%s': %s. Falling back to PyTorch.",
+                    self.config.backend,
+                    e,
                 )
                 self.config.backend = "torch"
                 self.config.onnx_model_file = None
+                if self.config.device is None:
+                    self.config.device = "cpu"
+                self.runtime_info["selected_backend"] = self.config.backend
+                self.runtime_info["selected_device"] = self.config.device
+                self.runtime_info["selected_onnx_model"] = self.config.onnx_model_file
                 self._model = self._load_model()
             else:
                 raise
@@ -208,6 +277,11 @@ class EmbeddingModel:
 
         if self.config.device:
             info_parts.append(f"Device: {self.config.device}")
+
+        selected = self.runtime_info.get("selected_backend")
+        device = self.runtime_info.get("selected_device")
+        if selected:
+            info_parts.append(f"Selected: {selected}/{device or 'auto'}")
 
         logger.info(" | ".join(info_parts))
 
