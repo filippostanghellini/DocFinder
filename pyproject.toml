@@ -43,7 +43,7 @@ web = [
   "pydantic>=2.9.0"
 ]
 gui = [
-  "pywebview>=5.0.0",
+  "pywebview>=6.1",
   "fastapi>=0.115.0",
   "uvicorn[standard]>=0.32.0",
   "pydantic>=2.9.0",
