@@ -608,13 +608,10 @@ class TestIterTextPartsDocx:
     def test_extracts_paragraphs(self, tmp_path: Path) -> None:
         from docfinder.ingestion.pdf_loader import iter_text_parts_docx
 
-        try:
-            from docx import Document
-        except ImportError:
-            pytest.skip("python-docx not installed")
+        docx = pytest.importorskip("docx")
 
         f = tmp_path / "test.docx"
-        doc = Document()
+        doc = docx.Document()
         doc.add_paragraph("First paragraph")
         doc.add_paragraph("")  # empty — should be skipped
         doc.add_paragraph("Second paragraph")
@@ -628,10 +625,7 @@ class TestIterTextPartsDocx:
     def test_read_error(self, tmp_path: Path) -> None:
         from docfinder.ingestion.pdf_loader import iter_text_parts_docx
 
-        try:
-            from docx import Document  # noqa: F401
-        except ImportError:
-            pytest.skip("python-docx not installed")
+        pytest.importorskip("docx")
 
         f = tmp_path / "corrupt.docx"
         f.write_bytes(b"not a real docx")
@@ -645,10 +639,7 @@ class TestIterTextPartsDocxPaged:
     def test_read_error(self, tmp_path: Path) -> None:
         from docfinder.ingestion.pdf_loader import iter_text_parts_docx_paged
 
-        try:
-            from docx import Document  # noqa: F401
-        except ImportError:
-            pytest.skip("python-docx not installed")
+        pytest.importorskip("docx")
 
         f = tmp_path / "corrupt.docx"
         f.write_bytes(b"not a real docx")
@@ -658,13 +649,10 @@ class TestIterTextPartsDocxPaged:
     def test_fewer_than_page_size(self, tmp_path: Path) -> None:
         from docfinder.ingestion.pdf_loader import iter_text_parts_docx_paged
 
-        try:
-            from docx import Document
-        except ImportError:
-            pytest.skip("python-docx not installed")
+        docx = pytest.importorskip("docx")
 
         f = tmp_path / "small.docx"
-        doc = Document()
+        doc = docx.Document()
         for i in range(3):
             doc.add_paragraph(f"Para {i}")
         doc.save(str(f))
@@ -680,13 +668,10 @@ class TestImportDocxDocument:
     def test_returns_document_class(self) -> None:
         from docfinder.ingestion.pdf_loader import _import_docx_document
 
-        try:
-            from docx import Document
-        except ImportError:
-            pytest.skip("python-docx not installed")
+        docx = pytest.importorskip("docx")
 
         result = _import_docx_document()
-        assert result is Document
+        assert result is docx.Document
 
     @patch.dict("sys.modules", {"docx": None})
     def test_returns_none_when_not_installed(self) -> None:
@@ -727,13 +712,10 @@ class TestIterTextBySuffix:
     def test_docx_dispatch(self, tmp_path: Path) -> None:
         from docfinder.ingestion.pdf_loader import _iter_text_by_suffix
 
-        try:
-            from docx import Document
-        except ImportError:
-            pytest.skip("python-docx not installed")
+        docx = pytest.importorskip("docx")
 
         f = tmp_path / "file.docx"
-        doc = Document()
+        doc = docx.Document()
         doc.add_paragraph("docx content")
         doc.save(str(f))
         parts = list(_iter_text_by_suffix(f))
@@ -804,13 +786,10 @@ class TestIterPagedText:
     def test_dispatches_docx(self, tmp_path: Path) -> None:
         from docfinder.ingestion.pdf_loader import _iter_paged_text
 
-        try:
-            from docx import Document
-        except ImportError:
-            pytest.skip("python-docx not installed")
+        docx = pytest.importorskip("docx")
 
         f = tmp_path / "file.docx"
-        doc = Document()
+        doc = docx.Document()
         doc.add_paragraph("Hello")
         doc.save(str(f))
         pages = list(_iter_paged_text(f))
