@@ -103,11 +103,7 @@ class SQLiteVectorStore:
     def _normalize_folder(cls, folder: str | Path) -> str:
         """Normalize folder filters while preserving root/drive roots."""
         normalized = cls._normalize_path(folder)
-        while (
-            normalized.endswith("/")
-            and normalized != "/"
-            and not normalized.endswith(":/")
-        ):
+        while normalized.endswith("/") and normalized != "/" and not normalized.endswith(":/"):
             normalized = normalized[:-1]
         return normalized
 
@@ -223,8 +219,7 @@ class SQLiteVectorStore:
             clauses: list[str] = []
             for folder in normalized:
                 clauses.append(
-                    "(REPLACE(d.path, '\\', '/') = ? "
-                    "OR REPLACE(d.path, '\\', '/') LIKE ?)"
+                    "(REPLACE(d.path, '\\', '/') = ? OR REPLACE(d.path, '\\', '/') LIKE ?)"
                 )
                 params.extend([folder, f"{folder}/%"])
             sql += " WHERE " + " OR ".join(clauses)
