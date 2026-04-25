@@ -130,6 +130,7 @@ class SearchPayload(BaseModel):
     query: str
     db: Path | None = None
     top_k: int = 10
+    folders: List[str] = []
 
 
 class OpenRequest(BaseModel):
@@ -193,9 +194,27 @@ async def search_documents(payload: SearchPayload) -> dict[str, List[SearchResul
     reranker = _get_reranker()
     store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
     searcher = Searcher(embedder, store, reranker=reranker)
-    results = searcher.search(query, top_k=top_k)
+    folders = [f.strip() for f in payload.folders if f and f.strip()]
+    results = searcher.search(query, top_k=top_k, folders=folders if folders else None)
     store.close()
     return {"results": results}
+
+
+@app.get("/search/folders")
+async def search_folders(db: Path | None = None) -> dict[str, Any]:
+    """Return currently indexed directories for search-time filtering."""
+    resolved_db = _resolve_db_path(db)
+    if not resolved_db.exists():
+        return {"folders": []}
+
+    embedder = _get_embedder()
+    store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
+    try:
+        folders = store.list_indexed_directories()
+    finally:
+        store.close()
+
+    return {"folders": folders}
 
 
 # ── RAG singleton + download progress ─────────────────────────────────────

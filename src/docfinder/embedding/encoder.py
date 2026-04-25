@@ -69,6 +69,16 @@ def _check_onnx_providers() -> list[str]:
         return []
 
 
+def _preferred_torch_device() -> str:
+    """Return the best torch device available on this host."""
+    has_gpu, gpu_type = _check_gpu_availability()
+    if has_gpu and gpu_type in {"cuda", "rocm"}:
+        return "cuda"
+    if has_gpu and gpu_type == "mps":
+        return "mps"
+    return "cpu"
+
+
 def detect_optimal_backend() -> tuple[Literal["torch", "onnx"], str | None]:
     """Auto-detect the optimal backend based on hardware and platform.
 
@@ -231,7 +241,7 @@ class EmbeddingModel:
                 self.config.backend = "torch"
                 self.config.onnx_model_file = None
                 if self.config.device is None:
-                    self.config.device = "cpu"
+                    self.config.device = _preferred_torch_device()
                 self.runtime_info["selected_backend"] = self.config.backend
                 self.runtime_info["selected_device"] = self.config.device
                 self.runtime_info["selected_onnx_model"] = self.config.onnx_model_file

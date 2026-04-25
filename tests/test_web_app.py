@@ -142,7 +142,83 @@ class TestSearchEndpoint:
         # Test with top_k > 50
         response = client.post("/search", json={"query": "test", "db": str(db_path), "top_k": 100})
         assert response.status_code == 200
-        mock_searcher.search.assert_called_with("test", top_k=50)
+        mock_searcher.search.assert_called_with("test", top_k=50, folders=None)
+
+    @patch("docfinder.web.app.EmbeddingModel")
+    @patch("docfinder.web.app.SQLiteVectorStore")
+    @patch("docfinder.web.app.Searcher")
+    def test_search_passes_folder_filters(
+        self,
+        mock_searcher_class: MagicMock,
+        mock_store_class: MagicMock,
+        mock_embedder_class: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Passes selected folder filters to Searcher."""
+        db_path = tmp_path / "test.db"
+        db_path.touch()
+
+        mock_embedder = MagicMock()
+        mock_embedder.dimension = 768
+        mock_embedder_class.return_value = mock_embedder
+
+        mock_store = MagicMock()
+        mock_store_class.return_value = mock_store
+
+        mock_searcher = MagicMock()
+        mock_searcher.search.return_value = []
+        mock_searcher_class.return_value = mock_searcher
+
+        folders = ["/Users/test/articles", "/Users/test/posters"]
+        response = client.post(
+            "/search",
+            json={"query": "test", "db": str(db_path), "top_k": 10, "folders": folders},
+        )
+        assert response.status_code == 200
+        mock_searcher.search.assert_called_with("test", top_k=10, folders=folders)
+
+
+class TestSearchFoldersEndpoint:
+    """Tests for GET /search/folders endpoint."""
+
+    def test_search_folders_database_not_found(self, tmp_path: Path) -> None:
+        """Returns empty folders list when DB is missing."""
+        db_path = tmp_path / "missing.db"
+        response = client.get(f"/search/folders?db={db_path}")
+        assert response.status_code == 200
+        assert response.json() == {"folders": []}
+
+    @patch("docfinder.web.app.EmbeddingModel")
+    @patch("docfinder.web.app.SQLiteVectorStore")
+    def test_search_folders_success(
+        self,
+        mock_store_class: MagicMock,
+        mock_embedder_class: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Returns indexed folder list with counts."""
+        db_path = tmp_path / "test.db"
+        db_path.touch()
+
+        mock_embedder = MagicMock()
+        mock_embedder.dimension = 768
+        mock_embedder_class.return_value = mock_embedder
+
+        mock_store = MagicMock()
+        mock_store.list_indexed_directories.return_value = [
+            {"path": "/Users/test/articles", "document_count": 7},
+            {"path": "/Users/test/posters", "document_count": 2},
+        ]
+        mock_store_class.return_value = mock_store
+
+        response = client.get(f"/search/folders?db={db_path}")
+        assert response.status_code == 200
+        assert response.json() == {
+            "folders": [
+                {"path": "/Users/test/articles", "document_count": 7},
+                {"path": "/Users/test/posters", "document_count": 2},
+            ]
+        }
 
 
 class TestOpenEndpoint:

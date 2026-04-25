@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-04-25
+
 ### Added
 - **Cross-encoder reranking** — search results are re-scored by a cross-encoder (`cross-encoder/ms-marco-MiniLM-L-2-v2`) for significantly improved precision; the bi-encoder fetches 3× candidates and the cross-encoder selects the best matches
 - **Parallel document ingestion** — files are parsed in parallel via `ProcessPoolExecutor` (up to 4 workers) when indexing ≥ 4 documents; embedding and storage remain on the main process for thread-safety
@@ -18,9 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New `Reranker` class with lazy model loading (`index/reranker.py`)
 - New storage methods `get_document_chunk_count()` and `get_all_chunks()` for hybrid context
 - Reranker model pre-loaded at startup alongside the embedding model
+- **Search folder filters** — Search tab now includes selectable indexed directory filters (All/None + checkboxes) and applies filtering at query time without re-indexing
 
 ### Changed
 - Spotlight panel (`spotlight.html`) redesigned to match the main app's visual style (indigo accent, smaller search bar, rounded result items)
+- Spotlight quick-search input now has rounded corners and less aggressive filtering (min 2 chars, softer score threshold + fallback rendering)
+- ONNX fallback now preserves the best available torch device (`cuda`/`mps`) instead of forcing CPU
 
 
 ## [2.0.0] - 2026-03-12
@@ -233,7 +238,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed linting issues for consistent code style
 - Updated ruff configuration to use non-deprecated settings
 
-[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/filippostanghellini/DocFinder/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/filippostanghellini/DocFinder/compare/v1.2.0...v2.0.0
 [1.2.0]: https://github.com/filippostanghellini/DocFinder/compare/v1.1.2...v1.2.0
 [1.1.2]: https://github.com/filippostanghellini/DocFinder/compare/v1.1.1...v1.1.2

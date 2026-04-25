@@ -35,12 +35,18 @@ class Searcher:
         self.store = store
         self.reranker = reranker
 
-    def search(self, query: str, *, top_k: int = 10) -> List[SearchResult]:
+    def search(
+        self,
+        query: str,
+        *,
+        top_k: int = 10,
+        folders: list[str] | None = None,
+    ) -> List[SearchResult]:
         # When reranking, fetch more candidates for the cross-encoder to evaluate
         fetch_k = max(top_k * 3, 30) if self.reranker is not None else top_k
 
         embedding = self.embedder.embed_query(query)
-        rows = self.store.search(embedding, top_k=fetch_k)
+        rows = self.store.search(embedding, top_k=fetch_k, folders=folders)
 
         if self.reranker is not None and rows:
             # Build dicts for the reranker

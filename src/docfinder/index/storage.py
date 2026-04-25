@@ -170,10 +170,15 @@ class SQLiteVectorStore:
             self.insert_chunks(doc_id, chunks, embeddings)
             return status
 
-    def search(self, embedding: np.ndarray, *, top_k: int = 10) -> List[dict]:
+    def search(
+        self,
+        embedding: np.ndarray,
+        *,
+        top_k: int = 10,
+        folders: Sequence[str] | None = None,
+    ) -> List[dict]:
         query = np.asarray(embedding, dtype="float32")
-        rows = self._conn.execute(
-            """
+        sql = """
             SELECT
                 c.document_id AS document_id,
                 d.path AS path,
@@ -185,7 +190,20 @@ class SQLiteVectorStore:
             FROM chunks c
             JOIN documents d ON d.id = c.document_id
             """
-        ).fetchall()
+        params: list[str] = []
+
+        if folders is not None:
+            normalized = sorted({f.strip().rstrip("/\\") for f in folders if f and f.strip()})
+            if not normalized:
+                return []
+
+            clauses: list[str] = []
+            for folder in normalized:
+                clauses.append("(d.path = ? OR d.path LIKE ? OR d.path LIKE ?)")
+                params.extend([folder, f"{folder}/%", f"{folder}\\%"])
+            sql += " WHERE " + " OR ".join(clauses)
+
+        rows = self._conn.execute(sql, params).fetchall()
 
         if not rows:
             return []
@@ -214,6 +232,16 @@ class SQLiteVectorStore:
                 }
             )
         return results
+
+    def list_indexed_directories(self) -> List[dict]:
+        """Return indexed parent directories and document counts."""
+        rows = self._conn.execute("SELECT path FROM documents").fetchall()
+        counts: dict[str, int] = {}
+        for row in rows:
+            parent = str(Path(row["path"]).parent)
+            counts[parent] = counts.get(parent, 0) + 1
+
+        return [{"path": path, "document_count": counts[path]} for path in sorted(counts.keys())]
 
     def get_document_chunk_count(self, document_id: int) -> int:
         """Return the total number of chunks for a document."""

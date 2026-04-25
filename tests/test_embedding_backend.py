@@ -14,6 +14,7 @@ from docfinder.embedding.encoder import (
     EmbeddingModel,
     _check_gpu_availability,
     _check_onnx_providers,
+    _preferred_torch_device,
     detect_optimal_backend,
     detect_optimal_backend_config,
 )
@@ -55,6 +56,11 @@ class TestGPUDetection:
         assert isinstance(providers, list)
         # On macOS we should have at least CPU provider
         assert "CPUExecutionProvider" in providers
+
+    @patch("docfinder.embedding.encoder._check_gpu_availability", return_value=(True, "mps"))
+    def test_preferred_torch_device_mps(self, mock_gpu_check: MagicMock) -> None:
+        """Should prefer mps torch device when MPS is available."""
+        assert _preferred_torch_device() == "mps"
 
 
 class TestBackendDetection:

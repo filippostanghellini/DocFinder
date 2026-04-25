@@ -42,6 +42,7 @@
       border-bottom: 1px solid rgba(255, 255, 255, 0.06);
       flex-shrink: 0;
       -webkit-app-region: drag;
+      border-radius: 14px 14px 0 0;
     }
 
     #spotlight-input, .spinner-sm { -webkit-app-region: no-drag; }
@@ -50,14 +51,21 @@
 
     #spotlight-input {
       flex: 1;
-      background: none;
-      border: none;
+      background: rgba(129, 140, 248, 0.08);
+      border: 1px solid rgba(129, 140, 248, 0.18);
+      border-radius: 10px;
+      padding: 0.45rem 0.65rem;
       outline: none;
       font-size: 1.05rem;
       font-weight: 400;
       color: #f3f4f6;
       caret-color: #818cf8;
       font-family: inherit;
+    }
+
+    #spotlight-input:focus {
+      border-color: rgba(129, 140, 248, 0.45);
+      box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.14);
     }
 
     #spotlight-input::placeholder { color: #6b7280; }
@@ -194,7 +202,7 @@
       <input
         id="spotlight-input"
         type="text"
-        placeholder="Search your documents… (min 3 chars)"
+        placeholder="Search your documents… (min 2 chars)"
         autocomplete="off"
         spellcheck="false"
         autofocus
@@ -293,7 +301,7 @@
 
     async function doSearch(query) {
       const trimmed = query.trim();
-      if (trimmed.length < 3) {
+      if (trimmed.length < 2) {
         results.innerHTML = '';
         currentResults = [];
         return;
@@ -307,8 +315,9 @@
         });
         const data = await res.json();
         if (res.ok) {
-          const relevant = (data.results || []).filter(r => r.score >= 0.3);
-          renderResults(relevant);
+          const scored = data.results || [];
+          const relevant = scored.filter(r => r.score >= 0.2);
+          renderResults(relevant.length ? relevant : scored);
         } else {
           results.innerHTML = `<div class="empty">${escHtml(data.detail || 'Error')}</div>`;
         }
@@ -323,7 +332,7 @@
     input.addEventListener('input', () => {
       clearTimeout(debounceTimer);
       const q = input.value.trim();
-      if (q.length < 3) { results.innerHTML = ''; currentResults = []; return; }
+      if (q.length < 2) { results.innerHTML = ''; currentResults = []; return; }
       debounceTimer = setTimeout(() => doSearch(input.value), 500);
     });
 

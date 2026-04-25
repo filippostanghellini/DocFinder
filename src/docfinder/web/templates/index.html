@@ -455,6 +455,67 @@
         padding: 0 0.25rem;
       }
 
+      .search-filters {
+        max-width: 600px;
+        margin: 0.85rem auto 0;
+        padding: 0.65rem 0.8rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--bg-1);
+        box-shadow: var(--shadow-sm);
+      }
+
+      .search-filters-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .search-filters-title {
+        font-size: 0.76rem;
+        font-weight: 600;
+        color: var(--text-2);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .search-filters-actions {
+        display: flex;
+        gap: 0.35rem;
+      }
+
+      .search-filters-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        max-height: 150px;
+        overflow-y: auto;
+      }
+
+      .search-filter-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.8rem;
+        color: var(--text-1);
+      }
+
+      .search-filter-path {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-family: "SF Mono", "JetBrains Mono", monospace;
+        font-size: 0.72rem;
+      }
+
+      .search-filter-count {
+        color: var(--text-3);
+        font-size: 0.72rem;
+      }
+
       /* ── Buttons ──────────────────────────────────────────────────────────── */
       .btn {
         display: inline-flex;
@@ -1365,6 +1426,18 @@
               <button type="submit" class="btn btn-primary search-btn">Search</button>
             </div>
           </form>
+          <div class="search-filters" id="search-filters-box">
+            <div class="search-filters-header">
+              <span class="search-filters-title">Folder filters</span>
+              <div class="search-filters-actions">
+                <button type="button" class="btn btn-secondary btn-sm" id="search-folders-all">All</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="search-folders-none">None</button>
+              </div>
+            </div>
+            <div class="search-filters-list" id="search-folders-list">
+              <div style="font-size:0.78rem;color:var(--text-2);">Loading indexed folders...</div>
+            </div>
+          </div>
         </div>
         <div id="results-meta" class="results-meta" style="display:none;"></div>
         <ul id="results" class="results-list" aria-live="polite"></ul>
@@ -1665,7 +1738,10 @@
       });
 
       // Auto-focus search on load
-      window.addEventListener('load', () => document.getElementById('query').focus());
+      window.addEventListener('load', () => {
+        document.getElementById('query').focus();
+        loadSearchFolders();
+      });
 
       // ── Toast ────────────────────────────────────────────────────────────
       function showToast(message, type = 'success') {
@@ -1699,6 +1775,55 @@
       const searchForm = document.getElementById('search-form');
       const resultsList = document.getElementById('results');
       const resultsMeta  = document.getElementById('results-meta');
+      const searchFoldersList = document.getElementById('search-folders-list');
+      const searchFoldersAllBtn = document.getElementById('search-folders-all');
+      const searchFoldersNoneBtn = document.getElementById('search-folders-none');
+      let searchFolders = [];
+
+      async function loadSearchFolders() {
+        try {
+          const res = await fetch(`${apiBase}/search/folders`);
+          const data = await res.json();
+          searchFolders = data.folders || [];
+
+          if (!searchFolders.length) {
+            searchFoldersList.innerHTML =
+              '<div style="font-size:0.78rem;color:var(--text-2);">No indexed folders yet.</div>';
+            return;
+          }
+
+          searchFoldersList.innerHTML = searchFolders
+            .map(f => `
+              <label class="search-filter-row">
+                <input type="checkbox" class="search-folder-cb" data-path="${escHtml(f.path)}" checked />
+                <span class="search-filter-path" title="${escHtml(f.path)}">${escHtml(f.path)}</span>
+                <span class="search-filter-count">${f.document_count}</span>
+              </label>
+            `)
+            .join('');
+        } catch (_err) {
+          searchFoldersList.innerHTML =
+            '<div style="font-size:0.78rem;color:var(--danger);">Unable to load folders.</div>';
+        }
+      }
+
+      function getSelectedSearchFolders() {
+        const checked = Array.from(document.querySelectorAll('.search-folder-cb:checked'));
+        if (!checked.length) return [];
+        return checked.map(cb => cb.dataset.path).filter(Boolean);
+      }
+
+      searchFoldersAllBtn.addEventListener('click', () => {
+        document.querySelectorAll('.search-folder-cb').forEach(cb => {
+          cb.checked = true;
+        });
+      });
+
+      searchFoldersNoneBtn.addEventListener('click', () => {
+        document.querySelectorAll('.search-folder-cb').forEach(cb => {
+          cb.checked = false;
+        });
+      });
 
       function renderResult(r) {
         const li = document.createElement('li');
@@ -1734,6 +1859,7 @@
         e.preventDefault();
         const query = document.getElementById('query').value.trim();
         if (!query) return;
+        const folders = getSelectedSearchFolders();
 
         resultsMeta.style.display = 'none';
         resultsList.innerHTML = '<div class="loading"><div class="spinner"></div><span>Searching\u2026</span></div>';
@@ -1742,7 +1868,7 @@
           const res = await fetch(`${apiBase}/search`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query }),
+            body: JSON.stringify({ query, folders }),
           });
           if (!res.ok) throw new Error((await res.json()).detail || 'Search failed');
           const data = await res.json();

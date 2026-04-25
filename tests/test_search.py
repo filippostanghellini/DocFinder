@@ -162,6 +162,21 @@ class TestSearcher:
         call_args = mock_store.search.call_args
         assert call_args[1]["top_k"] == 25
 
+    def test_search_passes_folder_filters(self) -> None:
+        """Should pass selected folders down to storage search."""
+        mock_embedder = MagicMock()
+        mock_embedder.embed_query.return_value = np.array([0.1])
+
+        mock_store = MagicMock()
+        mock_store.search.return_value = []
+
+        searcher = Searcher(mock_embedder, mock_store)
+        folders = ["/Users/test/articles", "/Users/test/posters"]
+        searcher.search("query", top_k=10, folders=folders)
+
+        call_args = mock_store.search.call_args
+        assert call_args[1]["folders"] == folders
+
     def test_search_metadata_parsing(self) -> None:
         """Should parse JSON metadata correctly."""
         mock_embedder = MagicMock()

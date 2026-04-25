@@ -358,6 +358,84 @@ class TestSearch:
         scores = [r["score"] for r in results]
         assert scores == sorted(scores, reverse=True)
 
+    def test_search_with_folder_filters(self, temp_db):
+        """Search should return only results from selected folders."""
+        doc_a = DocumentMetadata(
+            path=Path("/tmp/folder_a/doc1.pdf"),
+            title="A1",
+            sha256="hash_a1",
+            mtime=1234567890.0,
+            size=1000,
+        )
+        doc_b = DocumentMetadata(
+            path=Path("/tmp/folder_b/doc2.pdf"),
+            title="B1",
+            sha256="hash_b1",
+            mtime=1234567890.0,
+            size=1000,
+        )
+        chunk_a = [ChunkRecord(document_path=doc_a.path, index=0, text="Text A", metadata={})]
+        chunk_b = [ChunkRecord(document_path=doc_b.path, index=0, text="Text B", metadata={})]
+        emb_a = np.random.rand(1, 384).astype("float32")
+        emb_b = np.random.rand(1, 384).astype("float32")
+        temp_db.upsert_document(doc_a, chunk_a, emb_a)
+        temp_db.upsert_document(doc_b, chunk_b, emb_b)
+
+        query = np.random.rand(384).astype("float32")
+        results = temp_db.search(query, top_k=10, folders=["/tmp/folder_a"])
+
+        assert len(results) == 1
+        assert results[0]["path"] == "/tmp/folder_a/doc1.pdf"
+
+
+class TestIndexedDirectories:
+    """Test indexed directory listing for search filters."""
+
+    def test_list_indexed_directories(self, temp_db):
+        doc1 = DocumentMetadata(
+            path=Path("/tmp/alpha/doc1.pdf"),
+            title="Doc 1",
+            sha256="h1",
+            mtime=1234567890.0,
+            size=1000,
+        )
+        doc2 = DocumentMetadata(
+            path=Path("/tmp/alpha/doc2.pdf"),
+            title="Doc 2",
+            sha256="h2",
+            mtime=1234567890.0,
+            size=1000,
+        )
+        doc3 = DocumentMetadata(
+            path=Path("/tmp/beta/doc3.pdf"),
+            title="Doc 3",
+            sha256="h3",
+            mtime=1234567890.0,
+            size=1000,
+        )
+        emb = np.random.rand(1, 384).astype("float32")
+        temp_db.upsert_document(
+            doc1,
+            [ChunkRecord(document_path=doc1.path, index=0, text="a", metadata={})],
+            emb,
+        )
+        temp_db.upsert_document(
+            doc2,
+            [ChunkRecord(document_path=doc2.path, index=0, text="b", metadata={})],
+            emb,
+        )
+        temp_db.upsert_document(
+            doc3,
+            [ChunkRecord(document_path=doc3.path, index=0, text="c", metadata={})],
+            emb,
+        )
+
+        directories = temp_db.list_indexed_directories()
+        assert directories == [
+            {"path": "/tmp/alpha", "document_count": 2},
+            {"path": "/tmp/beta", "document_count": 1},
+        ]
+
 
 class TestRemoveMissingFiles:
     """Test removing documents with missing files."""
