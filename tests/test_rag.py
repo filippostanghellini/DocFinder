@@ -14,6 +14,11 @@ from docfinder.models import ChunkRecord, DocumentMetadata
 from docfinder.rag.engine import _SMALL_DOC_THRESHOLD, RAGEngine
 from docfinder.rag.llm import MODEL_TIERS, select_model
 
+
+def _normalize_path(value: str) -> str:
+    return value.replace("\\", "/")
+
+
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
 
@@ -555,14 +560,14 @@ class TestHybridContextStrategy:
         mock_window.assert_called_once()
 
         # Context should contain all small doc chunks + window from large doc
-        paths = {c["path"] for c in ctx}
+        paths = {_normalize_path(c["path"]) for c in ctx}
         assert "/tmp/small.pdf" in paths
         assert "/tmp/large.pdf" in paths
 
-        small_ctx = [c for c in ctx if c["path"] == "/tmp/small.pdf"]
+        small_ctx = [c for c in ctx if _normalize_path(c["path"]) == "/tmp/small.pdf"]
         assert len(small_ctx) == small_n
 
-        large_ctx = [c for c in ctx if c["path"] == "/tmp/large.pdf"]
+        large_ctx = [c for c in ctx if _normalize_path(c["path"]) == "/tmp/large.pdf"]
         assert len(large_ctx) < large_n
 
         store.close()

@@ -11,6 +11,10 @@ from docfinder.index.storage import SQLiteVectorStore
 from docfinder.models import ChunkRecord, DocumentMetadata
 
 
+def _normalize_path(value: str) -> str:
+    return value.replace("\\", "/")
+
+
 @pytest.fixture
 def temp_db(tmp_path):
     """Create a temporary database for testing."""
@@ -385,7 +389,7 @@ class TestSearch:
         results = temp_db.search(query, top_k=10, folders=["/tmp/folder_a"])
 
         assert len(results) == 1
-        assert results[0]["path"] == "/tmp/folder_a/doc1.pdf"
+        assert _normalize_path(results[0]["path"]) == "/tmp/folder_a/doc1.pdf"
 
 
 class TestIndexedDirectories:
