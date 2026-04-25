@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from contextlib import contextmanager
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Iterator, List, Sequence
 
 import numpy as np
@@ -94,6 +94,23 @@ class SQLiteVectorStore:
             if "embedding" not in columns:
                 conn.execute("ALTER TABLE chunks ADD COLUMN embedding BLOB")
 
+    @staticmethod
+    def _normalize_path(path: str | Path) -> str:
+        """Return a separator-stable representation for stored paths."""
+        return str(path).replace("\\", "/")
+
+    @classmethod
+    def _normalize_folder(cls, folder: str | Path) -> str:
+        """Normalize folder filters while preserving root/drive roots."""
+        normalized = cls._normalize_path(folder)
+        while (
+            normalized.endswith("/")
+            and normalized != "/"
+            and not normalized.endswith(":/")
+        ):
+            normalized = normalized[:-1]
+        return normalized
+
     def init_document(self, document: DocumentMetadata) -> tuple[int, str]:
         """Initialize a document for insertion.
 
@@ -105,8 +122,8 @@ class SQLiteVectorStore:
         conn = self._conn
 
         existing = conn.execute(
-            "SELECT id, sha256 FROM documents WHERE path = ?",
-            (str(document.path),),
+            "SELECT id, sha256 FROM documents WHERE REPLACE(path, '\\', '/') = ?",
+            (self._normalize_path(document.path),),
         ).fetchone()
 
         if existing and existing["sha256"] == document.sha256:
@@ -193,14 +210,20 @@ class SQLiteVectorStore:
         params: list[str] = []
 
         if folders is not None:
-            normalized = sorted({f.strip().rstrip("/\\") for f in folders if f and f.strip()})
+            normalized = sorted(
+                {
+                    self._normalize_folder(f.strip())
+                    for f in folders
+                    if f and f.strip() and self._normalize_folder(f.strip())
+                }
+            )
             if not normalized:
                 return []
 
             clauses: list[str] = []
             for folder in normalized:
-                clauses.append("(d.path = ? OR d.path LIKE ? OR d.path LIKE ?)")
-                params.extend([folder, f"{folder}/%", f"{folder}\\%"])
+                clauses.append("(REPLACE(d.path, '\\', '/') = ? OR REPLACE(d.path, '\\', '/') LIKE ?)")
+                params.extend([folder, f"{folder}/%"])
             sql += " WHERE " + " OR ".join(clauses)
 
         rows = self._conn.execute(sql, params).fetchall()
@@ -238,7 +261,8 @@ class SQLiteVectorStore:
         rows = self._conn.execute("SELECT path FROM documents").fetchall()
         counts: dict[str, int] = {}
         for row in rows:
-            parent = str(Path(row["path"]).parent)
+            normalized_path = self._normalize_path(row["path"])
+            parent = str(PurePosixPath(normalized_path).parent)
             counts[parent] = counts.get(parent, 0) + 1
 
         return [{"path": path, "document_count": counts[path]} for path in sorted(counts.keys())]
@@ -444,7 +468,11 @@ class SQLiteVectorStore:
         Returns True if document was found and deleted, False otherwise.
         """
         with self.transaction() as conn:
-            existing = conn.execute("SELECT id FROM documents WHERE path = ?", (path,)).fetchone()
+            normalized_path = self._normalize_path(path)
+            existing = conn.execute(
+                "SELECT id FROM documents WHERE REPLACE(path, '\\', '/') = ?",
+                (normalized_path,),
+            ).fetchone()
 
             if not existing:
                 return False

@@ -129,8 +129,9 @@ class RAGEngine:
 
         for result in results:
             # We need the document_id — look it up via the store
+            normalized_path = str(result.path).replace("\\", "/")
             row = self.store.connection.execute(
-                "SELECT id FROM documents WHERE path = ?", (str(result.path),)
+                "SELECT id FROM documents WHERE REPLACE(path, '\\', '/') = ?", (normalized_path,)
             ).fetchone()
             if row is None:
                 continue
