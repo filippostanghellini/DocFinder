@@ -18,8 +18,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from docfinder.config import AppConfig
-from docfinder.embedding.encoder import EmbeddingConfig, EmbeddingModel
+from docfinder.embedding.encoder import (
+    EmbeddingConfig,
+    EmbeddingModel,
+    get_runtime_environment_info,
+)
 from docfinder.index.indexer import Indexer
+from docfinder.index.reranker import Reranker
 from docfinder.index.search import Searcher, SearchResult
 from docfinder.index.storage import SQLiteVectorStore
 from docfinder.settings import load_settings
@@ -44,11 +49,27 @@ def _get_embedder() -> EmbeddingModel:
     return _embedder
 
 
+# ── Singleton Reranker ────────────────────────────────────────────────────────
+_reranker: Reranker | None = None
+_reranker_lock = threading.Lock()
+
+
+def _get_reranker() -> Reranker:
+    """Return a cached Reranker, creating it on first call (lazy model load)."""
+    global _reranker
+    if _reranker is None:
+        with _reranker_lock:
+            if _reranker is None:
+                _reranker = Reranker()
+    return _reranker
+
+
 # ── Async indexing job registry ───────────────────────────────────────────────
 _index_jobs: dict[str, dict] = {}
 
 # ── GUI callback registry (set by the desktop GUI layer, not used in web mode) ─
 _spotlight_hide_callback: object = None  # callable | None
+_is_gui_mode: bool = False
 
 
 def register_spotlight_hide_callback(callback: object) -> None:
@@ -57,11 +78,41 @@ def register_spotlight_hide_callback(callback: object) -> None:
     _spotlight_hide_callback = callback
 
 
+def set_gui_mode(enabled: bool = True) -> None:
+    """Mark the app as running inside the desktop GUI (pywebview)."""
+    global _is_gui_mode
+    _is_gui_mode = enabled
+
+
+def _notify_indexing_done(result: dict[str, Any] | None, *, error: str | None = None) -> None:
+    """Send a native notification when indexing completes (GUI mode only)."""
+    if not _is_gui_mode:
+        return
+
+    from docfinder.utils.notify import send_notification
+
+    if error:
+        send_notification("DocFinder", f"Indexing failed: {error}")
+    elif result:
+        inserted = result.get("inserted", 0)
+        updated = result.get("updated", 0)
+        skipped = result.get("skipped", 0)
+        total = inserted + updated + skipped
+        send_notification("DocFinder", f"Indexing complete: {total} documents processed.")
+
+
+def _preload_reranker() -> None:
+    """Pre-load the reranker model (singleton + ensure weights are downloaded)."""
+    reranker = _get_reranker()
+    reranker._ensure_model()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
-    # Pre-load the embedding model at startup so the first request is instant
+    # Pre-load models at startup so the first request is instant
     await asyncio.to_thread(_get_embedder)
+    await asyncio.to_thread(_preload_reranker)
     yield
 
 
@@ -79,6 +130,7 @@ class SearchPayload(BaseModel):
     query: str
     db: Path | None = None
     top_k: int = 10
+    folders: List[str] = []
 
 
 class OpenRequest(BaseModel):
@@ -139,11 +191,30 @@ async def search_documents(payload: SearchPayload) -> dict[str, List[SearchResul
         )
 
     embedder = _get_embedder()
+    reranker = _get_reranker()
     store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
-    searcher = Searcher(embedder, store)
-    results = searcher.search(query, top_k=top_k)
+    searcher = Searcher(embedder, store, reranker=reranker)
+    folders = [f.strip() for f in payload.folders if f and f.strip()]
+    results = searcher.search(query, top_k=top_k, folders=folders if folders else None)
     store.close()
     return {"results": results}
+
+
+@app.get("/search/folders")
+async def search_folders(db: Path | None = None) -> dict[str, Any]:
+    """Return currently indexed directories for search-time filtering."""
+    resolved_db = _resolve_db_path(db)
+    if not resolved_db.exists():
+        return {"folders": []}
+
+    embedder = _get_embedder()
+    store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
+    try:
+        folders = store.list_indexed_directories()
+    finally:
+        store.close()
+
+    return {"folders": folders}
 
 
 # ── RAG singleton + download progress ─────────────────────────────────────
@@ -511,15 +582,16 @@ async def update_settings(payload: SettingsPayload) -> dict:
 
 
 def _compute_embed_batch_size() -> int:
-    """Choose embedding batch size based on available RAM to avoid OOM."""
-    info = _get_memory_info()
-    available = info.get("available_mb")
-    if available is None or available >= 4096:
-        return 32
-    elif available >= 2048:
-        return 16
-    else:
-        return 8
+    """Choose embedding batch size based on available RAM to avoid OOM.
+
+    Note: the Indexer now does per-file adaptive throttling internally.
+    This is kept for the initial batch size hint passed to the Indexer.
+    """
+    from docfinder.utils.memory import compute_embed_batch_size, get_memory_info
+
+    info = get_memory_info()
+    batch_size, _ = compute_embed_batch_size(info.get("available_mb"))
+    return batch_size
 
 
 def _run_index_job(
@@ -530,7 +602,6 @@ def _run_index_job(
     exclude_paths: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     embedder = _get_embedder()
-    embed_batch_size = _compute_embed_batch_size()
 
     def _progress(processed: int, total: int, current_file: str) -> None:
         if job is not None:
@@ -539,12 +610,12 @@ def _run_index_job(
             job["current_file"] = current_file
 
     store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
+    # No fixed embed_batch_size — Indexer adapts per-file based on available RAM
     indexer = Indexer(
         embedder,
         store,
         chunk_chars=config.chunk_chars,
         overlap=config.overlap,
-        embed_batch_size=embed_batch_size,
         progress_callback=_progress,
     )
     try:
@@ -562,75 +633,18 @@ def _run_index_job(
 
 
 def _get_memory_info() -> dict[str, Any]:
-    """Return available and total RAM in MB using platform-native methods. No extra deps."""
-    try:
-        import psutil  # optional – used if installed
+    """Return available and total RAM in MB. Delegates to shared utility."""
+    from docfinder.utils.memory import get_memory_info
 
-        vm = psutil.virtual_memory()
-        return {
-            "available_mb": vm.available // (1024 * 1024),
-            "total_mb": vm.total // (1024 * 1024),
-        }
-    except ImportError:
-        pass
+    return get_memory_info()
 
-    if sys.platform == "darwin":
-        try:
-            import subprocess as _sp
 
-            total = int(_sp.check_output(["sysctl", "-n", "hw.memsize"]).strip())
-            vm_out = _sp.check_output(["vm_stat"]).decode()
-            free_pages = inactive_pages = 0
-            for line in vm_out.splitlines():
-                if line.startswith("Pages free:"):
-                    free_pages = int(line.split(":")[1].strip().rstrip("."))
-                elif line.startswith("Pages inactive:"):
-                    inactive_pages = int(line.split(":")[1].strip().rstrip("."))
-            available = (free_pages + inactive_pages) * 4096
-            return {"available_mb": available // (1024 * 1024), "total_mb": total // (1024 * 1024)}
-        except Exception:
-            pass
-    elif sys.platform.startswith("linux"):
-        try:
-            meminfo: dict[str, int] = {}
-            with open("/proc/meminfo") as _f:
-                for line in _f:
-                    k, v = line.split(":")
-                    meminfo[k.strip()] = int(v.strip().split()[0])  # kB
-            return {
-                "available_mb": meminfo.get("MemAvailable", meminfo.get("MemFree", 0)) // 1024,
-                "total_mb": meminfo.get("MemTotal", 0) // 1024,
-            }
-        except Exception:
-            pass
-    elif sys.platform == "win32":
-        try:
-            import ctypes
-
-            class _MemStatEx(ctypes.Structure):
-                _fields_ = [
-                    ("dwLength", ctypes.c_ulong),
-                    ("dwMemoryLoad", ctypes.c_ulong),
-                    ("ullTotalPhys", ctypes.c_ulonglong),
-                    ("ullAvailPhys", ctypes.c_ulonglong),
-                    ("ullTotalPageFile", ctypes.c_ulonglong),
-                    ("ullAvailPageFile", ctypes.c_ulonglong),
-                    ("ullTotalVirtual", ctypes.c_ulonglong),
-                    ("ullAvailVirtual", ctypes.c_ulonglong),
-                    ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
-                ]
-
-            stat = _MemStatEx()
-            stat.dwLength = ctypes.sizeof(stat)
-            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat))  # type: ignore[attr-defined]
-            return {
-                "available_mb": stat.ullAvailPhys // (1024 * 1024),
-                "total_mb": stat.ullTotalPhys // (1024 * 1024),
-            }
-        except Exception:
-            pass
-
-    return {"available_mb": None, "total_mb": None}
+def _get_runtime_info() -> dict[str, Any]:
+    """Return runtime backend/device and indexing strategy info."""
+    info = get_runtime_environment_info()
+    info["indexing_mode"] = "balanced"
+    info["cpu_count"] = os.cpu_count()
+    return info
 
 
 def _validate_paths(paths: List[str]) -> List[Path]:
@@ -718,10 +732,12 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
             )
             job["status"] = "complete"
             job["stats"] = result
+            _notify_indexing_done(result)
         except Exception as exc:
             LOGGER.exception("Indexing job %s failed: %s", job_id, exc)
             job["status"] = "error"
             job["error"] = str(exc)
+            _notify_indexing_done(None, error=str(exc))
 
     asyncio.create_task(_run())
     return {"status": "ok", "job_id": job_id}
@@ -738,8 +754,10 @@ async def get_index_status(job_id: str) -> dict[str, Any]:
 
 @app.get("/system/info")
 async def get_system_info() -> dict[str, Any]:
-    """Return available and total RAM in MB for the host machine."""
-    return await asyncio.to_thread(_get_memory_info)
+    """Return RAM + runtime backend and indexing strategy details."""
+    memory = await asyncio.to_thread(_get_memory_info)
+    runtime = await asyncio.to_thread(_get_runtime_info)
+    return {**memory, **runtime}
 
 
 class ScanPayload(BaseModel):

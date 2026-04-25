@@ -14,7 +14,9 @@ from docfinder.embedding.encoder import (
     EmbeddingModel,
     _check_gpu_availability,
     _check_onnx_providers,
+    _preferred_torch_device,
     detect_optimal_backend,
+    detect_optimal_backend_config,
 )
 
 
@@ -54,6 +56,11 @@ class TestGPUDetection:
         assert isinstance(providers, list)
         # On macOS we should have at least CPU provider
         assert "CPUExecutionProvider" in providers
+
+    @patch("docfinder.embedding.encoder._check_gpu_availability", return_value=(True, "mps"))
+    def test_preferred_torch_device_mps(self, mock_gpu_check: MagicMock) -> None:
+        """Should prefer mps torch device when MPS is available."""
+        assert _preferred_torch_device() == "mps"
 
 
 class TestBackendDetection:
@@ -148,6 +155,24 @@ class TestBackendDetection:
         backend, model_file = detect_optimal_backend()
         assert backend == "onnx"
         assert model_file is None
+
+    @patch("docfinder.embedding.encoder._check_gpu_availability", return_value=(True, "cuda"))
+    @patch(
+        "docfinder.embedding.encoder._check_onnx_providers",
+        return_value=["CPUExecutionProvider"],
+    )
+    def test_detect_cuda_without_onnx_cuda_provider_uses_torch_cuda(
+        self,
+        mock_onnx_providers: MagicMock,
+        mock_gpu_check: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Should use torch/cuda if GPU exists but ONNX CUDA provider is missing."""
+        monkeypatch.setattr(sys, "platform", "linux")
+        backend, model_file, device = detect_optimal_backend_config()
+        assert backend == "torch"
+        assert model_file is None
+        assert device == "cuda"
 
 
 class TestEmbeddingConfig:

@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from docfinder.ingestion.pdf_loader import build_chunks, get_pdf_metadata, iter_text_parts
 from docfinder.models import ChunkRecord
 
@@ -18,6 +20,7 @@ class TestIterTextParts:
         # Setup mock
         mock_page = MagicMock()
         mock_page.get_text.return_value = "Page 1 text"
+        mock_page.find_tables.return_value = MagicMock(tables=[])
 
         mock_doc = MagicMock()
         mock_doc.__len__ = MagicMock(return_value=1)
@@ -40,10 +43,13 @@ class TestIterTextParts:
         # Setup mock pages
         mock_page1 = MagicMock()
         mock_page1.get_text.return_value = "Page 1"
+        mock_page1.find_tables.return_value = MagicMock(tables=[])
         mock_page2 = MagicMock()
         mock_page2.get_text.return_value = "Page 2"
+        mock_page2.find_tables.return_value = MagicMock(tables=[])
         mock_page3 = MagicMock()
         mock_page3.get_text.return_value = "Page 3"
+        mock_page3.find_tables.return_value = MagicMock(tables=[])
 
         pages = [mock_page1, mock_page2, mock_page3]
 
@@ -71,12 +77,15 @@ class TestIterTextParts:
         """Should log warning and continue on page extraction error."""
         mock_page1 = MagicMock()
         mock_page1.get_text.return_value = "Page 1"
+        mock_page1.find_tables.return_value = MagicMock(tables=[])
 
         mock_page2 = MagicMock()
+        mock_page2.find_tables.return_value = MagicMock(tables=[])
         mock_page2.get_text.side_effect = Exception("Extraction failed")
 
         mock_page3 = MagicMock()
         mock_page3.get_text.return_value = "Page 3"
+        mock_page3.find_tables.return_value = MagicMock(tables=[])
 
         pages = [mock_page1, mock_page2, mock_page3]
 
@@ -199,7 +208,8 @@ class TestBuildChunks:
         self, mock_meta: MagicMock, mock_iter: MagicMock, tmp_path: Path
     ) -> None:
         """Should create multiple chunks for long text."""
-        long_text = "x" * 500
+        # Use text with sentence boundaries so the sentence-aware chunker can split it
+        long_text = " ".join(f"Sentence number {i} is here." for i in range(50))
         mock_meta.return_value = {"title": "Long", "page_count": "1"}
         mock_iter.return_value = iter([(1, long_text)])
 
@@ -248,3 +258,601 @@ class TestBuildChunks:
 
         # Should return no chunks for empty text
         assert len(chunks) == 0
+
+
+class TestTableExtraction:
+    """Test PDF table extraction via _extract_page_text."""
+
+    def test_table_to_markdown(self) -> None:
+        """Should convert a table to Markdown format."""
+        from docfinder.ingestion.pdf_loader import _table_to_markdown
+
+        mock_table = MagicMock()
+        mock_table.extract.return_value = [
+            ["Name", "Age", "City"],
+            ["Marco", "30", "Roma"],
+            ["Laura", "25", "Milano"],
+        ]
+        md = _table_to_markdown(mock_table)
+        assert "| Name | Age | City |" in md
+        assert "| --- | --- | --- |" in md
+        assert "| Marco | 30 | Roma |" in md
+        assert "| Laura | 25 | Milano |" in md
+
+    def test_table_to_markdown_empty(self) -> None:
+        """Should return empty string for empty table."""
+        from docfinder.ingestion.pdf_loader import _table_to_markdown
+
+        mock_table = MagicMock()
+        mock_table.extract.return_value = []
+        assert _table_to_markdown(mock_table) == ""
+
+    def test_table_to_markdown_none_cells(self) -> None:
+        """Should handle None cell values gracefully."""
+        from docfinder.ingestion.pdf_loader import _table_to_markdown
+
+        mock_table = MagicMock()
+        mock_table.extract.return_value = [
+            ["Col1", None],
+            [None, "value"],
+        ]
+        md = _table_to_markdown(mock_table)
+        assert "| Col1 |  |" in md
+        assert "|  | value |" in md
+
+    @patch("docfinder.ingestion.pdf_loader.fitz")
+    def test_extract_page_with_table(self, mock_fitz: MagicMock) -> None:
+        """Should include Markdown table in extracted text."""
+        from docfinder.ingestion.pdf_loader import _extract_page_text
+
+        # Mock a table
+        mock_table = MagicMock()
+        mock_table.bbox = (0, 100, 500, 200)
+        mock_table.extract.return_value = [
+            ["Product", "Price"],
+            ["Widget", "10.00"],
+        ]
+
+        mock_tables_result = MagicMock()
+        mock_tables_result.tables = [mock_table]
+
+        # Mock fitz.Rect to return proper rect objects
+        mock_fitz.Rect.side_effect = lambda coords: MagicMock(
+            y0=coords[1],
+            width=coords[2] - coords[0],
+            height=coords[3] - coords[1],
+            is_empty=False,
+            __and__=lambda self, other: MagicMock(
+                is_empty=False, width=self.width, height=self.height
+            ),
+        )
+
+        mock_page = MagicMock()
+        mock_page.find_tables.return_value = mock_tables_result
+        # Text blocks outside the table area
+        mock_page.get_text.return_value = [
+            (0, 10, 500, 50, "Introduction paragraph.", 0, 0),
+        ]
+
+        text = _extract_page_text(mock_page)
+        assert "Product" in text
+        assert "Price" in text
+        assert "Widget" in text
+
+    @patch("docfinder.ingestion.pdf_loader.fitz")
+    def test_extract_page_no_tables(self, mock_fitz: MagicMock) -> None:
+        """Should fall back to plain text when no tables found."""
+        from docfinder.ingestion.pdf_loader import _extract_page_text
+
+        mock_page = MagicMock()
+        mock_page.find_tables.return_value = MagicMock(tables=[])
+        mock_page.get_text.return_value = "Just plain text here."
+
+        text = _extract_page_text(mock_page)
+        assert text == "Just plain text here."
+
+    def test_extract_page_find_tables_exception(self) -> None:
+        """Should fall back to plain text when find_tables() raises."""
+        from docfinder.ingestion.pdf_loader import _extract_page_text
+
+        mock_page = MagicMock()
+        mock_page.find_tables.side_effect = RuntimeError("unsupported")
+        mock_page.get_text.return_value = "Fallback text."
+
+        text = _extract_page_text(mock_page)
+        assert text == "Fallback text."
+
+    @patch("docfinder.ingestion.pdf_loader.fitz")
+    def test_extract_page_skips_image_blocks(self, mock_fitz: MagicMock) -> None:
+        """Should skip image blocks (block_type != 0)."""
+        from docfinder.ingestion.pdf_loader import _extract_page_text
+
+        mock_table = MagicMock()
+        mock_table.bbox = (0, 200, 500, 300)
+        mock_table.extract.return_value = [["A"], ["1"]]
+
+        mock_tables_result = MagicMock()
+        mock_tables_result.tables = [mock_table]
+
+        mock_fitz.Rect.side_effect = lambda coords: MagicMock(
+            y0=coords[1],
+            width=coords[2] - coords[0],
+            height=coords[3] - coords[1],
+            is_empty=False,
+            __and__=lambda self, other: MagicMock(is_empty=True),
+        )
+
+        mock_page = MagicMock()
+        mock_page.find_tables.return_value = mock_tables_result
+        mock_page.get_text.return_value = [
+            (0, 10, 500, 50, "Text block.", 0, 0),  # text block — kept
+            (0, 60, 500, 100, "image data", 1, 1),  # image block — skipped
+        ]
+
+        text = _extract_page_text(mock_page)
+        assert "Text block." in text
+        assert "image data" not in text
+
+    @patch("docfinder.ingestion.pdf_loader.fitz")
+    def test_extract_page_excludes_overlapping_text(self, mock_fitz: MagicMock) -> None:
+        """Text blocks overlapping >50% with a table should be excluded."""
+        from docfinder.ingestion.pdf_loader import _extract_page_text
+
+        mock_table = MagicMock()
+        mock_table.bbox = (0, 100, 500, 200)
+        mock_table.extract.return_value = [["Col"], ["Val"]]
+
+        mock_tables_result = MagicMock()
+        mock_tables_result.tables = [mock_table]
+
+        # Table rect
+        table_rect = MagicMock(
+            y0=100,
+            width=500,
+            height=100,
+            is_empty=False,
+        )
+        # Block inside table: full overlap
+        block_inside_rect = MagicMock(
+            y0=110,
+            width=500,
+            height=30,
+            is_empty=False,
+        )
+        # Block outside table: no overlap
+        block_outside_rect = MagicMock(
+            y0=10,
+            width=500,
+            height=40,
+            is_empty=False,
+        )
+
+        rects = [table_rect, block_outside_rect, block_inside_rect]
+        mock_fitz.Rect.side_effect = rects
+
+        # Overlap intersection for inside block: full overlap → ratio = 1.0
+        full_overlap = MagicMock(is_empty=False, width=500, height=30)
+        block_inside_rect.__and__ = MagicMock(return_value=full_overlap)
+        # No overlap for outside block
+        no_overlap = MagicMock(is_empty=True)
+        block_outside_rect.__and__ = MagicMock(return_value=no_overlap)
+
+        mock_page = MagicMock()
+        mock_page.find_tables.return_value = mock_tables_result
+        mock_page.get_text.return_value = [
+            (0, 10, 500, 50, "Outside text.", 0, 0),
+            (0, 110, 500, 140, "Inside table text.", 1, 0),
+        ]
+
+        text = _extract_page_text(mock_page)
+        assert "Outside text." in text
+        assert "Inside table text." not in text
+
+    def test_table_to_markdown_newlines_in_cells(self) -> None:
+        """Should replace newlines in cell values with spaces."""
+        from docfinder.ingestion.pdf_loader import _table_to_markdown
+
+        mock_table = MagicMock()
+        mock_table.extract.return_value = [
+            ["Header"],
+            ["line1\nline2\nline3"],
+        ]
+        md = _table_to_markdown(mock_table)
+        assert "line1 line2 line3" in md
+        assert "\n" not in md.split("\n")[2]  # data row has no embedded newlines
+
+    def test_table_to_markdown_header_only(self) -> None:
+        """Should handle a table with only a header row."""
+        from docfinder.ingestion.pdf_loader import _table_to_markdown
+
+        mock_table = MagicMock()
+        mock_table.extract.return_value = [
+            ["Col1", "Col2"],
+        ]
+        md = _table_to_markdown(mock_table)
+        assert "| Col1 | Col2 |" in md
+        assert "| --- | --- |" in md
+        # Only 2 lines: header + separator
+        assert len(md.strip().split("\n")) == 2
+
+
+class TestIterTextPartsTxt:
+    """Test plain text extraction."""
+
+    def test_reads_text_file(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_txt
+
+        f = tmp_path / "hello.txt"
+        f.write_text("Hello world!", encoding="utf-8")
+        parts = list(iter_text_parts_txt(f))
+        assert len(parts) == 1
+        assert "Hello world!" in parts[0]
+
+    def test_read_error(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_txt
+
+        f = tmp_path / "missing.txt"
+        parts = list(iter_text_parts_txt(f))
+        assert parts == []
+
+
+class TestIterTextPartsTxtPaged:
+    """Test plain text virtual paging — error path."""
+
+    def test_read_error(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_txt_paged
+
+        f = tmp_path / "missing.txt"
+        pages = list(iter_text_parts_txt_paged(f))
+        assert pages == []
+
+    def test_whitespace_only_file(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_txt_paged
+
+        f = tmp_path / "blank.txt"
+        f.write_text("   \n\n  \n")
+        pages = list(iter_text_parts_txt_paged(f))
+        assert pages == []
+
+
+class TestCleanMd:
+    """Test Markdown formatting cleanup."""
+
+    def test_strips_bold_italic(self) -> None:
+        from docfinder.ingestion.pdf_loader import _clean_md
+
+        assert "hello" in _clean_md("**hello**")
+        assert "world" in _clean_md("*world*")
+        assert "***" not in _clean_md("***bold italic***")
+
+    def test_strips_links_keeps_text(self) -> None:
+        from docfinder.ingestion.pdf_loader import _clean_md
+
+        result = _clean_md("[click here](http://example.com)")
+        assert "click here" in result
+        assert "http://" not in result
+
+    def test_strips_images(self) -> None:
+        from docfinder.ingestion.pdf_loader import _clean_md
+
+        result = _clean_md("![alt text](image.png)")
+        assert "![" not in result
+        assert "image.png" not in result
+
+    def test_strips_code(self) -> None:
+        from docfinder.ingestion.pdf_loader import _clean_md
+
+        result = _clean_md("Use `print()` here")
+        assert "`" not in result
+
+    def test_strips_headings(self) -> None:
+        from docfinder.ingestion.pdf_loader import _clean_md
+
+        result = _clean_md("## My Title\nSome text")
+        assert "##" not in result
+        assert "My Title" in result
+
+    def test_strips_horizontal_rule(self) -> None:
+        from docfinder.ingestion.pdf_loader import _clean_md
+
+        result = _clean_md("Above\n---\nBelow")
+        assert "---" not in result
+        assert "Above" in result
+        assert "Below" in result
+
+
+class TestIterTextPartsMd:
+    """Test Markdown text extraction."""
+
+    def test_extracts_cleaned_text(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_md
+
+        f = tmp_path / "doc.md"
+        f.write_text("# Title\nSome **bold** text.")
+        parts = list(iter_text_parts_md(f))
+        assert len(parts) == 1
+        assert "bold" in parts[0]
+        assert "**" not in parts[0]
+
+    def test_read_error(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_md
+
+        f = tmp_path / "missing.md"
+        parts = list(iter_text_parts_md(f))
+        assert parts == []
+
+
+class TestIterTextPartsMdPaged:
+    """Test Markdown paged extraction — error path."""
+
+    def test_read_error(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_md_paged
+
+        f = tmp_path / "missing.md"
+        pages = list(iter_text_parts_md_paged(f))
+        assert pages == []
+
+    def test_empty_sections_skipped(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_md_paged
+
+        f = tmp_path / "sparse.md"
+        f.write_text("# Title\n\n\n# Another\nContent here.")
+        pages = list(iter_text_parts_md_paged(f))
+        # Only sections with actual content after cleaning
+        assert all(text.strip() for _, text in pages)
+
+
+class TestIterTextPartsDocx:
+    """Test Word document extraction."""
+
+    def test_extracts_paragraphs(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_docx
+
+        docx = pytest.importorskip("docx")
+
+        f = tmp_path / "test.docx"
+        doc = docx.Document()
+        doc.add_paragraph("First paragraph")
+        doc.add_paragraph("")  # empty — should be skipped
+        doc.add_paragraph("Second paragraph")
+        doc.save(str(f))
+
+        parts = list(iter_text_parts_docx(f))
+        assert len(parts) == 2
+        assert "First paragraph" in parts[0]
+        assert "Second paragraph" in parts[1]
+
+    def test_read_error(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_docx
+
+        pytest.importorskip("docx")
+
+        f = tmp_path / "corrupt.docx"
+        f.write_bytes(b"not a real docx")
+        parts = list(iter_text_parts_docx(f))
+        assert parts == []
+
+
+class TestIterTextPartsDocxPaged:
+    """Test Word document paged extraction — error and edge cases."""
+
+    def test_read_error(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_docx_paged
+
+        pytest.importorskip("docx")
+
+        f = tmp_path / "corrupt.docx"
+        f.write_bytes(b"not a real docx")
+        pages = list(iter_text_parts_docx_paged(f))
+        assert pages == []
+
+    def test_fewer_than_page_size(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_docx_paged
+
+        docx = pytest.importorskip("docx")
+
+        f = tmp_path / "small.docx"
+        doc = docx.Document()
+        for i in range(3):
+            doc.add_paragraph(f"Para {i}")
+        doc.save(str(f))
+
+        pages = list(iter_text_parts_docx_paged(f))
+        assert len(pages) == 1
+        assert pages[0][0] == 1
+
+
+class TestImportDocxDocument:
+    """Test python-docx lazy import."""
+
+    def test_returns_document_class(self) -> None:
+        from docfinder.ingestion.pdf_loader import _import_docx_document
+
+        docx = pytest.importorskip("docx")
+
+        result = _import_docx_document()
+        assert result is docx.Document
+
+    @patch.dict("sys.modules", {"docx": None})
+    def test_returns_none_when_not_installed(self) -> None:
+        from docfinder.ingestion.pdf_loader import _import_docx_document
+
+        result = _import_docx_document()
+        assert result is None
+
+
+class TestIterTextBySuffix:
+    """Test the file-type dispatcher."""
+
+    def test_pdf_dispatch(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_text_by_suffix
+
+        with patch("docfinder.ingestion.pdf_loader.iter_text_parts") as mock:
+            mock.return_value = iter(["pdf text"])
+            parts = list(_iter_text_by_suffix(tmp_path / "file.pdf"))
+            assert parts == ["pdf text"]
+            mock.assert_called_once()
+
+    def test_txt_dispatch(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_text_by_suffix
+
+        f = tmp_path / "file.txt"
+        f.write_text("hello")
+        parts = list(_iter_text_by_suffix(f))
+        assert "hello" in parts[0]
+
+    def test_md_dispatch(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_text_by_suffix
+
+        f = tmp_path / "file.md"
+        f.write_text("content")
+        parts = list(_iter_text_by_suffix(f))
+        assert "content" in parts[0]
+
+    def test_docx_dispatch(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_text_by_suffix
+
+        docx = pytest.importorskip("docx")
+
+        f = tmp_path / "file.docx"
+        doc = docx.Document()
+        doc.add_paragraph("docx content")
+        doc.save(str(f))
+        parts = list(_iter_text_by_suffix(f))
+        assert any("docx content" in p for p in parts)
+
+    def test_unsupported_extension(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_text_by_suffix
+
+        f = tmp_path / "file.xyz"
+        f.write_text("data")
+        parts = list(_iter_text_by_suffix(f))
+        assert parts == []
+
+
+class TestGetTitle:
+    """Test _get_title helper."""
+
+    @patch("docfinder.ingestion.pdf_loader.get_pdf_metadata")
+    def test_pdf_with_title(self, mock_meta: MagicMock, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _get_title
+
+        mock_meta.return_value = {"title": "My PDF Title"}
+        result = _get_title(tmp_path / "doc.pdf")
+        assert result == "My PDF Title"
+
+    @patch("docfinder.ingestion.pdf_loader.get_pdf_metadata")
+    def test_pdf_metadata_error(self, mock_meta: MagicMock, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _get_title
+
+        mock_meta.side_effect = Exception("cannot open")
+        result = _get_title(tmp_path / "broken.pdf")
+        assert result == "broken"
+
+    def test_non_pdf_uses_stem(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _get_title
+
+        result = _get_title(tmp_path / "report.txt")
+        assert result == "report"
+
+
+class TestIterPagedText:
+    """Test the paged text dispatcher."""
+
+    def test_dispatches_pdf(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_paged_text
+
+        with patch("docfinder.ingestion.pdf_loader.iter_text_parts_paged") as mock:
+            mock.return_value = iter([(1, "page text")])
+            pages = list(_iter_paged_text(tmp_path / "file.pdf"))
+            assert pages == [(1, "page text")]
+
+    def test_dispatches_md(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_paged_text
+
+        f = tmp_path / "file.md"
+        f.write_text("# Hello\nWorld")
+        pages = list(_iter_paged_text(f))
+        assert len(pages) >= 1
+
+    def test_dispatches_txt(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_paged_text
+
+        f = tmp_path / "file.txt"
+        f.write_text("Some content")
+        pages = list(_iter_paged_text(f))
+        assert len(pages) == 1
+
+    def test_dispatches_docx(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_paged_text
+
+        docx = pytest.importorskip("docx")
+
+        f = tmp_path / "file.docx"
+        doc = docx.Document()
+        doc.add_paragraph("Hello")
+        doc.save(str(f))
+        pages = list(_iter_paged_text(f))
+        assert len(pages) >= 1
+
+    def test_unsupported_returns_empty(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_paged_text
+
+        f = tmp_path / "file.xyz"
+        f.write_text("data")
+        pages = list(_iter_paged_text(f))
+        assert pages == []
+
+
+class TestIterTextPartsPaged:
+    """Test iter_text_parts_paged (PDF-specific paged extraction)."""
+
+    @patch("docfinder.ingestion.pdf_loader.fitz")
+    def test_yields_page_numbers(self, mock_fitz: MagicMock, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_paged
+
+        mock_page1 = MagicMock()
+        mock_page1.get_text.return_value = "First page"
+        mock_page1.find_tables.return_value = MagicMock(tables=[])
+        mock_page2 = MagicMock()
+        mock_page2.get_text.return_value = "Second page"
+        mock_page2.find_tables.return_value = MagicMock(tables=[])
+
+        mock_doc = MagicMock()
+        mock_doc.__len__ = MagicMock(return_value=2)
+        mock_doc.__getitem__ = MagicMock(side_effect=[mock_page1, mock_page2])
+        mock_fitz.open.return_value = mock_doc
+
+        pages = list(iter_text_parts_paged(tmp_path / "test.pdf"))
+        assert len(pages) == 2
+        assert pages[0][0] == 1
+        assert pages[1][0] == 2
+        assert "First page" in pages[0][1]
+        assert "Second page" in pages[1][1]
+
+    @patch("docfinder.ingestion.pdf_loader.fitz")
+    def test_open_error(self, mock_fitz: MagicMock, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_paged
+
+        mock_fitz.open.side_effect = Exception("cannot open")
+        pages = list(iter_text_parts_paged(tmp_path / "bad.pdf"))
+        assert pages == []
+
+    @patch("docfinder.ingestion.pdf_loader.fitz")
+    def test_skips_empty_pages(self, mock_fitz: MagicMock, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_paged
+
+        mock_page1 = MagicMock()
+        mock_page1.get_text.return_value = "Content"
+        mock_page1.find_tables.return_value = MagicMock(tables=[])
+        mock_page2 = MagicMock()
+        mock_page2.get_text.return_value = ""
+        mock_page2.find_tables.return_value = MagicMock(tables=[])
+
+        mock_doc = MagicMock()
+        mock_doc.__len__ = MagicMock(return_value=2)
+        mock_doc.__getitem__ = MagicMock(side_effect=[mock_page1, mock_page2])
+        mock_fitz.open.return_value = mock_doc
+
+        pages = list(iter_text_parts_paged(tmp_path / "test.pdf"))
+        assert len(pages) == 1

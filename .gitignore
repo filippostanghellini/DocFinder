@@ -153,3 +153,7 @@ Thumbs.db
 # Project specific
 data/
 idea_and_info/
+
+# Todo and claude agents
+TODO.md
+/.claude

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from contextlib import contextmanager
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Iterator, List, Sequence
 
 import numpy as np
@@ -94,6 +94,19 @@ class SQLiteVectorStore:
             if "embedding" not in columns:
                 conn.execute("ALTER TABLE chunks ADD COLUMN embedding BLOB")
 
+    @staticmethod
+    def _normalize_path(path: str | Path) -> str:
+        """Return a separator-stable representation for stored paths."""
+        return str(path).replace("\\", "/")
+
+    @classmethod
+    def _normalize_folder(cls, folder: str | Path) -> str:
+        """Normalize folder filters while preserving root/drive roots."""
+        normalized = cls._normalize_path(folder)
+        while normalized.endswith("/") and normalized != "/" and not normalized.endswith(":/"):
+            normalized = normalized[:-1]
+        return normalized
+
     def init_document(self, document: DocumentMetadata) -> tuple[int, str]:
         """Initialize a document for insertion.
 
@@ -105,8 +118,8 @@ class SQLiteVectorStore:
         conn = self._conn
 
         existing = conn.execute(
-            "SELECT id, sha256 FROM documents WHERE path = ?",
-            (str(document.path),),
+            "SELECT id, sha256 FROM documents WHERE REPLACE(path, '\\', '/') = ?",
+            (self._normalize_path(document.path),),
         ).fetchone()
 
         if existing and existing["sha256"] == document.sha256:
@@ -170,10 +183,15 @@ class SQLiteVectorStore:
             self.insert_chunks(doc_id, chunks, embeddings)
             return status
 
-    def search(self, embedding: np.ndarray, *, top_k: int = 10) -> List[dict]:
+    def search(
+        self,
+        embedding: np.ndarray,
+        *,
+        top_k: int = 10,
+        folders: Sequence[str] | None = None,
+    ) -> List[dict]:
         query = np.asarray(embedding, dtype="float32")
-        rows = self._conn.execute(
-            """
+        sql = """
             SELECT
                 c.document_id AS document_id,
                 d.path AS path,
@@ -185,7 +203,28 @@ class SQLiteVectorStore:
             FROM chunks c
             JOIN documents d ON d.id = c.document_id
             """
-        ).fetchall()
+        params: list[str] = []
+
+        if folders is not None:
+            normalized = sorted(
+                {
+                    self._normalize_folder(f.strip())
+                    for f in folders
+                    if f and f.strip() and self._normalize_folder(f.strip())
+                }
+            )
+            if not normalized:
+                return []
+
+            clauses: list[str] = []
+            for folder in normalized:
+                clauses.append(
+                    "(REPLACE(d.path, '\\', '/') = ? OR REPLACE(d.path, '\\', '/') LIKE ?)"
+                )
+                params.extend([folder, f"{folder}/%"])
+            sql += " WHERE " + " OR ".join(clauses)
+
+        rows = self._conn.execute(sql, params).fetchall()
 
         if not rows:
             return []
@@ -214,6 +253,40 @@ class SQLiteVectorStore:
                 }
             )
         return results
+
+    def list_indexed_directories(self) -> List[dict]:
+        """Return indexed parent directories and document counts."""
+        rows = self._conn.execute("SELECT path FROM documents").fetchall()
+        counts: dict[str, int] = {}
+        for row in rows:
+            normalized_path = self._normalize_path(row["path"])
+            parent = str(PurePosixPath(normalized_path).parent)
+            counts[parent] = counts.get(parent, 0) + 1
+
+        return [{"path": path, "document_count": counts[path]} for path in sorted(counts.keys())]
+
+    def get_document_chunk_count(self, document_id: int) -> int:
+        """Return the total number of chunks for a document."""
+        row = self._conn.execute(
+            "SELECT COUNT(*) FROM chunks WHERE document_id = ?", (document_id,)
+        ).fetchone()
+        return row[0] if row else 0
+
+    def get_all_chunks(self, document_id: int) -> List[dict]:
+        """Return all chunks for a document, ordered by chunk_index."""
+        rows = self._conn.execute(
+            """
+            SELECT chunk_index, text, metadata
+            FROM chunks
+            WHERE document_id = ?
+            ORDER BY chunk_index
+            """,
+            (document_id,),
+        ).fetchall()
+        return [
+            {"chunk_index": row["chunk_index"], "text": row["text"], "metadata": row["metadata"]}
+            for row in rows
+        ]
 
     def get_context_window(
         self, document_id: int, center_index: int, window_size: int = 10
@@ -393,7 +466,11 @@ class SQLiteVectorStore:
         Returns True if document was found and deleted, False otherwise.
         """
         with self.transaction() as conn:
-            existing = conn.execute("SELECT id FROM documents WHERE path = ?", (path,)).fetchone()
+            normalized_path = self._normalize_path(path)
+            existing = conn.execute(
+                "SELECT id FROM documents WHERE REPLACE(path, '\\', '/') = ?",
+                (normalized_path,),
+            ).fetchone()
 
             if not existing:
                 return False

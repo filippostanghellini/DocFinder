@@ -33,8 +33,6 @@ from pathlib import Path
 # Disable tokenizers parallelism to prevent forking issues with PyInstaller
 # This must be set before any imports of transformers/tokenizers
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
 
 # Set multiprocessing start method to spawn on all platforms for PyInstaller compatibility
 # This prevents issues with forked processes re-executing the main script
@@ -816,6 +814,11 @@ def main() -> None:
         url = f"http://{host}:{port}"
 
         logger.info("Starting DocFinder server on %s", url)
+
+        # Mark as GUI mode so notifications fire on indexing completion
+        from docfinder.web.app import set_gui_mode
+
+        set_gui_mode(True)
 
         # Start the server in a background thread
         server_thread = ServerThread(host, port)

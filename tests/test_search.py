@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 
 import numpy as np
 
+from docfinder.index.reranker import Reranker
 from docfinder.index.search import Searcher, SearchResult
 
 
@@ -161,6 +162,21 @@ class TestSearcher:
         call_args = mock_store.search.call_args
         assert call_args[1]["top_k"] == 25
 
+    def test_search_passes_folder_filters(self) -> None:
+        """Should pass selected folders down to storage search."""
+        mock_embedder = MagicMock()
+        mock_embedder.embed_query.return_value = np.array([0.1])
+
+        mock_store = MagicMock()
+        mock_store.search.return_value = []
+
+        searcher = Searcher(mock_embedder, mock_store)
+        folders = ["/Users/test/articles", "/Users/test/posters"]
+        searcher.search("query", top_k=10, folders=folders)
+
+        call_args = mock_store.search.call_args
+        assert call_args[1]["folders"] == folders
+
     def test_search_metadata_parsing(self) -> None:
         """Should parse JSON metadata correctly."""
         mock_embedder = MagicMock()
@@ -184,3 +200,93 @@ class TestSearcher:
         results = searcher.search("query")
 
         assert results[0].metadata == complex_metadata
+
+    def test_search_without_reranker(self) -> None:
+        """Should work identically when reranker is None."""
+        mock_embedder = MagicMock()
+        mock_embedder.embed_query.return_value = np.array([0.1, 0.2])
+
+        mock_store = MagicMock()
+        mock_store.search.return_value = [
+            {
+                "path": "/doc.pdf",
+                "title": "Doc",
+                "chunk_index": 0,
+                "score": 0.9,
+                "text": "Text",
+                "metadata": "{}",
+            }
+        ]
+
+        searcher = Searcher(mock_embedder, mock_store, reranker=None)
+        results = searcher.search("query", top_k=5)
+
+        assert len(results) == 1
+        assert results[0].score == 0.9
+        # Without reranker, top_k is passed directly to store
+        call_args = mock_store.search.call_args
+        assert call_args[1]["top_k"] == 5
+
+    def test_search_with_reranker_fetches_more_candidates(self) -> None:
+        """With reranker, should fetch more candidates from the store."""
+        mock_embedder = MagicMock()
+        mock_embedder.embed_query.return_value = np.array([0.1])
+
+        mock_store = MagicMock()
+        mock_store.search.return_value = [
+            {
+                "path": f"/doc{i}.pdf",
+                "title": f"Doc {i}",
+                "chunk_index": 0,
+                "score": 0.9 - i * 0.01,
+                "text": f"Text {i}",
+                "metadata": "{}",
+            }
+            for i in range(30)
+        ]
+
+        mock_reranker = MagicMock(spec=Reranker)
+        mock_reranker.rerank.return_value = [
+            {
+                "path": "/doc5.pdf",
+                "title": "Doc 5",
+                "chunk_index": 0,
+                "score": 0.99,
+                "text": "Text 5",
+                "metadata": "{}",
+            }
+        ]
+
+        searcher = Searcher(mock_embedder, mock_store, reranker=mock_reranker)
+        results = searcher.search("query", top_k=5)
+
+        # Should fetch max(5*3, 30) = 30 candidates
+        call_args = mock_store.search.call_args
+        assert call_args[1]["top_k"] == 30
+
+        # Should have called reranker with the candidates
+        mock_reranker.rerank.assert_called_once()
+        rerank_args = mock_reranker.rerank.call_args
+        assert rerank_args[1]["top_k"] == 5
+
+        # Should return the reranked result
+        assert len(results) == 1
+        assert results[0].path == Path("/doc5.pdf")
+        assert results[0].score == 0.99
+
+    def test_search_with_reranker_empty_results(self) -> None:
+        """With reranker, should handle empty store results gracefully."""
+        mock_embedder = MagicMock()
+        mock_embedder.embed_query.return_value = np.array([0.1])
+
+        mock_store = MagicMock()
+        mock_store.search.return_value = []
+
+        mock_reranker = MagicMock(spec=Reranker)
+
+        searcher = Searcher(mock_embedder, mock_store, reranker=mock_reranker)
+        results = searcher.search("query", top_k=5)
+
+        assert len(results) == 0
+        # Reranker should not be called for empty results
+        mock_reranker.rerank.assert_not_called()

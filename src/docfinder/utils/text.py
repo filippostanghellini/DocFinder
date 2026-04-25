@@ -1,8 +1,37 @@
-"""Text helpers including simple token-aware chunking."""
+"""Text helpers including sentence-aware chunking."""
 
 from __future__ import annotations
 
+import re
 from typing import Iterable, Iterator
+
+# Sentence boundary: period/question/exclamation followed by whitespace,
+# or double newline (paragraph break).  Lookbehind avoids splitting on
+# common abbreviations (e.g., Mr., Dr., vs., etc.) and decimal numbers.
+_SENTENCE_END = re.compile(
+    r"(?<=[.!?])\s+(?=[A-Z\u00C0-\u024F\d\"'\(\[])"  # ". Next" or "? 123"
+    r"|(?<=\n)\n+",  # paragraph breaks
+)
+
+
+def _split_sentences(text: str) -> list[str]:
+    """Split *text* into sentence-like segments.
+
+    Uses regex to split at sentence boundaries while keeping
+    the text intact (no characters are lost).
+    """
+    if not text:
+        return []
+
+    parts = _SENTENCE_END.split(text)
+    # Merge very short fragments (< 20 chars) back into previous sentence
+    merged: list[str] = []
+    for part in parts:
+        if merged and len(merged[-1]) < 20:
+            merged[-1] += part
+        else:
+            merged.append(part)
+    return [s for s in merged if s.strip()]
 
 
 def chunk_text(text: str, *, max_chars: int = 1200, overlap: int = 200) -> Iterator[str]:
@@ -44,36 +73,58 @@ def chunk_text_stream(
 def chunk_text_stream_paged(
     pages: Iterable[tuple[int, str]], *, max_chars: int = 1200, overlap: int = 200
 ) -> Iterator[tuple[str, int]]:
-    """Split a stream of (page_number, text) into overlapping chunks.
+    """Split a stream of ``(page_number, text)`` into sentence-aware chunks.
 
     Yields ``(chunk_text, page_number)`` where ``page_number`` is the page
     that contributed the **start** of the chunk.
 
-    This preserves page provenance so that downstream code can store the
-    originating page in chunk metadata.
+    Algorithm:
+    1. Incoming text is split into sentences.
+    2. Sentences accumulate until adding the next one would exceed *max_chars*.
+    3. When a chunk is emitted, the last sentence(s) of the previous chunk
+       are kept as semantic overlap (up to *overlap* characters worth).
+    4. Paragraph breaks (``\\n\\n``) are preferred split points.
     """
-    buffer = ""
-    # Track which page the start of the buffer came from
-    buf_page = 0
-    step = max(max_chars - overlap, 1)
+    # Accumulated sentences for the current chunk
+    sentences: list[str] = []
+    # Page number for the start of the current chunk
+    chunk_page: int = 0
+    # Running character count for current chunk
+    chunk_len: int = 0
 
     for page_num, part in pages:
-        if not buffer:
-            buf_page = page_num
-        buffer += part
-        while len(buffer) >= max_chars:
-            yield buffer[:max_chars], buf_page
-            buffer = buffer[step:]
-            # After slicing, the start of the buffer has shifted.
-            # The overlap region still belongs to the old page, so
-            # we keep buf_page unchanged — it's the page of the
-            # beginning of the chunk.  It will be updated when new
-            # text is appended from the next page.
-            if not buffer:
-                buf_page = page_num
+        if not sentences:
+            chunk_page = page_num
 
-    if buffer:
-        yield buffer, buf_page
+        page_sentences = _split_sentences(part)
+
+        for sentence in page_sentences:
+            sent_len = len(sentence)
+
+            # If adding this sentence exceeds max_chars and we already have content
+            if chunk_len + sent_len > max_chars and sentences:
+                # Emit current chunk
+                yield "".join(sentences), chunk_page
+
+                # Semantic overlap: keep last sentence(s) up to `overlap` chars
+                overlap_sents: list[str] = []
+                overlap_len = 0
+                for s in reversed(sentences):
+                    if overlap_len + len(s) > overlap and overlap_sents:
+                        break
+                    overlap_sents.insert(0, s)
+                    overlap_len += len(s)
+
+                sentences = overlap_sents
+                chunk_len = overlap_len
+                chunk_page = page_num
+
+            sentences.append(sentence)
+            chunk_len += sent_len
+
+    # Emit remaining content
+    if sentences:
+        yield "".join(sentences), chunk_page
 
 
 def normalize_whitespace(lines: Iterable[str]) -> str:

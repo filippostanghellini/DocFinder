@@ -11,6 +11,10 @@ from docfinder.index.storage import SQLiteVectorStore
 from docfinder.models import ChunkRecord, DocumentMetadata
 
 
+def _normalize_path(value: str) -> str:
+    return value.replace("\\", "/")
+
+
 @pytest.fixture
 def temp_db(tmp_path):
     """Create a temporary database for testing."""
@@ -358,6 +362,84 @@ class TestSearch:
         scores = [r["score"] for r in results]
         assert scores == sorted(scores, reverse=True)
 
+    def test_search_with_folder_filters(self, temp_db):
+        """Search should return only results from selected folders."""
+        doc_a = DocumentMetadata(
+            path=Path("/tmp/folder_a/doc1.pdf"),
+            title="A1",
+            sha256="hash_a1",
+            mtime=1234567890.0,
+            size=1000,
+        )
+        doc_b = DocumentMetadata(
+            path=Path("/tmp/folder_b/doc2.pdf"),
+            title="B1",
+            sha256="hash_b1",
+            mtime=1234567890.0,
+            size=1000,
+        )
+        chunk_a = [ChunkRecord(document_path=doc_a.path, index=0, text="Text A", metadata={})]
+        chunk_b = [ChunkRecord(document_path=doc_b.path, index=0, text="Text B", metadata={})]
+        emb_a = np.random.rand(1, 384).astype("float32")
+        emb_b = np.random.rand(1, 384).astype("float32")
+        temp_db.upsert_document(doc_a, chunk_a, emb_a)
+        temp_db.upsert_document(doc_b, chunk_b, emb_b)
+
+        query = np.random.rand(384).astype("float32")
+        results = temp_db.search(query, top_k=10, folders=["/tmp/folder_a"])
+
+        assert len(results) == 1
+        assert _normalize_path(results[0]["path"]) == "/tmp/folder_a/doc1.pdf"
+
+
+class TestIndexedDirectories:
+    """Test indexed directory listing for search filters."""
+
+    def test_list_indexed_directories(self, temp_db):
+        doc1 = DocumentMetadata(
+            path=Path("/tmp/alpha/doc1.pdf"),
+            title="Doc 1",
+            sha256="h1",
+            mtime=1234567890.0,
+            size=1000,
+        )
+        doc2 = DocumentMetadata(
+            path=Path("/tmp/alpha/doc2.pdf"),
+            title="Doc 2",
+            sha256="h2",
+            mtime=1234567890.0,
+            size=1000,
+        )
+        doc3 = DocumentMetadata(
+            path=Path("/tmp/beta/doc3.pdf"),
+            title="Doc 3",
+            sha256="h3",
+            mtime=1234567890.0,
+            size=1000,
+        )
+        emb = np.random.rand(1, 384).astype("float32")
+        temp_db.upsert_document(
+            doc1,
+            [ChunkRecord(document_path=doc1.path, index=0, text="a", metadata={})],
+            emb,
+        )
+        temp_db.upsert_document(
+            doc2,
+            [ChunkRecord(document_path=doc2.path, index=0, text="b", metadata={})],
+            emb,
+        )
+        temp_db.upsert_document(
+            doc3,
+            [ChunkRecord(document_path=doc3.path, index=0, text="c", metadata={})],
+            emb,
+        )
+
+        directories = temp_db.list_indexed_directories()
+        assert directories == [
+            {"path": "/tmp/alpha", "document_count": 2},
+            {"path": "/tmp/beta", "document_count": 1},
+        ]
+
 
 class TestRemoveMissingFiles:
     """Test removing documents with missing files."""
@@ -574,6 +656,106 @@ class TestDeleteDocument:
         # Verify chunks removed
         cursor = temp_db.connection.execute("SELECT COUNT(*) FROM chunks")
         assert cursor.fetchone()[0] == 0
+
+
+class TestGetDocumentChunkCount:
+    """Test get_document_chunk_count method."""
+
+    def test_zero_chunks(self, temp_db):
+        """Document with no chunks returns 0."""
+        # Insert a document directly (no chunks)
+        temp_db.connection.execute(
+            "INSERT INTO documents(path, title, sha256, mtime, size) VALUES (?, ?, ?, ?, ?)",
+            ("/tmp/empty.pdf", "Empty", "hash_empty", 1234567890.0, 100),
+        )
+        temp_db.connection.commit()
+        doc_id = temp_db.connection.execute(
+            "SELECT id FROM documents WHERE path = ?", ("/tmp/empty.pdf",)
+        ).fetchone()["id"]
+
+        assert temp_db.get_document_chunk_count(doc_id) == 0
+
+    def test_with_chunks(self, temp_db):
+        """Document with N chunks returns N."""
+        doc = DocumentMetadata(
+            path=Path("/tmp/counted.pdf"),
+            title="Counted",
+            sha256="hash_counted",
+            mtime=1234567890.0,
+            size=1000,
+        )
+        n = 7
+        chunks = [
+            ChunkRecord(document_path=doc.path, index=i, text=f"Chunk {i}", metadata={})
+            for i in range(n)
+        ]
+        embeddings = np.random.rand(n, 384).astype("float32")
+        temp_db.upsert_document(doc, chunks, embeddings)
+
+        doc_id = temp_db.connection.execute(
+            "SELECT id FROM documents WHERE path = ?", (str(doc.path),)
+        ).fetchone()["id"]
+
+        assert temp_db.get_document_chunk_count(doc_id) == n
+
+    def test_nonexistent_document(self, temp_db):
+        """Nonexistent document_id returns 0."""
+        assert temp_db.get_document_chunk_count(9999) == 0
+
+
+class TestGetAllChunks:
+    """Test get_all_chunks method."""
+
+    def test_empty_document(self, temp_db):
+        """Document with no chunks returns empty list."""
+        temp_db.connection.execute(
+            "INSERT INTO documents(path, title, sha256, mtime, size) VALUES (?, ?, ?, ?, ?)",
+            ("/tmp/empty.pdf", "Empty", "hash_empty", 1234567890.0, 100),
+        )
+        temp_db.connection.commit()
+        doc_id = temp_db.connection.execute(
+            "SELECT id FROM documents WHERE path = ?", ("/tmp/empty.pdf",)
+        ).fetchone()["id"]
+
+        assert temp_db.get_all_chunks(doc_id) == []
+
+    def test_returns_all_chunks_ordered(self, temp_db):
+        """All chunks returned in ascending chunk_index order."""
+        doc = DocumentMetadata(
+            path=Path("/tmp/ordered.pdf"),
+            title="Ordered",
+            sha256="hash_ordered",
+            mtime=1234567890.0,
+            size=1000,
+        )
+        n = 5
+        chunks = [
+            ChunkRecord(
+                document_path=doc.path,
+                index=i,
+                text=f"Chunk {i}",
+                metadata={"page": i + 1},
+            )
+            for i in range(n)
+        ]
+        embeddings = np.random.rand(n, 384).astype("float32")
+        temp_db.upsert_document(doc, chunks, embeddings)
+
+        doc_id = temp_db.connection.execute(
+            "SELECT id FROM documents WHERE path = ?", (str(doc.path),)
+        ).fetchone()["id"]
+
+        result = temp_db.get_all_chunks(doc_id)
+
+        assert len(result) == n
+        indices = [c["chunk_index"] for c in result]
+        assert indices == list(range(n))
+        assert "Chunk 0" in result[0]["text"]
+        assert "Chunk 4" in result[4]["text"]
+
+    def test_nonexistent_document(self, temp_db):
+        """Nonexistent document_id returns empty list."""
+        assert temp_db.get_all_chunks(9999) == []
 
 
 class TestGetStats:
