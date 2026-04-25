@@ -222,7 +222,10 @@ class SQLiteVectorStore:
 
             clauses: list[str] = []
             for folder in normalized:
-                clauses.append("(REPLACE(d.path, '\\', '/') = ? OR REPLACE(d.path, '\\', '/') LIKE ?)")
+                clauses.append(
+                    "(REPLACE(d.path, '\\', '/') = ? "
+                    "OR REPLACE(d.path, '\\', '/') LIKE ?)"
+                )
                 params.extend([folder, f"{folder}/%"])
             sql += " WHERE " + " OR ".join(clauses)
 
