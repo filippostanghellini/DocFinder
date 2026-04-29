@@ -459,7 +459,10 @@ async def open_document(payload: OpenRequest) -> dict[str, str]:
             opener = "open" if sys.platform == "darwin" else "xdg-open"
             subprocess.Popen([opener, str(path)])
         else:
-            os.startfile(path)  # type: ignore[attr-defined]
+            normalized_path = os.path.normpath(str(path))
+            if not Path(normalized_path).is_absolute():
+                normalized_path = os.path.abspath(normalized_path)
+            os.startfile(normalized_path)  # type: ignore[attr-defined]
     except Exception as exc:  # pragma: no cover - defensive
         LOGGER.error("Unable to open %s: %s", path, exc)
         raise HTTPException(status_code=500, detail=str(exc))
