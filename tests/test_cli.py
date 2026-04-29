@@ -148,7 +148,9 @@ class TestSearchCommand:
         result = runner.invoke(app, ["search", "test query", "--db", str(db_path)])
         assert result.exit_code != 0
         # Error message is part of the output or in the exception repr
-        output = result.stdout + result.stderr if result.stderr else result.stdout
+        output = result.stdout
+        if result.stderr_bytes:
+            output += result.stderr or ""
         if result.exception:
             output += repr(result.exception)
         assert "Database not found" in output or result.exit_code == 2
