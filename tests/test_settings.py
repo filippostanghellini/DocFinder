@@ -151,5 +151,5 @@ class TestSaveSettings:
         with patch.object(settings, "get_settings_path", return_value=settings_file):
             save_settings({"hotkey": "<cmd>+ß", "custom_text": "日本語"})
 
-        data = json.loads(settings_file.read_text())
+        data = json.loads(settings_file.read_text(encoding="utf-8"))
         assert data["custom_text"] == "日本語"
