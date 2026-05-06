@@ -4,4 +4,4 @@ from docfinder import __version__
 
 
 def test_version_present() -> None:
-    assert __version__ == "2.0.0"
+    assert __version__ == "2.1.1"

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Chat button visibility** — Fixed chat buttons on search results now correctly respect the RAG enable/disable setting; buttons are hidden when RAG is disabled and visible when enabled, both on page load and after toggling the setting
 - **Windows: "Open file" button path handling** — Fixed file path normalization so the "Open" button works correctly on Windows systems; paths with forward slashes (`/`) are now properly converted to Windows backslashes (`\`) via `os.path.normpath()`
 
 ### Changed
