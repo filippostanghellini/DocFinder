@@ -32,8 +32,8 @@ def _get_default_db_path() -> Path:
 class AppConfig:
     db_path: Path | None = None
     model_name: str = DEFAULT_MODEL
-    chunk_chars: int = 500
-    overlap: int = 50
+    chunk_chars: int = 1200
+    overlap: int = 200
 
     def __post_init__(self) -> None:
         if self.db_path is None:
