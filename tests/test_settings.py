@@ -6,8 +6,6 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from docfinder import settings
 from docfinder.settings import (
     _default_hotkey,

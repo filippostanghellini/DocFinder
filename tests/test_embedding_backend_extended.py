@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from docfinder.embedding import encoder
 
 
@@ -81,7 +79,7 @@ class TestEmbeddingModelEmbed:
                 model = encoder.EmbeddingModel(config)
                 model._model = mock_model
 
-                result = model.embed(["test"], batch_size=64)
+                _ = model.embed(["test"], batch_size=64)
                 assert mock_model.encode.call_args[1]["batch_size"] == 64
 
     def test_embed_query_returns_single_embedding(self) -> None:

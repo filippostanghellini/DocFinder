@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from docfinder.utils.text import (
     chunk_text,
     chunk_text_stream,

@@ -5,9 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
-from docfinder.config import _get_default_db_path, AppConfig
+from docfinder.config import AppConfig, _get_default_db_path
 
 
 class TestGetDefaultDbPath:

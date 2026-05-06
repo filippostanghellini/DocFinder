@@ -14,9 +14,9 @@ class TestGetMemoryInfo:
 
     def test_returns_psutil_when_available(self) -> None:
         """Uses psutil when available."""
-        try:
-            import psutil
-        except ImportError:
+        import importlib.util
+
+        if importlib.util.find_spec("psutil") is None:
             pytest.skip("psutil not installed")
 
         mock_vm = MagicMock()
