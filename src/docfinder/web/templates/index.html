@@ -1741,6 +1741,7 @@
       window.addEventListener('load', () => {
         document.getElementById('query').focus();
         loadSearchFolders();
+        loadRagEnabled();
       });
 
       // ── Toast ────────────────────────────────────────────────────────────
@@ -1828,7 +1829,7 @@
       function renderResult(r) {
         const li = document.createElement('li');
         li.className = 'result-card';
-        const safePath = r.path.replace(/'/g, "\\'");
+        const safePath = r.path.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
         const title = r.title || r.path.split('/').pop();
         const pct   = Math.round(r.score * 100);
         li.innerHTML = `
@@ -1849,6 +1850,12 @@
             </button>
           </div>`;
         return li;
+      }
+
+      function updateChatButtonsVisibility() {
+        document.querySelectorAll('.chat-btn').forEach(btn => {
+          btn.style.display = ragEnabled ? 'inline-flex' : 'none';
+        });
       }
 
       function escHtml(s) {
@@ -2430,6 +2437,7 @@
           // RAG settings
           ragEnabled = s.rag_enabled === true;
           ragEnabledToggle.checked = ragEnabled;
+          updateChatButtonsVisibility();
           if (ragEnabled) {
             ragModelsSection.style.display = '';
             loadRagModels();
@@ -2474,6 +2482,16 @@
       let ragModelsData = [];
       let ragPollTimer = null;
 
+      async function loadRagEnabled() {
+        try {
+          const res = await fetch(`${apiBase}/settings`);
+          const s = await res.json();
+          ragEnabled = s.rag_enabled === true;
+          ragEnabledToggle.checked = ragEnabled;
+          updateChatButtonsVisibility();
+        } catch (_err) {}
+      }
+
       function formatBytes(b) {
         if (b >= 1e9) return (b / 1e9).toFixed(1) + ' GB';
         if (b >= 1e6) return (b / 1e6).toFixed(0) + ' MB';
@@ -2487,6 +2505,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ rag_enabled: ragEnabled }),
         });
+        updateChatButtonsVisibility();
         if (ragEnabled) {
           ragModelsSection.style.display = '';
           loadRagModels();

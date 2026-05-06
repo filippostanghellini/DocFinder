@@ -243,6 +243,36 @@ class TestOpenEndpoint:
                 assert response.status_code == 200
                 assert response.json()["status"] == "ok"
 
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows-only test")
+    @patch("os.startfile")
+    def test_open_file_success_windows(self, mock_startfile: MagicMock, tmp_path: Path) -> None:
+        """Opens file on Windows systems."""
+        test_file = tmp_path / "test.pdf"
+        test_file.touch()
+
+        with patch("os.name", "nt"):
+            response = client.post("/open", json={"path": str(test_file)})
+            assert response.status_code == 200
+            assert response.json()["status"] == "ok"
+            mock_startfile.assert_called_once()
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows-only test")
+    @patch("os.startfile")
+    def test_open_file_success_windows_forward_slashes(
+        self, mock_startfile: MagicMock, tmp_path: Path
+    ) -> None:
+        """Opens file on Windows with forward slash paths."""
+        test_file = tmp_path / "test.pdf"
+        test_file.touch()
+
+        forward_slash_path = str(test_file).replace("\\", "/")
+
+        with patch("os.name", "nt"):
+            response = client.post("/open", json={"path": forward_slash_path})
+            assert response.status_code == 200
+            assert response.json()["status"] == "ok"
+            mock_startfile.assert_called_once()
+
 
 class TestDocumentsEndpoint:
     """Tests for GET /documents endpoint."""

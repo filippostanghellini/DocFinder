@@ -18,8 +18,8 @@ class TestAppConfig:
         expected_path = _get_default_db_path()
         assert config.db_path == expected_path
         assert config.model_name == "sentence-transformers/all-mpnet-base-v2"
-        assert config.chunk_chars == 500
-        assert config.overlap == 50
+        assert config.chunk_chars == 1200
+        assert config.overlap == 200
 
     def test_custom_config(self) -> None:
         """Should create config with custom values."""
