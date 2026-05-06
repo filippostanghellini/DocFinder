@@ -75,7 +75,9 @@ class TestLoadSettings:
 
     def test_returns_defaults_when_file_missing(self, tmp_path: Path) -> None:
         """Returns default settings when file doesn't exist."""
-        with patch.object(settings, "get_settings_path", return_value=tmp_path / "nonexistent.json"):
+        with patch.object(
+            settings, "get_settings_path", return_value=tmp_path / "nonexistent.json"
+        ):
             result = load_settings()
             assert result["hotkey_enabled"] is True
             assert result["hotkey"] == "<alt>+d"

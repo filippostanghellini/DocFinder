@@ -70,10 +70,12 @@ class TestGetMemoryInfo:
                     mock_file.__enter__ = MagicMock(return_value=mock_file)
                     mock_file.__exit__ = MagicMock(return_value=False)
                     mock_file.__iter__ = MagicMock(
-                        return_value=iter([
-                            "MemTotal:       16384000 kB",
-                            "MemAvailable:    8192000 kB",
-                        ])
+                        return_value=iter(
+                            [
+                                "MemTotal:       16384000 kB",
+                                "MemAvailable:    8192000 kB",
+                            ]
+                        )
                     )
                     mock_open.return_value = mock_file
 
@@ -91,10 +93,12 @@ class TestGetMemoryInfo:
                     mock_file.__enter__ = MagicMock(return_value=mock_file)
                     mock_file.__exit__ = MagicMock(return_value=False)
                     mock_file.__iter__ = MagicMock(
-                        return_value=iter([
-                            "MemTotal:       16384000 kB",
-                            "MemFree:         4096000 kB",
-                        ])
+                        return_value=iter(
+                            [
+                                "MemTotal:       16384000 kB",
+                                "MemFree:         4096000 kB",
+                            ]
+                        )
                     )
                     mock_open.return_value = mock_file
 
