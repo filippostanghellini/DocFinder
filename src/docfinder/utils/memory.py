@@ -29,13 +29,15 @@ def get_memory_info() -> dict[str, Any]:
 
             total = int(_sp.check_output(["sysctl", "-n", "hw.memsize"]).strip())
             vm_out = _sp.check_output(["vm_stat"]).decode()
-            free_pages = inactive_pages = 0
+            free_pages = inactive_pages = purgeable_pages = 0
             for line in vm_out.splitlines():
                 if line.startswith("Pages free:"):
                     free_pages = int(line.split(":")[1].strip().rstrip("."))
                 elif line.startswith("Pages inactive:"):
                     inactive_pages = int(line.split(":")[1].strip().rstrip("."))
-            available = (free_pages + inactive_pages) * 4096
+                elif line.startswith("Pages purgeable:"):
+                    purgeable_pages = int(line.split(":")[1].strip().rstrip("."))
+            available = (free_pages + inactive_pages + purgeable_pages) * 4096
             return {"available_mb": available // (1024 * 1024), "total_mb": total // (1024 * 1024)}
         except Exception:
             pass

@@ -5,7 +5,8 @@ from __future__ import annotations
 import gc
 import logging
 import os
-from concurrent.futures import ProcessPoolExecutor
+import sys
+from concurrent.futures import BrokenExecutor, ProcessPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Sequence
@@ -42,15 +43,33 @@ def _parse_document(args: tuple) -> dict | None:
     This is a top-level function so it can be pickled by multiprocessing.
     Returns a dict with path, metadata, and chunk texts, or None on failure.
     """
+    import sys
+    import traceback
+
     path_str, chunk_chars, overlap = args
     path = Path(path_str)
+
+    # Worker-local logger to ensure output is captured
+    worker_logger = logging.getLogger(f"{__name__}.worker[{os.getpid()}]")
+    worker_logger.info("Worker starting to parse: %s", path_str)
+
     try:
         chunks = list(build_chunks(path, max_chars=chunk_chars, overlap=overlap))
+        worker_logger.info("Worker extracted %d chunks from: %s", len(chunks), path_str)
+
         if not chunks:
+            worker_logger.warning("Worker found no chunks in: %s", path_str)
             return {"path": path_str, "status": "empty"}
 
         sha256 = compute_sha256(path)
         stat = path.stat()
+        worker_logger.info(
+            "Worker done: %s (size=%d, chunks=%d)",
+            path_str,
+            stat.st_size,
+            len(chunks),
+        )
+
         return {
             "path": path_str,
             "status": "ok",
@@ -61,7 +80,23 @@ def _parse_document(args: tuple) -> dict | None:
             "chunks": [{"index": c.index, "text": c.text, "metadata": c.metadata} for c in chunks],
         }
     except Exception as e:
-        return {"path": path_str, "status": "error", "error": str(e)}
+        exc_details = "".join(traceback.format_exception(*sys.exc_info()))
+        worker_logger.error("Worker failed for %s: %s\n%s", path_str, e, exc_details)
+        return {"path": path_str, "status": "error", "error": f"{type(e).__name__}: {e}"}
+
+
+def _parse_document_safe(args: tuple) -> dict | None:
+    """Safe wrapper for _parse_document with enhanced error reporting."""
+    path_str, chunk_chars, overlap = args
+    try:
+        return _parse_document(args)
+    except Exception as e:
+        import sys
+        import traceback
+
+        exc_info = "".join(traceback.format_exception(*sys.exc_info()))
+        LOGGER.error("Worker exception for %s: %s\n%s", path_str, e, exc_info)
+        return {"path": path_str, "status": "error", "error": f"Worker exception: {e}"}
 
 
 @dataclass(slots=True)
@@ -170,15 +205,94 @@ class Indexer:
         num_workers = self._compute_parallel_workers(len(doc_files))
         self.last_num_workers = num_workers
         LOGGER.info(
-            "Parallel parsing %d documents with %d workers",
+            "Parallel parsing %d documents with %d workers: %s",
             len(doc_files),
             num_workers,
+            [str(p) for p in doc_files],
         )
 
         args = [(str(p), self.chunk_chars, self.overlap) for p in doc_files]
 
-        with ProcessPoolExecutor(max_workers=num_workers) as executor:
-            results = list(executor.map(_parse_document, args))
+        results: list | None = None
+        parsing_mode = "parallel"
+        try:
+            with ProcessPoolExecutor(max_workers=num_workers) as executor:
+                LOGGER.info("ProcessPoolExecutor started with %d workers", num_workers)
+                results = list(executor.map(_parse_document, args))
+                LOGGER.info("ProcessPoolExecutor completed, got %d results", len(results))
+        except (BrokenExecutor, OSError) as exc:
+            parsing_mode = "sequential"
+            LOGGER.warning(
+                "Process pool crashed during parallel parsing: %s. "
+                "Falling back to sequential processing for %d documents.",
+                exc,
+                len(doc_files),
+            )
+            self.last_num_workers = 1
+            results = None
+            try:
+                LOGGER.info("Starting sequential parsing of %d documents", len(doc_files))
+                results = []
+                for i, arg in enumerate(args):
+                    LOGGER.info(
+                        "Sequential: processing document %d/%d: %s",
+                        i + 1,
+                        len(args),
+                        arg[0],
+                    )
+                    try:
+                        result = _parse_document(arg)
+                        results.append(result)
+                        status = result.get("status") if result else "None"
+                        LOGGER.info(
+                            "Sequential: completed document %d: status=%s",
+                            i + 1,
+                            status,
+                        )
+                    except Exception as doc_err:
+                        LOGGER.error("Sequential parsing failed for %s: %s", arg[0], doc_err)
+                        results.append({"path": arg[0], "status": "error", "error": str(doc_err)})
+                LOGGER.info("Sequential parsing completed, got %d results", len(results))
+            except Exception as seq_err:
+                LOGGER.error("Sequential fallback also failed: %s", seq_err)
+                results = []
+
+        if results is None:
+            LOGGER.error("Parallel parsing returned no results")
+            for path in doc_files:
+                stats.failed += 1
+                stats.processed_files.append(path)
+            return
+
+        LOGGER.info(
+            "Starting embedding/storage for %d docs (parsing: %s)",
+            len(results),
+            parsing_mode,
+        )
+
+        # Use conservative batch size to avoid memory issues on macOS
+        mem_info = get_memory_info()
+        available_mb = mem_info.get("available_mb")
+
+        batch_size = 16
+        if available_mb is not None:
+            if available_mb >= 16384:
+                batch_size = 64
+            elif available_mb >= 8192:
+                batch_size = 32
+            elif available_mb >= 4096:
+                batch_size = 16
+            elif available_mb >= 2048:
+                batch_size = 8
+            else:
+                batch_size = 4
+
+        LOGGER.info(
+            "Using embedding batch_size=%d (platform=%s, available RAM: %s MB)",
+            batch_size,
+            sys.platform,
+            available_mb,
+        )
 
         for i, result in enumerate(results):
             path = doc_files[i]
@@ -202,16 +316,25 @@ class Indexer:
                     stats.increment("skipped", path)
                     continue
 
-                status = self._embed_and_store(path, result)
+                status = self._embed_and_store(path, result, batch_size)
+                LOGGER.info("Embedded/stored document %d/%d: %s", i + 1, len(results), status)
                 stats.increment(status, path)
             except Exception as e:
-                LOGGER.error(f"Failed to process {path}: {e}")
+                LOGGER.error("Failed to process %s: %s", path, e)
                 stats.failed += 1
                 stats.processed_files.append(path)
             gc.collect()
 
-    def _embed_and_store(self, path: Path, parsed: dict) -> str:
+    def _embed_and_store(self, path: Path, parsed: dict, batch_size: int = 32) -> str:
         """Embed pre-parsed chunks and store them in the database."""
+        num_chunks = len(parsed["chunks"])
+        LOGGER.info(
+            "Embedding %d chunks from %s (batch_size=%d)",
+            num_chunks,
+            path.name,
+            batch_size,
+        )
+
         document = DocumentMetadata(
             path=path,
             title=parsed["title"],
@@ -236,25 +359,37 @@ class Indexer:
                 for cd in chunk_dicts
             ]
 
-            batch_size = 64
-            for start in range(0, len(chunks), batch_size):
-                batch = chunks[start : start + batch_size]
+            embed_batch_size = min(batch_size, len(chunks))
+            for start in range(0, len(chunks), embed_batch_size):
+                batch = chunks[start : start + embed_batch_size]
+                LOGGER.debug(
+                    "Embedding batch %d-%d of %d chunks",
+                    start,
+                    min(start + embed_batch_size, len(chunks)),
+                    len(chunks),
+                )
                 embeddings = self.embedder.embed(
                     [c.text for c in batch],
                     batch_size=self.embed_batch_size,
                 )
                 self.store.insert_chunks(doc_id, batch, embeddings)
+                gc.collect()  # Collect after each batch to free memory
 
         return status
 
     def _compute_parallel_workers(self, doc_count: int) -> int:
         """Compute balanced worker count for parallel document parsing."""
-        cpu_count = os.cpu_count() or 1
-        base_workers = min(cpu_count, max(1, doc_count))
+        # Use 1 worker on macOS to avoid ProcessPoolExecutor crashes
+        # TODO: investigate why workers die on macOS
+        if sys.platform == "darwin":
+            base_workers = 1
+        else:
+            cpu_count = os.cpu_count() or 1
+            base_workers = min(cpu_count, max(1, doc_count))
 
-        # Balanced mode: keep one CPU for responsiveness when possible.
-        if base_workers > 2:
-            base_workers -= 1
+            # Balanced mode: keep one CPU for responsiveness when possible.
+            if base_workers > 2:
+                base_workers -= 1
 
         mem_info = get_memory_info()
         available_mb = mem_info.get("available_mb")
