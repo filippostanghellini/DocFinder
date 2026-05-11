@@ -88,11 +88,11 @@ def detect_optimal_backend() -> tuple[Literal["torch", "onnx"], str | None]:
         - onnx_model_file: ONNX model file name (if backend is "onnx"), or None
 
     Strategy:
-        - Apple Silicon (M1/M2/M3): Use ONNX with ARM64 quantized model + CoreML
-        - NVIDIA GPU (CUDA): Use ONNX with CUDAExecutionProvider if available
-        - AMD GPU (ROCm): Use ONNX with ROCMExecutionProvider if available
-        - Intel Mac: Use ONNX with standard model
-        - CPU only: Use ONNX with standard model
+        - Apple Silicon with MPS: PyTorch MPS (fastest for embeddings)
+        - Apple Silicon without MPS: ONNX with ARM64 quantized model or PyTorch CPU
+        - NVIDIA GPU (CUDA): ONNX CUDA provider if available, else PyTorch CUDA
+        - AMD GPU (ROCm): ONNX ROCm provider if available, else PyTorch fallback
+        - Intel Mac / CPU-only: ONNX or PyTorch CPU fallback
     """
     backend, onnx_model_file, _device = detect_optimal_backend_config()
     return (backend, onnx_model_file)
@@ -112,12 +112,20 @@ def detect_optimal_backend_config() -> tuple[
         has_gpu, gpu_type = _check_gpu_availability()
         onnx_providers = _check_onnx_providers()
 
-        # Apple Silicon - prefer quantized ONNX model
+        # Apple MPS GPU - use PyTorch MPS (faster than ONNX/CoreML for embeddings)
+        if gpu_type == "mps":
+            logger.info("Apple MPS GPU detected - using PyTorch MPS backend")
+            return ("torch", None, "mps")
+
+        # Apple Silicon without MPS (older PyTorch) - use ONNX as fallback
         if sys.platform == "darwin" and (
             platform.processor() == "arm" or platform.machine() == "arm64"
         ):
-            logger.info("Detected Apple Silicon - using ONNX with ARM64 quantized model")
-            return ("onnx", "onnx/model_qint8_arm64.onnx", None)
+            if onnx_providers:
+                logger.info("Detected Apple Silicon - using ONNX with ARM64 quantized model")
+                return ("onnx", "onnx/model_qint8_arm64.onnx", None)
+            logger.info("Apple Silicon detected - ONNX unavailable, using PyTorch CPU")
+            return ("torch", None, "cpu")
 
         # NVIDIA GPU
         if gpu_type == "cuda":
@@ -140,14 +148,6 @@ def detect_optimal_backend_config() -> tuple[
                 "falling back to PyTorch ROCm device"
             )
             return ("torch", None, "cuda")
-
-        # Apple MPS GPU on non-ONNX path
-        if gpu_type == "mps":
-            if onnx_providers:
-                logger.info("Detected Apple MPS GPU - using ONNX backend")
-                return ("onnx", None, None)
-            logger.info("Detected Apple MPS GPU - ONNX unavailable, using PyTorch MPS")
-            return ("torch", None, "mps")
 
         # CPU only
         if onnx_providers:
@@ -196,8 +196,9 @@ class EmbeddingModel:
     """Thin wrapper around `SentenceTransformer` for query and document embeddings.
 
     Features:
-    - Automatic backend detection (ONNX on macOS, PyTorch elsewhere)
-    - Support for quantized ONNX models on Apple Silicon
+    - Automatic backend detection (PyTorch MPS on Apple Silicon with MPS,
+      ONNX on others, PyTorch elsewhere)
+    - Support for quantized ONNX models on Apple Silicon without MPS
     - Configurable device selection
     - Fallback to PyTorch if ONNX fails
     """

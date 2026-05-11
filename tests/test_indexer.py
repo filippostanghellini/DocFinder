@@ -690,21 +690,24 @@ class TestParallelIndexing:
         mock_store.insert_chunks.assert_not_called()
 
     @patch("docfinder.index.indexer.get_memory_info", return_value={"available_mb": 16000})
+    @patch("docfinder.index.indexer.get_memory_info", return_value={"available_mb": 16000})
     def test_compute_parallel_workers_balanced_caps_high_mem(
-        self, mock_mem_info, mock_embedder, mock_store
+        self, mem_info_patch, mock_embedder, mock_store
     ):
-        """Should keep one CPU free and cap balanced workers."""
+        """Should keep one CPU free and cap balanced workers on non-macOS."""
         indexer = Indexer(mock_embedder, mock_store)
         with patch("os.cpu_count", return_value=12):
-            workers = indexer._compute_parallel_workers(20)
+            with patch("sys.platform", "linux"):
+                workers = indexer._compute_parallel_workers(20)
         assert workers == 8
 
     @patch("docfinder.index.indexer.get_memory_info", return_value={"available_mb": 1500})
     def test_compute_parallel_workers_balanced_low_mem(
-        self, mock_mem_info, mock_embedder, mock_store
+        self, mem_info_patch, mock_embedder, mock_store
     ):
         """Should reduce worker count on low-memory hosts."""
         indexer = Indexer(mock_embedder, mock_store)
         with patch("os.cpu_count", return_value=8):
-            workers = indexer._compute_parallel_workers(10)
+            with patch("sys.platform", "linux"):
+                workers = indexer._compute_parallel_workers(10)
         assert workers == 2

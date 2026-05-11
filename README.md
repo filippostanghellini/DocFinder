@@ -67,12 +67,12 @@ make run-web # web interface at http://127.0.0.1:8000
 
 DocFinder automatically selects the best available runtime on your machine:
 
-- NVIDIA: ONNX CUDA provider when available, otherwise PyTorch CUDA
-- AMD: ONNX ROCm provider when available, otherwise PyTorch fallback
-- Apple Silicon: optimized ONNX path
-- CPU-only hosts: ONNX or PyTorch CPU fallback
+- **NVIDIA**: ONNX CUDA provider when available, otherwise PyTorch CUDA
+- **AMD**: ONNX ROCm provider when available, otherwise PyTorch fallback
+- **Apple Silicon**: PyTorch MPS when available (fastest), ONNX ARM64 fallback otherwise
+- **Intel Mac / CPU-only**: ONNX or PyTorch CPU fallback
 
-Indexing uses a balanced parallel parser strategy by default, selected automatically based on your
+Indexing uses an adaptive parallel parser strategy by default, selected automatically based on your
 machine resources.
 
 ## Contributing

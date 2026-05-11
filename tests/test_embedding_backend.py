@@ -66,17 +66,17 @@ class TestGPUDetection:
 class TestBackendDetection:
     """Test auto-detection of optimal backend based on platform."""
 
-    def test_detect_apple_silicon(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Should detect Apple Silicon and return ONNX with ARM64 quantized model."""
-        monkeypatch.setattr(sys, "platform", "darwin")
-        monkeypatch.setattr(platform, "machine", lambda: "arm64")
-        monkeypatch.setattr(platform, "processor", lambda: "arm")
-
+    @patch("docfinder.embedding.encoder._check_gpu_availability", return_value=(True, "mps"))
+    def test_detect_apple_silicon(self, mock_gpu_check: MagicMock) -> None:
+        """Should detect Apple Silicon MPS GPU and use PyTorch MPS backend."""
         backend, model_file = detect_optimal_backend()
-        assert backend == "onnx"
-        assert model_file == "onnx/model_qint8_arm64.onnx"
+        assert backend == "torch"
+        assert model_file is None
 
-    def test_detect_intel_mac(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    @patch("docfinder.embedding.encoder._check_gpu_availability", return_value=(False, None))
+    def test_detect_intel_mac(
+        self, mock_gpu_check: MagicMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Should detect Intel Mac and return ONNX with standard model."""
         monkeypatch.setattr(sys, "platform", "darwin")
         monkeypatch.setattr(platform, "machine", lambda: "x86_64")

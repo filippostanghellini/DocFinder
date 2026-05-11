@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.2] - 2026-05-11
+
+### Fixed
+- **macOS indexing performance** — Switched from ONNX/CoreML to PyTorch MPS backend for Apple Silicon, which is significantly faster for embedding generation (from 30+ minutes to seconds for typical workloads)
+- **macOS RAM calculation** — Improved memory detection with `psutil>=5.9.0` for accurate cross-platform RAM detection (previously used `vm_stat` which didn't include all available memory types)
+- **Parallel parsing crash recovery** — Added `BrokenExecutor` fallback to sequential processing when the process pool crashes, preventing complete indexing failures
+
+### Changed
+- **Apple Silicon backend preference** — PyTorch MPS is now the preferred backend for Apple Silicon (previously ONNX with ARM64 quantized model), providing 10-30x faster embedding generation
+- **Adaptive batch sizing** — Embedding batch size now dynamically scales with available RAM across all platforms (4-64 chunks), instead of being hardcoded to 16 on macOS
+- **Backend detection documentation** — Updated docstrings and README to accurately reflect the new backend selection strategy
+- **Test coverage improved** — Expanded test coverage for backend detection and indexing (coverage increased from ~60% to ~65%)
+
+### Performance
+- **Apple Silicon (M-series)**: 10-30x faster indexing through PyTorch MPS backend
+- **High-RAM systems (16GB+)**: Up to 4x larger embedding batches (64 vs 16)
+- **All platforms**: Consistent adaptive batch sizing based on available memory
+
+## [2.1.1] - 2026-05-06
+
 ### Fixed
 - **Chat button visibility** — Fixed chat buttons on search results now correctly respect the RAG enable/disable setting; buttons are hidden when RAG is disabled and visible when enabled, both on page load and after toggling the setting
 - **Windows: "Open file" button path handling** — Fixed file path normalization so the "Open" button works correctly on Windows systems; paths with forward slashes (`/`) are now properly converted to Windows backslashes (`\`) via `os.path.normpath()`
@@ -245,7 +265,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed linting issues for consistent code style
 - Updated ruff configuration to use non-deprecated settings
 
-[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v2.1.2...HEAD
+[2.1.2]: https://github.com/filippostanghellini/DocFinder/compare/v2.1.1...v2.1.2
+[2.1.1]: https://github.com/filippostanghellini/DocFinder/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/filippostanghellini/DocFinder/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/filippostanghellini/DocFinder/compare/v1.2.0...v2.0.0
 [1.2.0]: https://github.com/filippostanghellini/DocFinder/compare/v1.1.2...v1.2.0
