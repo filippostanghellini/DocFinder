@@ -110,9 +110,8 @@ def _preload_reranker() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
-    # Pre-load models at startup so the first request is instant
+    # Pre-load embedder at startup so first request is instant
     await asyncio.to_thread(_get_embedder)
-    await asyncio.to_thread(_preload_reranker)
     yield
 
 

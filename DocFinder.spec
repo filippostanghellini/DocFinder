@@ -151,6 +151,8 @@ hiddenimports = [
     "certifi",
     "charset_normalizer",
     "idna",
+    # Reranker cross-encoder
+    "docfinder.index.reranker",
 ]
 
 # Collect all submodules for complex packages
