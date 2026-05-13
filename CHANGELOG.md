@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.3] - 2026-05-13
+
+### Added
+- **Open button in Library** — Each document row in the Library tab now has an "Open" button to open the file with the system default application
+- **Settings panel reorganization** — Settings tab split into three distinct cards for better UX: Shortcuts, AI Chat (RAG), and Configuration
+
+### Fixed
+- **RAG LLM context window overflow** — `_load_rag_llm()` was hardcoded to `n_ctx=4096` instead of using the model spec's `ctx_size` (8192 for all Qwen2.5 models), causing "Requested tokens exceed context window" errors. The context budget in `rag_chat()` is now dynamically calculated from `_rag_llm.n_ctx - 800`
+- **RAG model not loading on startup** — `loadRagEnabled()` now auto-triggers model load on page load instead of only when the Settings tab is opened, fixing "RAG model not loaded" errors when chatting immediately after search
+- **Safari/WebKit JSON parsing crash** — `sendChat()` now uses `res.text()` + manual `JSON.parse()` with fallback instead of `res.json()`, preventing Safari's cryptic "The string did not match the expected pattern" DOM Exception 12 when the server returns non-JSON responses
+- **RAG LLM error handling** — Added `try/except` around `_rag_llm.chat()` to return a proper JSON 502 error instead of an unhandled exception HTML page
+
+### Changed
+- **LocalLLM** now exposes `n_ctx` as a public attribute for dynamic context sizing
+
 ## [2.1.2] - 2026-05-11
 
 ### Fixed
@@ -265,7 +280,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed linting issues for consistent code style
 - Updated ruff configuration to use non-deprecated settings
 
-[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v2.1.2...HEAD
+[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v2.1.3...HEAD
+[2.1.3]: https://github.com/filippostanghellini/DocFinder/compare/v2.1.2...v2.1.3
 [2.1.2]: https://github.com/filippostanghellini/DocFinder/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/filippostanghellini/DocFinder/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/filippostanghellini/DocFinder/compare/v2.0.0...v2.1.0
