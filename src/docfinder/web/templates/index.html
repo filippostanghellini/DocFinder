@@ -1480,11 +1480,9 @@
           </h2>
           <ul class="tips-list">
             <li>Use absolute paths — e.g. <code>/Users/name/Documents</code></li>
-            <li>Index entire folders: all PDFs are discovered recursively</li>
+            <li>Index entire folders: all Documents are discovered recursively</li>
             <li>Use the <strong>Browse</strong> button to open a native folder picker</li>
-            <li>Or drag &amp; drop a folder from Finder / Explorer onto the input field</li>
-            <li>Already-indexed documents are automatically updated if modified</li>
-            <li>Unchanged files are skipped — re-indexing is fast</li>
+            <li>Unchanged files are skipped</li>
           </ul>
         </div>
       </div>
@@ -1528,17 +1526,16 @@
 
       <!-- ── Settings ─────────────────────────────────────────────────────── -->
       <div id="settings-section" class="section" role="tabpanel">
+
+        <!-- ── Shortcuts ────────────────────────────────────────────────── -->
         <div class="card">
           <div class="card-header">
             <h2 class="card-title">
-              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-              Settings
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M5 6l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Shortcuts
             </h2>
           </div>
 
-          <h3 style="font-size:0.75rem; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.4rem;">
-            Global Search Shortcut
-          </h3>
           <p style="font-size:0.82rem; color:var(--text-2); margin-bottom:0.65rem; line-height:1.5;">
             Press this shortcut from anywhere on your desktop to bring DocFinder to the front and jump directly to search.
           </p>
@@ -1572,58 +1569,68 @@
           <div style="margin-top:1rem; display:flex; justify-content:flex-end;">
             <button id="save-settings-btn" class="btn btn-primary">Save settings</button>
           </div>
+        </div>
 
-          <!-- ── AI Chat (RAG) ──────────────────────────────────────────── -->
-          <div style="margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--border);">
-            <h3 style="font-size:0.75rem; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.4rem;">
+        <!-- ── AI Chat (RAG) ────────────────────────────────────────────── -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M2 3h12v8H5l-3 3V3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M5 6h6M5 8.5h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
               AI Chat (RAG)
-            </h3>
-            <p style="font-size:0.82rem; color:var(--text-2); margin-bottom:0.65rem; line-height:1.5;">
-              Enable a local AI assistant that can answer questions about your documents.
-              A language model will be downloaded once and runs entirely on your machine &mdash; no data leaves your computer.
-            </p>
-
-            <div class="setting-row">
-              <div class="setting-info">
-                <span class="setting-label">Enable AI Chat</span>
-                <span class="setting-sub">Adds a Chat button on search results</span>
-              </div>
-              <label class="toggle" title="Enable or disable AI Chat">
-                <input type="checkbox" id="rag-enabled" />
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-
-            <div id="rag-models-section" style="display:none; margin-top:0.75rem;">
-              <p style="font-size:0.82rem; color:var(--text-2); margin-bottom:0.65rem;">
-                Choose a model based on your available RAM (<span id="rag-ram-label">detecting&hellip;</span>):
-              </p>
-              <div id="rag-models-list" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
-
-              <div id="rag-download-progress" style="display:none; margin-top:0.75rem;">
-                <div style="display:flex; justify-content:space-between; font-size:0.78rem; color:var(--text-2); margin-bottom:0.3rem;">
-                  <span id="rag-dl-label">Downloading model&hellip;</span>
-                  <span id="rag-dl-pct">0%</span>
-                </div>
-                <div style="background:var(--bg-3); border-radius:9999px; height:6px; overflow:hidden;">
-                  <div id="rag-dl-bar" style="background:var(--primary); height:100%; width:0%; transition:width 0.3s;"></div>
-                </div>
-                <p id="rag-dl-detail" style="font-size:0.72rem; color:var(--text-3); margin-top:0.25rem;"></p>
-              </div>
-
-              <div id="rag-status-msg" style="display:none; margin-top:0.5rem; font-size:0.82rem; padding:0.5rem 0.7rem; border-radius:var(--radius-sm);"></div>
-            </div>
+            </h2>
           </div>
 
-          <div style="margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--border);">
-            <h3 style="font-size:0.75rem; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.4rem;">
-              Configuration settings
-            </h3>
-            <div class="info-box" id="runtime-info-box" style="margin-top:0.6rem;">
-              Runtime acceleration: detecting...
+          <p style="font-size:0.82rem; color:var(--text-2); margin-bottom:0.65rem; line-height:1.5;">
+            Enable a local AI assistant that can answer questions about your documents.
+            A language model will be downloaded once and runs entirely on your machine &mdash; no data leaves your computer.
+          </p>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">Enable AI Chat</span>
+              <span class="setting-sub">Adds a Chat button on search results</span>
             </div>
+            <label class="toggle" title="Enable or disable AI Chat">
+              <input type="checkbox" id="rag-enabled" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div id="rag-models-section" style="display:none; margin-top:0.75rem;">
+            <p style="font-size:0.82rem; color:var(--text-2); margin-bottom:0.65rem;">
+              Choose a model based on your available RAM (<span id="rag-ram-label">detecting&hellip;</span>):
+            </p>
+            <div id="rag-models-list" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+
+            <div id="rag-download-progress" style="display:none; margin-top:0.75rem;">
+              <div style="display:flex; justify-content:space-between; font-size:0.78rem; color:var(--text-2); margin-bottom:0.3rem;">
+                <span id="rag-dl-label">Downloading model&hellip;</span>
+                <span id="rag-dl-pct">0%</span>
+              </div>
+              <div style="background:var(--bg-3); border-radius:9999px; height:6px; overflow:hidden;">
+                <div id="rag-dl-bar" style="background:var(--primary); height:100%; width:0%; transition:width 0.3s;"></div>
+              </div>
+              <p id="rag-dl-detail" style="font-size:0.72rem; color:var(--text-3); margin-top:0.25rem;"></p>
+            </div>
+
+            <div id="rag-status-msg" style="display:none; margin-top:0.5rem; font-size:0.82rem; padding:0.5rem 0.7rem; border-radius:var(--radius-sm);"></div>
           </div>
         </div>
+
+        <!-- ── Configuration settings ───────────────────────────────────── -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+              Configuration
+            </h2>
+          </div>
+
+          <div class="info-box" id="runtime-info-box">
+            Runtime acceleration: detecting...
+          </div>
+        </div>
+
       </div>
     </main>
 
@@ -2232,7 +2239,7 @@
                     <th>Size</th>
                     <th>Chunks</th>
                     <th>Indexed</th>
-                    <th style="width:40px;"></th>
+                    <th style="width:80px;">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2244,7 +2251,10 @@
                       <td class="doc-meta">${formatSize(doc.size)}</td>
                       <td class="doc-meta">${doc.chunk_count}</td>
                       <td class="doc-meta">${formatDate(doc.updated_at)}</td>
-                      <td>
+                      <td style="white-space:nowrap;">
+                        <button class="btn btn-ghost btn-sm open-doc-btn" data-path="${escHtml(doc.path)}" title="Open file">
+                          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 4h8l2 2v8H2V4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 2h4v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 7l5-5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                        </button>
                         <button class="btn btn-ghost btn-sm delete-doc-btn" data-id="${doc.id}" data-title="${escHtml(doc.title || doc.path)}" title="Remove from index">
                           <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V2h4v2M13 4l-1 10H4L3 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
                         </button>
@@ -2264,6 +2274,10 @@
 
           document.querySelectorAll('.delete-doc-btn').forEach(btn => {
             btn.addEventListener('click', () => showDeleteModal([parseInt(btn.dataset.id)], btn.dataset.title));
+          });
+
+          document.querySelectorAll('.open-doc-btn').forEach(btn => {
+            btn.addEventListener('click', () => openDocument(btn.dataset.path));
           });
 
         } catch (err) {
@@ -2489,6 +2503,18 @@
           ragEnabled = s.rag_enabled === true;
           ragEnabledToggle.checked = ragEnabled;
           updateChatButtonsVisibility();
+          if (ragEnabled) {
+            // Auto-trigger model load on startup if model is downloaded but not yet loaded
+            const dlRes = await fetch(`${apiBase}/rag/download/status`);
+            const dlStatus = await dlRes.json();
+            if (dlStatus.status !== 'ready' && dlStatus.status !== 'loading') {
+              fetch(`${apiBase}/rag/download`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+              });
+            }
+          }
         } catch (_err) {}
       }
 
@@ -2793,13 +2819,18 @@
             }),
           });
           loadingDiv.remove();
+          const bodyText = await res.text();
+          let body;
+          try { body = JSON.parse(bodyText); } catch { body = null; }
           if (!res.ok) {
-            const err = await res.json();
-            addChatMsg('system', err.detail || 'Error generating answer');
+            addChatMsg('system', body?.detail || body?.message || bodyText || 'Error generating answer');
             return;
           }
-          const data = await res.json();
-          addChatMsg('assistant', data.answer);
+          if (!body || !body.answer) {
+            addChatMsg('system', bodyText || 'Empty response from server');
+            return;
+          }
+          addChatMsg('assistant', body.answer);
         } catch (err) {
           loadingDiv.remove();
           addChatMsg('system', 'Connection error: ' + err.message);

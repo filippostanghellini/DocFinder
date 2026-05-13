@@ -177,6 +177,7 @@ class LocalLLM:
             n_ctx,
             n_gpu_layers,
         )
+        self.n_ctx = n_ctx
         self._llm = Llama(
             model_path=str(model_path),
             n_ctx=n_ctx,

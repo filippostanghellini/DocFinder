@@ -115,7 +115,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="DocFinder Web", version="2.1.1", lifespan=lifespan)
+app = FastAPI(title="DocFinder Web", version="2.1.3", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -283,7 +283,7 @@ def _load_rag_llm(model_name: str | None = None) -> None:
             HfTqdm.update = _orig_update
 
     _rag_download["status"] = "loading"
-    _rag_llm = LocalLLM(local_path, n_ctx=4096)
+    _rag_llm = LocalLLM(local_path, n_ctx=spec.ctx_size)
     _rag_download["status"] = "ready"
 
 
@@ -390,7 +390,8 @@ async def rag_chat(payload: RAGPayload) -> dict:
         # Get context: try page-based first, fall back to fixed window
         import json as _json
 
-        max_chars = 4000 * 4  # ~4000 tokens
+        max_tokens_for_context = _rag_llm.n_ctx - 800  # reserve ~800 tokens for prompt overhead
+        max_chars = max(max_tokens_for_context * 4, 1000)  # ~4 chars per token
 
         # Find the page of the clicked chunk
         chunk_row = store.connection.execute(
@@ -440,7 +441,16 @@ async def rag_chat(payload: RAGPayload) -> dict:
                 "content": f"Context:\n{context_text}\n\nQuestion: {question}",
             },
         ]
-        answer = await asyncio.to_thread(_rag_llm.chat, messages, max_tokens=1024, temperature=0.2)
+        try:
+            answer = await asyncio.to_thread(
+                _rag_llm.chat, messages, max_tokens=1024, temperature=0.2
+            )
+        except Exception as exc:
+            LOGGER.exception("RAG LLM chat failed")
+            raise HTTPException(
+                status_code=502,
+                detail=f"RAG model failed to generate a response: {exc}",
+            )
     finally:
         store.close()
 
