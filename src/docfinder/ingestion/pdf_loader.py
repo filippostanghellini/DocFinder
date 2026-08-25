@@ -1,7 +1,11 @@
 """Document loading and chunking utilities.
 
 Supports PDF (via PyMuPDF), plain text (.txt), Markdown (.md),
-and Word documents (.docx via python-docx).
+Word documents (.docx via python-docx, .doc via olefile),
+OpenDocument formats (.odt/.odp/.odg via odfpy),
+PowerPoint (.pptx via python-pptx, .ppt via olefile),
+HTML (.html/.htm via beautifulsoup4),
+and EPUB (.epub via zipfile + beautifulsoup4).
 """
 
 from __future__ import annotations
@@ -288,6 +292,477 @@ def iter_text_parts_docx_paged(path: Path) -> Iterator[tuple[int, str]]:
         LOGGER.error("Failed to read %s: %s", path, exc)
 
 
+# ── ODF (ODT / ODP / ODG) ─────────────────────────────────────────────────────
+
+_ODF_PARAS_PER_PAGE = 10
+
+
+def _import_odf():
+    """Import odfpy, return (load, P_element_class, extractText) or (None, None, None)."""
+    try:
+        from odf import teletype
+        from odf.opendocument import load
+        from odf.text import P
+
+        return load, P, teletype.extractText
+    except ImportError:
+        LOGGER.warning(
+            "odfpy not installed — cannot index ODF files (.odt/.odp/.odg). "
+            "Install with: pip install odfpy"
+        )
+        return None, None, None
+
+
+def iter_text_parts_odf(path: Path) -> Iterator[str]:
+    """Yield text content from an OpenDocument file."""
+    load, P, extract_text = _import_odf()
+    if load is None:
+        return
+    try:
+        doc = load(str(path))
+        for p_elem in doc.getElementsByType(P):
+            text = extract_text(p_elem)
+            if text.strip():
+                yield text.strip() + "\n"
+    except Exception as exc:
+        LOGGER.error("Failed to read %s: %s", path, exc)
+
+
+def iter_text_parts_odf_paged(path: Path) -> Iterator[tuple[int, str]]:
+    """Yield ``(virtual_page, text)`` grouping ~10 paragraphs."""
+    load, P, extract_text = _import_odf()
+    if load is None:
+        return
+    try:
+        doc = load(str(path))
+        buf: list[str] = []
+        page = 1
+        for p_elem in doc.getElementsByType(P):
+            text = extract_text(p_elem).strip()
+            if not text:
+                continue
+            buf.append(text)
+            if len(buf) >= _ODF_PARAS_PER_PAGE:
+                yield page, "\n".join(buf) + "\n"
+                buf = []
+                page += 1
+        if buf:
+            yield page, "\n".join(buf) + "\n"
+    except Exception as exc:
+        LOGGER.error("Failed to read %s: %s", path, exc)
+
+
+# ── PPTX ──────────────────────────────────────────────────────────────────────
+
+
+def _import_pptx():
+    """Import and return the ``Presentation`` class from python-pptx, or None."""
+    try:
+        from pptx import Presentation  # type: ignore[import-untyped]
+
+        return Presentation
+    except ImportError:
+        LOGGER.warning(
+            "python-pptx not installed — cannot index .pptx files. "
+            "Install with: pip install python-pptx"
+        )
+        return None
+
+
+def _extract_pptx_slide_text(slide) -> str:
+    """Extract all text from a single pptx Slide object."""
+    parts: list[str] = []
+    for shape in slide.shapes:
+        if shape.has_text_frame:
+            for para in shape.text_frame.paragraphs:
+                t = para.text.strip()
+                if t:
+                    parts.append(t)
+    return "\n".join(parts)
+
+
+def iter_text_parts_pptx(path: Path) -> Iterator[str]:
+    """Yield text from every slide in a .pptx file."""
+    Presentation = _import_pptx()
+    if Presentation is None:
+        return
+    try:
+        prs = Presentation(str(path))
+        for slide in prs.slides:
+            text = _extract_pptx_slide_text(slide)
+            if text:
+                yield text + "\n"
+    except Exception as exc:
+        LOGGER.error("Failed to read %s: %s", path, exc)
+
+
+def iter_text_parts_pptx_paged(path: Path) -> Iterator[tuple[int, str]]:
+    """Yield ``(slide_number, text)`` — one page per slide."""
+    Presentation = _import_pptx()
+    if Presentation is None:
+        return
+    try:
+        prs = Presentation(str(path))
+        for page_num, slide in enumerate(prs.slides, 1):
+            text = _extract_pptx_slide_text(slide)
+            if text:
+                yield page_num, text + "\n"
+    except Exception as exc:
+        LOGGER.error("Failed to read %s: %s", path, exc)
+
+
+# ── HTML ──────────────────────────────────────────────────────────────────────
+
+_HTML_VIRTUAL_PAGE_CHARS = 3000
+
+
+def _import_beautifulsoup4():
+    """Import and return ``BeautifulSoup``, or None."""
+    try:
+        from bs4 import BeautifulSoup  # type: ignore[import-untyped]
+
+        return BeautifulSoup
+    except ImportError:
+        LOGGER.warning(
+            "beautifulsoup4 not installed — cannot index .html/.epub files. "
+            "Install with: pip install beautifulsoup4"
+        )
+        return None
+
+
+def iter_text_parts_html(path: Path) -> Iterator[str]:
+    """Yield cleaned plain text from an HTML file."""
+    BeautifulSoup = _import_beautifulsoup4()
+    if BeautifulSoup is None:
+        return
+    try:
+        raw = path.read_bytes()
+        soup = BeautifulSoup(raw, "html.parser")
+        for tag in soup(["script", "style"]):
+            tag.decompose()
+        text = soup.get_text(separator="\n", strip=True)
+        if text:
+            yield text
+    except Exception as exc:
+        LOGGER.error("Failed to read %s: %s", path, exc)
+
+
+def iter_text_parts_html_paged(path: Path) -> Iterator[tuple[int, str]]:
+    """Yield ``(virtual_page, text)`` for HTML files (~3000 chars per page)."""
+    BeautifulSoup = _import_beautifulsoup4()
+    if BeautifulSoup is None:
+        return
+    try:
+        raw = path.read_bytes()
+        soup = BeautifulSoup(raw, "html.parser")
+        for tag in soup(["script", "style"]):
+            tag.decompose()
+        text = soup.get_text(separator="\n", strip=True)
+        if not text:
+            return
+
+        page = 1
+        start = 0
+        while start < len(text):
+            end = start + _HTML_VIRTUAL_PAGE_CHARS
+            if end < len(text):
+                search_start = max(start, end - _HTML_VIRTUAL_PAGE_CHARS // 5)
+                nl = text.rfind("\n", search_start, end)
+                if nl > start:
+                    end = nl + 1
+            chunk = text[start:end]
+            if chunk.strip():
+                yield page, chunk + "\n"
+            page += 1
+            start = end
+    except Exception as exc:
+        LOGGER.error("Failed to read %s: %s", path, exc)
+
+
+# ── EPUB ──────────────────────────────────────────────────────────────────────
+
+
+def _parse_epub(path: Path, BeautifulSoup) -> Iterator[tuple[int, str]]:
+    """Parse an EPUB and yield ``(chapter_number, text)`` from spine items."""
+    import zipfile
+    from xml.etree import ElementTree
+
+    with zipfile.ZipFile(path) as zf:
+        try:
+            container_data = zf.read("META-INF/container.xml")
+        except KeyError:
+            return
+
+        ns_ct = {"c": "urn:oasis:names:tc:opendocument:xmlns:container"}
+        container = ElementTree.fromstring(container_data)
+        rootfile = container.find(".//c:rootfile", ns_ct)
+        if rootfile is None:
+            return
+        opf_rel = rootfile.get("full-path", "")
+        if not opf_rel:
+            return
+
+        base_dir = opf_rel.rsplit("/", 1)[0] if "/" in opf_rel else ""
+
+        opf_data = zf.read(opf_rel)
+        opf = ElementTree.fromstring(opf_data)
+
+        ns_opf = {"opf": "http://www.idpf.org/2007/opf"}
+        manifest: dict[str, str] = {}
+        for item in opf.findall(".//opf:manifest/opf:item", ns_opf):
+            item_id = item.get("id", "")
+            href = item.get("href", "")
+            if href and base_dir:
+                href = base_dir + "/" + href
+            manifest[item_id] = href
+
+        spine = opf.find(".//opf:spine", ns_opf)
+        if spine is None:
+            return
+
+        page_num = 0
+        for ref in spine.findall("opf:itemref", ns_opf):
+            idref = ref.get("idref", "")
+            href = manifest.get(idref, "")
+            if not href:
+                continue
+            try:
+                content = zf.read(href)
+            except KeyError:
+                continue
+
+            soup = BeautifulSoup(content, "html.parser")
+            for tag in soup(["script", "style"]):
+                tag.decompose()
+            text = soup.get_text(separator="\n", strip=True)
+            if text:
+                page_num += 1
+                yield page_num, text + "\n"
+
+
+def iter_text_parts_epub(path: Path) -> Iterator[str]:
+    """Yield chapter text from an EPUB file."""
+    BeautifulSoup = _import_beautifulsoup4()
+    if BeautifulSoup is None:
+        return
+    try:
+        for _, text in _parse_epub(path, BeautifulSoup):
+            yield text
+    except Exception as exc:
+        LOGGER.error("Failed to read %s: %s", path, exc)
+
+
+def iter_text_parts_epub_paged(path: Path) -> Iterator[tuple[int, str]]:
+    """Yield ``(chapter_number, text)`` — one page per spine item."""
+    BeautifulSoup = _import_beautifulsoup4()
+    if BeautifulSoup is None:
+        return
+    try:
+        yield from _parse_epub(path, BeautifulSoup)
+    except Exception as exc:
+        LOGGER.error("Failed to read %s: %s", path, exc)
+
+
+# ── DOC (Word 97‑2003 binary) ────────────────────────────────────────────────
+
+_DOC_VIRTUAL_PAGE_CHARS = 3000
+
+
+def _import_olefile():
+    """Import and return the ``olefile`` module, or None."""
+    try:
+        import olefile  # type: ignore[import-untyped]
+
+        return olefile
+    except ImportError:
+        LOGGER.warning(
+            "olefile not installed — cannot index .doc/.ppt files. "
+            "Install with: pip install olefile"
+        )
+        return None
+
+
+def _extract_text_from_doc_binary(path: Path) -> Iterator[str]:
+    """Heuristic text extraction from Word 97‑2003 (.doc) files via olefile."""
+    olefile = _import_olefile()
+    if olefile is None:
+        return
+    try:
+        ole = olefile.OleFileIO(path)
+        try:
+            stream = ole.openstream("WordDocument")
+            data = stream.read()
+        finally:
+            ole.close()
+    except Exception as exc:
+        LOGGER.error("Failed to read %s: %s", path, exc)
+        return
+
+    text_parts: list[str] = []
+
+    # Method 1 — try UTF-16-LE decoding after skipping the FIB header
+    for offset in (0, 512, 1024, 1500, 2000):
+        if offset >= len(data):
+            continue
+        try:
+            chunk = data[offset : offset + min(len(data) - offset, 100000)]
+            decoded = chunk.decode("utf-16-le", errors="replace")
+            cleaned = "".join(c if c.isprintable() or c in "\n\r\t" else " " for c in decoded)
+            cleaned = re.sub(r"[^\S\n\r\t]+", " ", cleaned).strip()
+            if len(cleaned) > 40:
+                text_parts.append(cleaned)
+                break
+        except Exception:
+            continue
+
+    # Method 2 — fallback: extract printable ASCII runs
+    if not text_parts:
+        ascii_buf = ""
+        for b in data:
+            if 32 <= b <= 126 or b in (10, 13, 9):
+                ascii_buf += chr(b)
+            elif ascii_buf:
+                if len(ascii_buf) > 10:
+                    text_parts.append(ascii_buf.strip())
+                ascii_buf = ""
+
+    if text_parts:
+        yield "\n".join(text_parts)
+
+
+def iter_text_parts_doc(path: Path) -> Iterator[str]:
+    """Yield text extracted from a .doc file."""
+    yield from _extract_text_from_doc_binary(path)
+
+
+def iter_text_parts_doc_paged(path: Path) -> Iterator[tuple[int, str]]:
+    """Yield ``(virtual_page, text)`` for Word binary documents."""
+    text = "\n".join(_extract_text_from_doc_binary(path))
+    if not text.strip():
+        return
+
+    page = 1
+    start = 0
+    while start < len(text):
+        end = start + _DOC_VIRTUAL_PAGE_CHARS
+        if end < len(text):
+            search_start = max(start, end - _DOC_VIRTUAL_PAGE_CHARS // 5)
+            nl = text.rfind("\n", search_start, end)
+            if nl > start:
+                end = nl + 1
+        chunk = text[start:end]
+        if chunk.strip():
+            yield page, chunk + "\n"
+        page += 1
+        start = end
+
+
+# ── PPT (PowerPoint 97‑2003 binary) ───────────────────────────────────────────
+
+_PPT_VIRTUAL_PAGE_CHARS = 3000
+
+# Record types for the PowerPoint binary format
+_PPT_TEXT_CHARS_ATOM = 0x0FA0
+_PPT_TEXT_BYTES_ATOM = 0x0FA8
+
+
+def _walk_ppt_records(data: bytes, offset: int, end: int, texts: list[str]) -> None:
+    """Walk a PowerPoint binary record tree looking for text atoms.
+
+    Record headers are little-endian ([MS-PPT]): ver+instance (u16), type
+    (u16), length (u32). A record is a container when its version nibble
+    is ``0xF``.
+    """
+    import struct
+
+    while offset + 8 <= end:
+        # rec_ver = data[offset] & 0x0F  (used below for container detection)
+        # rec_instance = ((data[offset] >> 4) & 0x0F) << 8 | data[offset + 1]  (not needed)
+        rec_type = struct.unpack_from("<H", data, offset + 2)[0]
+        rec_len = struct.unpack_from("<I", data, offset + 4)[0]
+
+        data_start = offset + 8
+        data_end = data_start + rec_len
+
+        if data_end > end:
+            break
+
+        if rec_type == _PPT_TEXT_CHARS_ATOM:
+            try:
+                raw = data[data_start:data_end].decode("utf-16-le", errors="replace")
+                clean = "".join(c if c.isprintable() or c in "\n\r\t" else " " for c in raw)
+                clean = re.sub(r"\s+", " ", clean).strip()
+                if clean:
+                    texts.append(clean)
+            except Exception:
+                pass
+        elif rec_type == _PPT_TEXT_BYTES_ATOM:
+            try:
+                raw = data[data_start:data_end].decode("utf-8", errors="replace")
+                clean = "".join(c if c.isprintable() or c in "\n\r\t" else " " for c in raw)
+                clean = re.sub(r"\s+", " ", clean).strip()
+                if clean:
+                    texts.append(clean)
+            except Exception:
+                pass
+
+        if (data[offset] & 0x0F) == 0x0F:
+            _walk_ppt_records(data, data_start, data_end, texts)
+
+        offset = data_end
+
+
+def _extract_text_from_ppt_binary(path: Path) -> Iterator[str]:
+    """Extract text from PowerPoint 97‑2003 (.ppt) files via olefile."""
+    olefile = _import_olefile()
+    if olefile is None:
+        return
+    try:
+        ole = olefile.OleFileIO(path)
+        try:
+            stream = ole.openstream("PowerPoint Document")
+            data = stream.read()
+        finally:
+            ole.close()
+    except Exception as exc:
+        LOGGER.error("Failed to read %s: %s", path, exc)
+        return
+
+    texts: list[str] = []
+    _walk_ppt_records(data, 0, len(data), texts)
+
+    for text in texts:
+        if text.strip():
+            yield text.strip() + "\n"
+
+
+def iter_text_parts_ppt(path: Path) -> Iterator[str]:
+    """Yield text from a .ppt file."""
+    yield from _extract_text_from_ppt_binary(path)
+
+
+def iter_text_parts_ppt_paged(path: Path) -> Iterator[tuple[int, str]]:
+    """Yield ``(virtual_page, text)`` for PowerPoint binary documents."""
+    text = "\n".join(_extract_text_from_ppt_binary(path))
+    if not text.strip():
+        return
+
+    page = 1
+    start = 0
+    while start < len(text):
+        end = start + _PPT_VIRTUAL_PAGE_CHARS
+        if end < len(text):
+            search_start = max(start, end - _PPT_VIRTUAL_PAGE_CHARS // 5)
+            nl = text.rfind("\n", search_start, end)
+            if nl > start:
+                end = nl + 1
+        chunk = text[start:end]
+        if chunk.strip():
+            yield page, chunk + "\n"
+        page += 1
+        start = end
+
+
 # ── Dispatcher ────────────────────────────────────────────────────────────────
 
 
@@ -301,6 +776,18 @@ def _iter_text_by_suffix(path: Path) -> Iterator[str]:
         yield from iter_text_parts_md(path)
     elif suffix == ".docx":
         yield from iter_text_parts_docx(path)
+    elif suffix in (".odt", ".odp", ".odg"):
+        yield from iter_text_parts_odf(path)
+    elif suffix == ".pptx":
+        yield from iter_text_parts_pptx(path)
+    elif suffix in (".html", ".htm"):
+        yield from iter_text_parts_html(path)
+    elif suffix == ".epub":
+        yield from iter_text_parts_epub(path)
+    elif suffix == ".doc":
+        yield from iter_text_parts_doc(path)
+    elif suffix == ".ppt":
+        yield from iter_text_parts_ppt(path)
     else:
         LOGGER.warning("Unsupported file type: %s", path.suffix)
 
@@ -344,8 +831,10 @@ def _iter_paged_text(path: Path) -> Iterator[tuple[int, str]]:
 
     * PDF  → real page numbers (1-based)
     * Markdown → section numbers (split on headings)
-    * Word → virtual pages (every 10 paragraphs)
-    * Plain text → virtual pages (every ~3000 characters)
+    * DOCX / ODF → virtual pages (every 10 paragraphs)
+    * PPTX → slide numbers
+    * EPUB → chapter numbers
+    * Plain text / HTML / DOC / PPT → virtual pages (~3000 characters)
     """
     suffix = path.suffix.lower()
     if suffix == ".pdf":
@@ -356,6 +845,18 @@ def _iter_paged_text(path: Path) -> Iterator[tuple[int, str]]:
         yield from iter_text_parts_docx_paged(path)
     elif suffix == ".txt":
         yield from iter_text_parts_txt_paged(path)
+    elif suffix in (".odt", ".odp", ".odg"):
+        yield from iter_text_parts_odf_paged(path)
+    elif suffix == ".pptx":
+        yield from iter_text_parts_pptx_paged(path)
+    elif suffix in (".html", ".htm"):
+        yield from iter_text_parts_html_paged(path)
+    elif suffix == ".epub":
+        yield from iter_text_parts_epub_paged(path)
+    elif suffix == ".doc":
+        yield from iter_text_parts_doc_paged(path)
+    elif suffix == ".ppt":
+        yield from iter_text_parts_ppt_paged(path)
     else:
         LOGGER.warning("Unsupported file type: %s", path.suffix)
 

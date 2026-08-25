@@ -6,7 +6,23 @@ import hashlib
 from pathlib import Path
 from typing import Iterable, Iterator
 
-SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({".pdf", ".txt", ".md", ".docx"})
+SUPPORTED_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        ".pdf",
+        ".txt",
+        ".md",
+        ".docx",
+        ".odt",
+        ".odp",
+        ".odg",
+        ".doc",
+        ".ppt",
+        ".pptx",
+        ".html",
+        ".htm",
+        ".epub",
+    }
+)
 
 
 def iter_document_paths(inputs: Iterable[Path]) -> Iterator[Path]:

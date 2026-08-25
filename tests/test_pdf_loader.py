@@ -7,7 +7,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from docfinder.ingestion.pdf_loader import build_chunks, get_pdf_metadata, iter_text_parts
+from docfinder.ingestion.pdf_loader import (
+    build_chunks,
+    get_pdf_metadata,
+    iter_text_parts,
+)
 from docfinder.models import ChunkRecord
 
 
@@ -721,6 +725,69 @@ class TestIterTextBySuffix:
         parts = list(_iter_text_by_suffix(f))
         assert any("docx content" in p for p in parts)
 
+    def test_odf_dispatch(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_text_by_suffix
+
+        pytest.importorskip("odf")
+
+        for ext in (".odt", ".odp", ".odg"):
+            f = tmp_path / f"file{ext}"
+            f.write_bytes(b"not valid but dispatcher delegates to odf function")
+
+            with patch("docfinder.ingestion.pdf_loader.iter_text_parts_odf") as mock:
+                mock.return_value = iter(["odf text"])
+                parts = list(_iter_text_by_suffix(f))
+                assert parts == ["odf text"]
+
+    def test_pptx_dispatch(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_text_by_suffix
+
+        with patch("docfinder.ingestion.pdf_loader.iter_text_parts_pptx") as mock:
+            mock.return_value = iter(["pptx text"])
+            parts = list(_iter_text_by_suffix(tmp_path / "file.pptx"))
+            assert parts == ["pptx text"]
+            mock.assert_called_once()
+
+    def test_html_dispatch(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_text_by_suffix
+
+        with patch("docfinder.ingestion.pdf_loader.iter_text_parts_html") as mock:
+            mock.return_value = iter(["html text"])
+            parts = list(_iter_text_by_suffix(tmp_path / "file.html"))
+            assert parts == ["html text"]
+
+        with patch("docfinder.ingestion.pdf_loader.iter_text_parts_html") as mock:
+            mock.return_value = iter(["htm text"])
+            parts = list(_iter_text_by_suffix(tmp_path / "file.htm"))
+            assert parts == ["htm text"]
+
+    def test_epub_dispatch(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_text_by_suffix
+
+        with patch("docfinder.ingestion.pdf_loader.iter_text_parts_epub") as mock:
+            mock.return_value = iter(["epub text"])
+            parts = list(_iter_text_by_suffix(tmp_path / "file.epub"))
+            assert parts == ["epub text"]
+            mock.assert_called_once()
+
+    def test_doc_dispatch(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_text_by_suffix
+
+        with patch("docfinder.ingestion.pdf_loader.iter_text_parts_doc") as mock:
+            mock.return_value = iter(["doc text"])
+            parts = list(_iter_text_by_suffix(tmp_path / "file.doc"))
+            assert parts == ["doc text"]
+            mock.assert_called_once()
+
+    def test_ppt_dispatch(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_text_by_suffix
+
+        with patch("docfinder.ingestion.pdf_loader.iter_text_parts_ppt") as mock:
+            mock.return_value = iter(["ppt text"])
+            parts = list(_iter_text_by_suffix(tmp_path / "file.ppt"))
+            assert parts == ["ppt text"]
+            mock.assert_called_once()
+
     def test_unsupported_extension(self, tmp_path: Path) -> None:
         from docfinder.ingestion.pdf_loader import _iter_text_by_suffix
 
@@ -795,6 +862,56 @@ class TestIterPagedText:
         pages = list(_iter_paged_text(f))
         assert len(pages) >= 1
 
+    def test_dispatches_odf(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_paged_text
+
+        with patch("docfinder.ingestion.pdf_loader.iter_text_parts_odf_paged") as mock:
+            for ext in (".odt", ".odp", ".odg"):
+                mock.return_value = iter([(1, "odf text")])
+                pages = list(_iter_paged_text(tmp_path / f"file{ext}"))
+                assert pages == [(1, "odf text")]
+
+    def test_dispatches_pptx(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_paged_text
+
+        with patch("docfinder.ingestion.pdf_loader.iter_text_parts_pptx_paged") as mock:
+            mock.return_value = iter([(1, "slide 1")])
+            pages = list(_iter_paged_text(tmp_path / "file.pptx"))
+            assert pages == [(1, "slide 1")]
+
+    def test_dispatches_html(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_paged_text
+
+        with patch("docfinder.ingestion.pdf_loader.iter_text_parts_html_paged") as mock:
+            for ext in (".html", ".htm"):
+                mock.return_value = iter([(1, "html text")])
+                pages = list(_iter_paged_text(tmp_path / f"file{ext}"))
+                assert pages == [(1, "html text")]
+
+    def test_dispatches_epub(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_paged_text
+
+        with patch("docfinder.ingestion.pdf_loader.iter_text_parts_epub_paged") as mock:
+            mock.return_value = iter([(1, "chapter 1")])
+            pages = list(_iter_paged_text(tmp_path / "file.epub"))
+            assert pages == [(1, "chapter 1")]
+
+    def test_dispatches_doc(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_paged_text
+
+        with patch("docfinder.ingestion.pdf_loader.iter_text_parts_doc_paged") as mock:
+            mock.return_value = iter([(1, "doc text")])
+            pages = list(_iter_paged_text(tmp_path / "file.doc"))
+            assert pages == [(1, "doc text")]
+
+    def test_dispatches_ppt(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import _iter_paged_text
+
+        with patch("docfinder.ingestion.pdf_loader.iter_text_parts_ppt_paged") as mock:
+            mock.return_value = iter([(1, "ppt text")])
+            pages = list(_iter_paged_text(tmp_path / "file.ppt"))
+            assert pages == [(1, "ppt text")]
+
     def test_unsupported_returns_empty(self, tmp_path: Path) -> None:
         from docfinder.ingestion.pdf_loader import _iter_paged_text
 
@@ -856,3 +973,618 @@ class TestIterTextPartsPaged:
 
         pages = list(iter_text_parts_paged(tmp_path / "test.pdf"))
         assert len(pages) == 1
+
+
+# ── ODF tests ────────────────────────────────────────────────────────────────
+
+
+class TestImportOdf:
+    """Test odfpy lazy import."""
+
+    def test_returns_components(self) -> None:
+        from docfinder.ingestion.pdf_loader import _import_odf
+
+        odf = pytest.importorskip("odf")
+
+        load, P, extract = _import_odf()
+        assert load is odf.opendocument.load
+        assert P is odf.text.P
+        assert extract is odf.teletype.extractText
+
+    @patch.dict("sys.modules", {"odf": None})
+    def test_returns_none_when_not_installed(self) -> None:
+        from docfinder.ingestion.pdf_loader import _import_odf
+
+        load, P, extract = _import_odf()
+        assert load is None
+        assert P is None
+        assert extract is None
+
+
+class TestIterTextPartsOdf:
+    """Test ODF text extraction."""
+
+    def test_extracts_paragraphs(self, tmp_path: Path) -> None:
+        pytest.importorskip("odf")
+
+        from odf.opendocument import OpenDocumentText
+        from odf.text import P
+
+        f = tmp_path / "test.odt"
+        doc = OpenDocumentText()
+        p1 = P(text="First paragraph")
+        doc.text.addElement(p1)
+        p2 = P(text="")
+        doc.text.addElement(p2)
+        p3 = P(text="Second paragraph")
+        doc.text.addElement(p3)
+        doc.save(str(f))
+
+        from docfinder.ingestion.pdf_loader import iter_text_parts_odf
+
+        parts = list(iter_text_parts_odf(f))
+        assert len(parts) == 2
+        assert "First paragraph" in parts[0]
+        assert "Second paragraph" in parts[1]
+
+    def test_read_error(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_odf
+
+        pytest.importorskip("odf")
+
+        f = tmp_path / "corrupt.odt"
+        f.write_bytes(b"not a real odf")
+        parts = list(iter_text_parts_odf(f))
+        assert parts == []
+
+    def test_supports_odp_odg(self) -> None:
+        """ODP/ODG dispatch is tested via TestIterTextBySuffix and TestIterPagedText."""
+
+
+class TestIterTextPartsOdfPaged:
+    """Test ODF paged extraction."""
+
+    def test_groups_paragraphs(self, tmp_path: Path) -> None:
+        pytest.importorskip("odf")
+
+        from odf.opendocument import OpenDocumentText
+        from odf.text import P
+
+        f = tmp_path / "test.odt"
+        doc = OpenDocumentText()
+        for i in range(15):
+            doc.text.addElement(P(text=f"Para {i}"))
+        doc.save(str(f))
+
+        from docfinder.ingestion.pdf_loader import iter_text_parts_odf_paged
+
+        pages = list(iter_text_parts_odf_paged(f))
+        assert len(pages) == 2  # 10 per page, 15 paras = 2 pages
+        assert pages[0][0] == 1
+        assert pages[1][0] == 2
+
+    def test_read_error(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_odf_paged
+
+        pytest.importorskip("odf")
+
+        f = tmp_path / "corrupt.odt"
+        f.write_bytes(b"not an odf")
+        pages = list(iter_text_parts_odf_paged(f))
+        assert pages == []
+
+
+# ── PPTX tests ────────────────────────────────────────────────────────────────
+
+
+class TestImportPptx:
+    """Test python-pptx lazy import."""
+
+    def test_returns_presentation_class(self) -> None:
+        from docfinder.ingestion.pdf_loader import _import_pptx
+
+        pptx = pytest.importorskip("pptx")
+
+        result = _import_pptx()
+        assert result is pptx.Presentation
+
+    @patch.dict("sys.modules", {"pptx": None})
+    def test_returns_none_when_not_installed(self) -> None:
+        from docfinder.ingestion.pdf_loader import _import_pptx
+
+        result = _import_pptx()
+        assert result is None
+
+
+class TestIterTextPartsPptx:
+    """Test PPTX text extraction."""
+
+    def test_extracts_slide_text(self, tmp_path: Path) -> None:
+        pptx = pytest.importorskip("pptx")
+
+        f = tmp_path / "test.pptx"
+        prs = pptx.Presentation()
+        slide_layout = prs.slide_layouts[6]  # blank layout
+        slide = prs.slides.add_slide(slide_layout)
+        txBox = slide.shapes.add_textbox(1, 1, 1, 1)
+        tf = txBox.text_frame
+        tf.text = "Body text"
+        prs.save(str(f))
+
+        from docfinder.ingestion.pdf_loader import iter_text_parts_pptx
+
+        parts = list(iter_text_parts_pptx(f))
+        assert any("Body text" in p for p in parts)
+
+    def test_read_error(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_pptx
+
+        pytest.importorskip("pptx")
+
+        f = tmp_path / "corrupt.pptx"
+        f.write_bytes(b"not a pptx")
+        parts = list(iter_text_parts_pptx(f))
+        assert parts == []
+
+
+class TestIterTextPartsPptxPaged:
+    """Test PPTX paged extraction — one page per slide."""
+
+    def test_one_page_per_slide(self, tmp_path: Path) -> None:
+        pptx = pytest.importorskip("pptx")
+
+        f = tmp_path / "test.pptx"
+        prs = pptx.Presentation()
+        slide_layout = prs.slide_layouts[6]
+        for i in range(3):
+            slide = prs.slides.add_slide(slide_layout)
+            txBox = slide.shapes.add_textbox(1, 1, 1, 1)
+            txBox.text_frame.text = f"Slide {i + 1}"
+        prs.save(str(f))
+
+        from docfinder.ingestion.pdf_loader import iter_text_parts_pptx_paged
+
+        pages = list(iter_text_parts_pptx_paged(f))
+        assert len(pages) == 3
+        assert pages[0][0] == 1
+        assert pages[1][0] == 2
+        assert pages[2][0] == 3
+
+    def test_skips_empty_slides(self, tmp_path: Path) -> None:
+        pptx = pytest.importorskip("pptx")
+
+        f = tmp_path / "empty.pptx"
+        prs = pptx.Presentation()
+        prs.slides.add_slide(prs.slide_layouts[6])  # blank with no text
+        prs.save(str(f))
+
+        from docfinder.ingestion.pdf_loader import iter_text_parts_pptx_paged
+
+        pages = list(iter_text_parts_pptx_paged(f))
+        assert len(pages) == 0
+
+
+# ── HTML tests ────────────────────────────────────────────────────────────────
+
+
+class TestImportBeautifulSoup4:
+    """Test beautifulsoup4 lazy import."""
+
+    def test_returns_bs4_class(self) -> None:
+        from docfinder.ingestion.pdf_loader import _import_beautifulsoup4
+
+        bs4 = pytest.importorskip("bs4")
+
+        result = _import_beautifulsoup4()
+        assert result is bs4.BeautifulSoup
+
+    @patch.dict("sys.modules", {"bs4": None})
+    def test_returns_none_when_not_installed(self) -> None:
+        from docfinder.ingestion.pdf_loader import _import_beautifulsoup4
+
+        result = _import_beautifulsoup4()
+        assert result is None
+
+
+class TestIterTextPartsHtml:
+    """Test HTML text extraction."""
+
+    def test_extracts_plain_text(self, tmp_path: Path) -> None:
+        pytest.importorskip("bs4")
+
+        f = tmp_path / "test.html"
+        f.write_text("<html><body><h1>Title</h1><p>Hello world</p></body></html>")
+
+        from docfinder.ingestion.pdf_loader import iter_text_parts_html
+
+        parts = list(iter_text_parts_html(f))
+        assert len(parts) >= 1
+        text = " ".join(parts)
+        assert "Title" in text
+        assert "Hello world" in text
+
+    def test_removes_script_and_style(self, tmp_path: Path) -> None:
+        pytest.importorskip("bs4")
+
+        f = tmp_path / "scripted.html"
+        f.write_text(
+            "<html><head><script>var x=1;</script>"
+            "<style>.cls{color:red}</style></head>"
+            "<body><p>Visible</p></body></html>"
+        )
+
+        from docfinder.ingestion.pdf_loader import iter_text_parts_html
+
+        parts = list(iter_text_parts_html(f))
+        text = " ".join(parts)
+        assert "Visible" in text
+        assert "var x" not in text
+        assert "color:red" not in text
+
+    def test_read_error(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_html
+
+        f = tmp_path / "missing.html"
+        parts = list(iter_text_parts_html(f))
+        assert parts == []
+
+
+class TestIterTextPartsHtmlPaged:
+    """Test HTML paged extraction."""
+
+    def test_virtual_pages(self, tmp_path: Path) -> None:
+        pytest.importorskip("bs4")
+
+        f = tmp_path / "long.html"
+        f.write_text(
+            "<html><body>" + " ".join(f"<p>Para {i}</p>" for i in range(50)) + "</body></html>"
+        )
+
+        from docfinder.ingestion.pdf_loader import iter_text_parts_html_paged
+
+        pages = list(iter_text_parts_html_paged(f))
+        assert len(pages) >= 1
+        assert pages[0][0] == 1
+
+    def test_read_error(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_html_paged
+
+        f = tmp_path / "missing.html"
+        pages = list(iter_text_parts_html_paged(f))
+        assert pages == []
+
+
+# ── EPUB tests ────────────────────────────────────────────────────────────────
+
+
+class TestIterTextPartsEpub:
+    """Test EPUB text extraction."""
+
+    def test_extracts_chapter_text(self, tmp_path: Path) -> None:
+        pytest.importorskip("bs4")
+        import zipfile
+
+        f = tmp_path / "test.epub"
+
+        with zipfile.ZipFile(f, "w") as zf:
+            zf.writestr(
+                "META-INF/container.xml",
+                (
+                    '<?xml version="1.0"?>'
+                    '<container version="1.0" '
+                    'xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                    '<rootfiles><rootfile full-path="content.opf" media-type="application/oebps-package+xml"/>'
+                    "</rootfiles></container>"
+                ),
+            )
+            zf.writestr(
+                "content.opf",
+                (
+                    '<?xml version="1.0"?>'
+                    '<package xmlns="http://www.idpf.org/2007/opf" version="2.0">'
+                    "<manifest>"
+                    '<item id="c1" href="chapter1.xhtml" media-type="application/xhtml+xml"/>'
+                    "</manifest>"
+                    '<spine><itemref idref="c1"/></spine>'
+                    "</package>"
+                ),
+            )
+            zf.writestr(
+                "chapter1.xhtml",
+                (
+                    '<html xmlns="http://www.w3.org/1999/xhtml">'
+                    "<body><h1>Chapter 1</h1><p>EPUB content here.</p></body></html>"
+                ),
+            )
+
+        from docfinder.ingestion.pdf_loader import iter_text_parts_epub
+
+        parts = list(iter_text_parts_epub(f))
+        assert len(parts) >= 1
+        text = " ".join(parts)
+        assert "Chapter 1" in text
+        assert "EPUB content here" in text
+
+    def test_read_error(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_epub
+
+        pytest.importorskip("bs4")
+
+        f = tmp_path / "corrupt.epub"
+        f.write_bytes(b"not an epub")
+        parts = list(iter_text_parts_epub(f))
+        assert parts == []
+
+
+class TestIterTextPartsEpubPaged:
+    """Test EPUB paged extraction — one page per chapter."""
+
+    def test_one_page_per_chapter(self, tmp_path: Path) -> None:
+        pytest.importorskip("bs4")
+        import zipfile
+
+        f = tmp_path / "multi.epub"
+
+        with zipfile.ZipFile(f, "w") as zf:
+            zf.writestr(
+                "META-INF/container.xml",
+                (
+                    '<?xml version="1.0"?>'
+                    '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">'
+                    '<rootfiles><rootfile full-path="content.opf" media-type="application/oebps-package+xml"/>'
+                    "</rootfiles></container>"
+                ),
+            )
+            zf.writestr(
+                "content.opf",
+                (
+                    '<?xml version="1.0"?>'
+                    '<package xmlns="http://www.idpf.org/2007/opf" version="2.0">'
+                    "<manifest>"
+                    '<item id="c1" href="ch1.xhtml" media-type="application/xhtml+xml"/>'
+                    '<item id="c2" href="ch2.xhtml" media-type="application/xhtml+xml"/>'
+                    "</manifest>"
+                    '<spine><itemref idref="c1"/><itemref idref="c2"/></spine>'
+                    "</package>"
+                ),
+            )
+            zf.writestr("ch1.xhtml", "<html><body><p>Chapter One</p></body></html>")
+            zf.writestr("ch2.xhtml", "<html><body><p>Chapter Two</p></body></html>")
+
+        from docfinder.ingestion.pdf_loader import iter_text_parts_epub_paged
+
+        pages = list(iter_text_parts_epub_paged(f))
+        assert len(pages) == 2
+        assert pages[0][0] == 1
+        assert "Chapter One" in pages[0][1]
+        assert pages[1][0] == 2
+        assert "Chapter Two" in pages[1][1]
+
+
+class TestIterTextPartsEpubErrors:
+    """Test EPUB error handling."""
+
+    def test_no_container_xml(self, tmp_path: Path) -> None:
+        pytest.importorskip("bs4")
+        import zipfile
+
+        f = tmp_path / "bad.epub"
+        with zipfile.ZipFile(f, "w") as zf:
+            zf.writestr("random.txt", "hello")
+
+        from docfinder.ingestion.pdf_loader import iter_text_parts_epub
+
+        parts = list(iter_text_parts_epub(f))
+        assert parts == []
+
+    def test_missing_opf_hrefs(self, tmp_path: Path) -> None:
+        pytest.importorskip("bs4")
+        import zipfile
+
+        f = tmp_path / "badrefs.epub"
+        with zipfile.ZipFile(f, "w") as zf:
+            zf.writestr(
+                "META-INF/container.xml",
+                (
+                    '<?xml version="1.0"?>'
+                    '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">'
+                    '<rootfiles><rootfile full-path="content.opf" media-type="application/oebps-package+xml"/>'
+                    "</rootfiles></container>"
+                ),
+            )
+            zf.writestr(
+                "content.opf",
+                (
+                    '<?xml version="1.0"?>'
+                    '<package xmlns="http://www.idpf.org/2007/opf" version="2.0">'
+                    '<manifest><item id="c1" href="missing.xhtml" media-type="application/xhtml+xml"/></manifest>'
+                    '<spine><itemref idref="c1"/></spine>'
+                    "</package>"
+                ),
+            )
+
+        from docfinder.ingestion.pdf_loader import iter_text_parts_epub
+
+        parts = list(iter_text_parts_epub(f))
+        assert parts == []
+
+
+# ── DOC tests ─────────────────────────────────────────────────────────────────
+
+
+class TestImportOlefile:
+    """Test olefile lazy import."""
+
+    def test_returns_olefile_module(self) -> None:
+        from docfinder.ingestion.pdf_loader import _import_olefile
+
+        olefile = pytest.importorskip("olefile")
+
+        result = _import_olefile()
+        assert result is olefile
+
+    @patch.dict("sys.modules", {"olefile": None})
+    def test_returns_none_when_not_installed(self) -> None:
+        from docfinder.ingestion.pdf_loader import _import_olefile
+
+        result = _import_olefile()
+        assert result is None
+
+
+class TestIterTextPartsDoc:
+    """Test .doc extraction."""
+
+    @patch("docfinder.ingestion.pdf_loader._import_olefile")
+    def test_utf16_text_extraction(self, mock_import: MagicMock, tmp_path: Path) -> None:
+        """Should decode UTF-16-LE text from WordDocument stream."""
+        from docfinder.ingestion.pdf_loader import iter_text_parts_doc
+
+        mock_ole = MagicMock()
+        mock_import.return_value = mock_ole
+
+        # Simulate a WordDocument stream with UTF-16-LE text after offset 1500.
+        # Text must be >40 characters to pass the confidence threshold.
+        text = "Hello doc world " * 5 + "end."
+        data = bytearray(2000)
+        encoded = text.encode("utf-16-le")
+        data[1500 : 1500 + len(encoded)] = encoded
+
+        mock_ole.OleFileIO.return_value.openstream.return_value.read.return_value = bytes(data)
+
+        f = tmp_path / "test.doc"
+        f.write_bytes(b"dummy")
+        parts = list(iter_text_parts_doc(f))
+        assert len(parts) >= 1
+        assert "Hello doc world" in parts[0]
+
+    def test_read_error(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_doc
+
+        f = tmp_path / "missing.doc"
+        parts = list(iter_text_parts_doc(f))
+        assert parts == []
+
+
+class TestIterTextPartsDocPaged:
+    """Test .doc paged extraction."""
+
+    @patch("docfinder.ingestion.pdf_loader._extract_text_from_doc_binary")
+    def test_virtual_pages(self, mock_extract: MagicMock, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_doc_paged
+
+        mock_extract.return_value = iter(["A" * 5000])
+
+        pages = list(iter_text_parts_doc_paged(tmp_path / "test.doc"))
+        assert len(pages) >= 1
+        assert pages[0][0] == 1
+
+
+# ── PPT tests ─────────────────────────────────────────────────────────────────
+
+
+class TestWalkPptRecords:
+    """Test the PowerPoint binary record walker."""
+
+    def test_extracts_text_chars_atom(self) -> None:
+        import struct
+
+        from docfinder.ingestion.pdf_loader import _walk_ppt_records
+
+        text = "Hello PPT"
+        encoded = text.encode("utf-16-le")
+        # Record header (little-endian): ver=0, instance=0, type=0x0FA0, len=len(encoded)
+        header = struct.pack("<HHI", 0x0000, 0x0FA0, len(encoded))
+        data = header + encoded
+
+        texts: list[str] = []
+        _walk_ppt_records(data, 0, len(data), texts)
+        assert "Hello PPT" in texts
+
+    def test_extracts_text_bytes_atom(self) -> None:
+        import struct
+
+        from docfinder.ingestion.pdf_loader import _walk_ppt_records
+
+        text = b"Hello Bytes"
+        header = struct.pack("<HHI", 0x0000, 0x0FA8, len(text))  # TextBytesAtom
+        data = header + text
+
+        texts: list[str] = []
+        _walk_ppt_records(data, 0, len(data), texts)
+        assert "Hello Bytes" in texts
+
+    def test_walks_container_records(self) -> None:
+        import struct
+
+        from docfinder.ingestion.pdf_loader import _walk_ppt_records
+
+        # Container record (version nibble 0xF) containing a TextCharsAtom
+        text = "Nested text".encode("utf-16-le")
+        child_header = struct.pack("<HHI", 0x0000, 0x0FA0, len(text))
+        child_data = child_header + text
+
+        # Container header: Document container (type 0x03E8), recVer=0xF
+        container_header = struct.pack("<HHI", 0x000F, 0x03E8, len(child_data))
+        data = container_header + child_data
+
+        texts: list[str] = []
+        _walk_ppt_records(data, 0, len(data), texts)
+        assert "Nested text" in texts
+
+    def test_skips_unknown_records(self) -> None:
+        import struct
+
+        from docfinder.ingestion.pdf_loader import _walk_ppt_records
+
+        # Unknown record type
+        header = struct.pack("<HHI", 0x0000, 0x0001, 0)
+
+        texts: list[str] = []
+        _walk_ppt_records(header, 0, len(header), texts)
+        assert texts == []
+
+
+class TestIterTextPartsPpt:
+    """Test .ppt extraction."""
+
+    @patch("docfinder.ingestion.pdf_loader._import_olefile")
+    def test_extracts_text_from_ppt(self, mock_import: MagicMock, tmp_path: Path) -> None:
+        import struct
+
+        from docfinder.ingestion.pdf_loader import iter_text_parts_ppt
+
+        # Build a PowerPoint Document stream with a TextCharsAtom
+        text = "Slide text".encode("utf-16-le")
+        atom_header = struct.pack("<HHI", 0x0000, 0x0FA0, len(text))
+        stream_data = atom_header + text
+
+        mock_ole = MagicMock()
+        mock_import.return_value = mock_ole
+        mock_ole.OleFileIO.return_value.openstream.return_value.read.return_value = stream_data
+
+        f = tmp_path / "test.ppt"
+        f.write_bytes(b"dummy")
+        parts = list(iter_text_parts_ppt(f))
+        assert len(parts) >= 1
+        assert "Slide text" in parts[0]
+
+    def test_read_error(self, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_ppt
+
+        f = tmp_path / "missing.ppt"
+        parts = list(iter_text_parts_ppt(f))
+        assert parts == []
+
+
+class TestIterTextPartsPptPaged:
+    """Test .ppt paged extraction."""
+
+    @patch("docfinder.ingestion.pdf_loader._extract_text_from_ppt_binary")
+    def test_virtual_pages(self, mock_extract: MagicMock, tmp_path: Path) -> None:
+        from docfinder.ingestion.pdf_loader import iter_text_parts_ppt_paged
+
+        mock_extract.return_value = iter(["A" * 5000])
+
+        pages = list(iter_text_parts_ppt_paged(tmp_path / "test.ppt"))
+        assert len(pages) >= 1
+        assert pages[0][0] == 1
