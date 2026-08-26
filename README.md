@@ -13,7 +13,7 @@
 
 <p align="center">
   <strong>Local-first semantic search for your documents.</strong><br>
-  Supports PDF, Word (.docx), Markdown, and plain text files.<br>
+  Supports PDF, Word, PowerPoint, OpenDocument, HTML, EPUB, Markdown, plain text, and more.<br>
   Everything runs on your machine — no cloud, no accounts, complete privacy.
 </p>
 
@@ -23,8 +23,8 @@
 
 ## Features
 
-- **Semantic search** — find documents by meaning, not just keywords (PDF, DOCX, Markdown, TXT)
-- **AI chat** — ask questions about any document and get precise answers, powered by local Qwen models (automatically selects the best model for your hardware)
+- **Semantic search** — find documents by meaning, not just keywords (PDF, DOCX, PPTX, ODT, HTML, EPUB + others)
+- **AI chat** — ask questions about any document and get precise answers, powered by local Qwen3.5 models (automatically selects the best model for your hardware)
 - **100% local** — your files never leave your machine
 - **GPU accelerated** — auto-detects Apple Silicon (Metal), NVIDIA (CUDA), AMD (ROCm)
 - **Cross-platform** — native apps for macOS, Windows, and Linux

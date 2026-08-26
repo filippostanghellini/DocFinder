@@ -1,0 +1,45 @@
+.md-header__button.md-logo img {
+  height: 3rem;
+}
+
+/* ── Landing hero ───────────────────────────────────────────────────────────── */
+
+.hero {
+  text-align: center;
+  padding: 2.5rem 0 1rem;
+}
+
+.hero h1 {
+  font-weight: 800;
+  background: linear-gradient(90deg, #b388ff, #7c4dff, #536dfe);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.hero-shot {
+  display: block;
+  margin: 0 auto 2rem;
+  max-width: 100%;
+  border-radius: 0.5rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+/* ── Feature cards ──────────────────────────────────────────────────────────── */
+
+.md-typeset .grid.cards > ul > li {
+  border-radius: 0.5rem;
+  border: 1px solid rgba(124, 77, 255, 0.25);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.md-typeset .grid.cards > ul > li:hover {
+  transform: translateY(-3px);
+  border-color: rgba(124, 77, 255, 0.7);
+  box-shadow: 0 6px 24px rgba(124, 77, 255, 0.25);
+}
+

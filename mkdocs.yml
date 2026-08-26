@@ -1,0 +1,74 @@
+site_name: DocFinder
+site_description: Local-first semantic search for your documents
+site_url: https://filippostanghellini.github.io/DocFinder/
+repo_url: https://github.com/filippostanghellini/DocFinder
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  logo: assets/logo.png
+  favicon: assets/logo.png
+  font:
+    text: Inter
+    code: JetBrains Mono
+  palette:
+    # dark first = dark is the default; the toggle switches and persists
+    - scheme: slate
+      primary: deep purple
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - scheme: default
+      primary: deep purple
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.action.edit
+    - content.code.copy
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/filippostanghellini/DocFinder
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets:
+      base_path: [., docs]
+      check_paths: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+extra_css:
+  - assets/extra.css
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Installation: install.md
+  - Usage: usage.md
+  - Supported Formats: formats.md
+  - Semantic Search: search.md
+  - AI Chat: chat.md
+  - Architecture: architecture.md
+  - FAQ: faq.md
+  - Changelog: changelog.md
+  - License: license.md
+
+copyright: Copyright &copy; 2024-2026 DocFinder Team
