@@ -194,7 +194,12 @@ async def search_documents(payload: SearchPayload) -> dict[str, List[SearchResul
     store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
     searcher = Searcher(embedder, store, reranker=reranker)
     folders = [f.strip() for f in payload.folders if f and f.strip()]
-    results = searcher.search(query, top_k=top_k, folders=folders if folders else None)
+    try:
+        results = searcher.search(query, top_k=top_k, folders=folders if folders else None)
+    except ValueError as exc:
+        # e.g. index built with a different embedding model — tell the user
+        # instead of leaking a raw 500.
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     store.close()
     return {"results": results}
 
@@ -320,9 +325,9 @@ def _get_total_ram_for_rag() -> int:
 def _format_size_label(spec) -> str:
     """Return a human-readable approximate download size."""
     sizes = {
-        "Qwen2.5-7B-Instruct": "~4.7 GB",
-        "Qwen2.5-3B-Instruct": "~2.1 GB",
-        "Qwen2.5-1.5B-Instruct": "~1.1 GB",
+        "Qwen3.5-9B": "~5.7 GB",
+        "Qwen3.5-4B": "~2.7 GB",
+        "Qwen3.5-2B": "~1.3 GB",
     }
     return sizes.get(spec.name, "unknown")
 

@@ -51,8 +51,13 @@ class TestEnsureDbParent:
 class TestIndexCommand:
     """Tests for the index command."""
 
-    def test_index_no_documents_found(self, tmp_path: Path) -> None:
-        """Shows warning when no supported documents are found."""
+    @patch("docfinder.cli.EmbeddingModel")
+    def test_index_no_documents_found(self, mock_embedder, tmp_path: Path) -> None:
+        """Shows warning when no supported documents are found.
+
+        EmbeddingModel is patched so the test never loads the real (2 GB+)
+        bge-m3 model — the empty-directory path doesn't need it.
+        """
         empty_dir = tmp_path / "empty"
         empty_dir.mkdir()
         db_path = tmp_path / "test.db"

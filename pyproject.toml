@@ -17,9 +17,8 @@ dependencies = [
     "sentence-transformers>=2.6.0",
     "onnxruntime>=1.17.0",
     "optimum>=2.0.0",
-    # pin numpy to <2 to avoid runtime errors with precompiled C-extensions
-    # that may not yet be compatible with NumPy 2.x. Projects installing
-    # DocFinder from scratch will get a NumPy 1.x compatible release.
+    # pin numpy to <3 to avoid runtime errors with precompiled C-extensions
+    # that may not yet be compatible with newer NumPy releases.
     "numpy>=1.26.0,<3",
     "typer[all]>=0.12.0",
     "rich>=13.7.0",
@@ -56,10 +55,14 @@ gui = [
   "pyobjc-framework-Cocoa>=9.0; sys_platform == 'darwin'"
 ]
 rag = [
-  "llama-cpp-python>=0.3.0",
+  "llama-cpp-python>=0.3.34",  # 0.3.34+ bundles llama.cpp with Qwen3.5 architecture support
 ]
 gpu = [
   "onnxruntime-gpu>=1.17.0"
+]
+docs = [
+  "mkdocs>=1.6.0",
+  "mkdocs-material>=9.5.0",
 ]
 
 [project.scripts]

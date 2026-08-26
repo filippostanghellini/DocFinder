@@ -11,7 +11,7 @@ from typing import Iterable, Literal, Sequence
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-DEFAULT_MODEL = "sentence-transformers/all-mpnet-base-v2"
+DEFAULT_MODEL = "BAAI/bge-m3"
 
 logger = logging.getLogger(__name__)
 

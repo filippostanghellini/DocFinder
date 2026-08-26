@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Embedding model upgraded to BAAI/bge-m3** — multilingual (100+ languages), 8192-token context and higher retrieval quality than all-mpnet-base-v2 (1024-dim vectors). Indexes built with a different embedding model are automatically cleared and re-embedded on the next indexing run
+- **RAG models updated to the Qwen3.5 series** — tiers are now Qwen3.5-9B (16 GB+ RAM), Qwen3.5-4B (8–16 GB) and Qwen3.5-2B (any machine). The GGUF chat templates ship with reasoning ("thinking") disabled by default, keeping RAG answers clean without special handling. Requires `llama-cpp-python>=0.3.34` (first release bundling llama.cpp with Qwen3.5 support)
+
+### Added
+- **Multi-format document indexing** — in addition to PDF, TXT, Markdown and DOCX, DocFinder now indexes PowerPoint (.pptx, .ppt), OpenDocument (.odt, .odp, .odg), HTML (.htm) and EPUB files. Each format gets page-aware chunking: slides for presentations, 10-paragraph groups for DOCX, heading-based sections for Markdown, spine chapters for EPUB
+- **Embedding-model migration guard** — the index now records which model built it (new `meta` table); on model change the index is wiped once instead of failing with cryptic numpy errors, and search against a stale index raises an explicit "re-index your documents" error
+
 ## [2.1.3] - 2026-05-13
 
 ### Added

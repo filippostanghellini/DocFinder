@@ -349,17 +349,17 @@ class TestDocxPaged:
 class TestSelectModel:
     """Test automatic model selection based on RAM."""
 
-    def test_large_ram_picks_7b(self):
+    def test_large_ram_picks_9b(self):
         spec = select_model(total_ram_mb=32_768)
-        assert "7B" in spec.name
+        assert "9B" in spec.name
 
-    def test_medium_ram_picks_3b(self):
+    def test_medium_ram_picks_4b(self):
         spec = select_model(total_ram_mb=12_000)
-        assert "3B" in spec.name
+        assert "4B" in spec.name
 
-    def test_small_ram_picks_1_5b(self):
+    def test_small_ram_picks_2b(self):
         spec = select_model(total_ram_mb=4_000)
-        assert "1.5B" in spec.name
+        assert "2B" in spec.name
 
     def test_minimum_ram_still_works(self):
         spec = select_model(total_ram_mb=1_000)
@@ -370,6 +370,37 @@ class TestSelectModel:
         """Model tiers must be ordered by ram_min_mb descending."""
         ram_mins = [t.ram_min_mb for t in MODEL_TIERS]
         assert ram_mins == sorted(ram_mins, reverse=True)
+
+    def test_tier_specs_pinned(self):
+        """Pin repo/filename/context so renames and wrong files break loudly."""
+        tiers = {t.name: t for t in MODEL_TIERS}
+
+        assert tiers["Qwen3.5-9B"].repo_id == "unsloth/Qwen3.5-9B-GGUF"
+        assert tiers["Qwen3.5-9B"].filename == "Qwen3.5-9B-Q4_K_M.gguf"
+        assert tiers["Qwen3.5-4B"].repo_id == "unsloth/Qwen3.5-4B-GGUF"
+        assert tiers["Qwen3.5-4B"].filename == "Qwen3.5-4B-Q4_K_M.gguf"
+        assert tiers["Qwen3.5-2B"].repo_id == "unsloth/Qwen3.5-2B-GGUF"
+        assert tiers["Qwen3.5-2B"].filename == "Qwen3.5-2B-Q4_K_M.gguf"
+        for spec in MODEL_TIERS:
+            assert spec.ctx_size == 8192
+            assert spec.filename.endswith(".gguf")
+
+    def test_engine_defaults_n_ctx_from_tier(self):
+        """RAGEngine uses the tier context size unless explicitly overridden."""
+        with (
+            patch("docfinder.rag.engine.SQLiteVectorStore"),
+            patch("docfinder.rag.engine.Searcher"),
+            patch("docfinder.rag.engine.select_model", return_value=MODEL_TIERS[0]),
+            patch("docfinder.rag.engine.ensure_model", return_value=Path("/tmp/model.gguf")),
+            patch("docfinder.rag.engine.LocalLLM") as mock_llm,
+        ):
+            embedder = MagicMock()
+            RAGEngine.from_defaults(db_path=Path("/tmp/index.db"), embedder=embedder)
+            assert mock_llm.call_args.kwargs["n_ctx"] == MODEL_TIERS[0].ctx_size
+
+            mock_llm.reset_mock()
+            RAGEngine.from_defaults(db_path=Path("/tmp/index.db"), embedder=embedder, n_ctx=2048)
+            assert mock_llm.call_args.kwargs["n_ctx"] == 2048
 
 
 # ── RAG Engine context assembly tests ────────────────────────────────────────

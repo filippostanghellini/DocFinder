@@ -259,6 +259,57 @@ class TestUpsertDocument:
         assert metadata == {"page": 5, "section": "intro"}
 
 
+class TestEnsureEmbeddingModel:
+    """Test embedding-model tracking and wipe on model change."""
+
+    def _insert_doc(self, store):
+        doc = DocumentMetadata(
+            path=Path("/tmp/test.pdf"), title="Test", sha256="abc123", mtime=1234567890.0, size=1000
+        )
+        chunks = [ChunkRecord(document_path=doc.path, index=0, text="Chunk", metadata={})]
+        embeddings = np.ones((1, 384), dtype="float32")
+        store.upsert_document(doc, chunks, embeddings)
+
+    def test_fresh_index_sets_model_without_wipe(self, temp_db):
+        assert temp_db.ensure_embedding_model("model-a") is False
+        assert temp_db.get_meta("embedding_model") == "model-a"
+
+    def test_legacy_index_without_meta_is_wiped(self, temp_db):
+        """A pre-meta database with vectors has unknown provenance: wipe it."""
+        self._insert_doc(temp_db)
+
+        assert temp_db.ensure_embedding_model("model-a") is True
+
+        stats = temp_db.get_stats()
+        assert stats["document_count"] == 0
+        assert stats["chunk_count"] == 0
+        assert temp_db.get_meta("embedding_model") == "model-a"
+
+    def test_same_model_keeps_documents(self, temp_db):
+        temp_db.ensure_embedding_model("model-a")
+        self._insert_doc(temp_db)
+
+        assert temp_db.ensure_embedding_model("model-a") is False
+        assert temp_db.get_stats()["document_count"] == 1
+
+    def test_model_change_wipes_index(self, temp_db):
+        temp_db.ensure_embedding_model("old-model")
+        self._insert_doc(temp_db)
+
+        assert temp_db.ensure_embedding_model("new-model") is True
+
+        stats = temp_db.get_stats()
+        assert stats["document_count"] == 0
+        assert stats["chunk_count"] == 0
+        assert temp_db.get_meta("embedding_model") == "new-model"
+
+    def test_search_dimension_mismatch_raises(self, temp_db):
+        self._insert_doc(temp_db)  # stores 384-dim vectors
+
+        with pytest.raises(ValueError, match="different embedding model"):
+            temp_db.search(np.ones(768, dtype="float32"))
+
+
 class TestSearch:
     """Test vector search."""
 

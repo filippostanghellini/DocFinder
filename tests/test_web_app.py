@@ -35,6 +35,15 @@ class TestHelperFunctions:
         _ensure_db_parent(db_path)
         assert db_path.parent.exists()
 
+    def test_format_size_label_matches_model_tiers(self) -> None:
+        """Every RAG tier must have a size label (breaks on rename)."""
+        from docfinder.rag.llm import MODEL_TIERS
+        from docfinder.web.app import _format_size_label
+
+        expected = {"Qwen3.5-9B": "~5.7 GB", "Qwen3.5-4B": "~2.7 GB", "Qwen3.5-2B": "~1.3 GB"}
+        for spec in MODEL_TIERS:
+            assert _format_size_label(spec) == expected[spec.name]
+
 
 class TestSystemInfoEndpoint:
     """Tests for GET /system/info endpoint."""
@@ -176,6 +185,40 @@ class TestSearchEndpoint:
         )
         assert response.status_code == 200
         mock_searcher.search.assert_called_with("test", top_k=10, folders=folders)
+
+    @patch("docfinder.web.app.EmbeddingModel")
+    @patch("docfinder.web.app.SQLiteVectorStore")
+    @patch("docfinder.web.app.Searcher")
+    def test_search_stale_embedding_model_returns_409(
+        self,
+        mock_searcher_class: MagicMock,
+        mock_store_class: MagicMock,
+        mock_embedder_class: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """A dimension mismatch surfaces as a 409 with guidance, not a raw 500."""
+        db_path = tmp_path / "test.db"
+        db_path.touch()
+
+        mock_embedder = MagicMock()
+        mock_embedder.dimension = 1024
+        mock_embedder_class.return_value = mock_embedder
+
+        mock_store = MagicMock()
+        mock_store_class.return_value = mock_store
+
+        mock_searcher = MagicMock()
+        mock_searcher.search.side_effect = ValueError(
+            "Index vectors have 768 dimensions but the current embedding model produces "
+            "1024. The index was built with a different embedding model — "
+            "re-index your documents."
+        )
+        mock_searcher_class.return_value = mock_searcher
+
+        response = client.post("/search", json={"query": "test", "db": str(db_path)})
+
+        assert response.status_code == 409
+        assert "re-index" in response.json()["detail"]
 
 
 class TestSearchFoldersEndpoint:

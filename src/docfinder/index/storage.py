@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
@@ -11,6 +12,8 @@ from typing import Iterator, List, Sequence
 import numpy as np
 
 from docfinder.models import ChunkRecord, DocumentMetadata
+
+logger = logging.getLogger(__name__)
 
 
 class SQLiteVectorStore:
@@ -85,6 +88,14 @@ class SQLiteVectorStore:
                     ON chunks(document_id)
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS meta (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+                """
+            )
             # Clean up legacy vector tables if present
             conn.execute("DROP TABLE IF EXISTS chunk_index")
             conn.execute("DROP TABLE IF EXISTS chunk_index_data")
@@ -98,6 +109,58 @@ class SQLiteVectorStore:
     def _normalize_path(path: str | Path) -> str:
         """Return a separator-stable representation for stored paths."""
         return str(path).replace("\\", "/")
+
+    def get_meta(self, key: str) -> str | None:
+        row = self._conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row else None
+
+    def set_meta(self, key: str, value: str) -> None:
+        with self.transaction() as conn:
+            conn.execute(
+                """
+                INSERT INTO meta(key, value) VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                """,
+                (key, value),
+            )
+
+    def ensure_embedding_model(self, model_name: str) -> bool:
+        """Record the embedding model used for this index.
+
+        Vectors produced by different models are not comparable. If the index
+        was built with a *different* model, all documents and chunks are dropped
+        so that indexing starts fresh. Returns True when a wipe happened.
+        """
+        stored = self.get_meta("embedding_model")
+        if stored == model_name:
+            return False
+
+        has_vectors = self._conn.execute("SELECT 1 FROM chunks LIMIT 1").fetchone() is not None
+        if stored is None and not has_vectors:
+            # Fresh index (or a legacy one that never held vectors): stamp it.
+            self.set_meta("embedding_model", model_name)
+            return False
+
+        # Either a known different model, or unknown provenance with existing
+        # vectors (a pre-meta database) — in both cases the index is not
+        # trustworthy for the current model.
+        logger.warning(
+            "Index was built with '%s' but the current model is '%s' — "
+            "clearing the index so everything is re-embedded",
+            stored or "an unknown model",
+            model_name,
+        )
+        with self.transaction() as conn:
+            conn.execute("DELETE FROM chunks")
+            conn.execute("DELETE FROM documents")
+            conn.execute(
+                """
+                INSERT INTO meta(key, value) VALUES ('embedding_model', ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                """,
+                (model_name,),
+            )
+        return True
 
     @classmethod
     def _normalize_folder(cls, folder: str | Path) -> str:
@@ -228,6 +291,14 @@ class SQLiteVectorStore:
 
         if not rows:
             return []
+
+        stored_dim = np.frombuffer(rows[0]["embedding"], dtype="float32").size
+        if stored_dim != query.size:
+            raise ValueError(
+                f"Index vectors have {stored_dim} dimensions but the current "
+                f"embedding model produces {query.size}. The index was built "
+                "with a different embedding model — re-index your documents."
+            )
 
         embeddings = np.vstack([np.frombuffer(row["embedding"], dtype="float32") for row in rows])
         scores = embeddings @ query
