@@ -40,4 +40,3 @@ make run-web
 Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser.
 
 The web UI mirrors the desktop GUI features. By default it listens on `127.0.0.1` (local only); start it with `docfinder web --host 0.0.0.0` to access it from other devices on your network.
-

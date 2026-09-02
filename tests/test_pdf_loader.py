@@ -1434,28 +1434,81 @@ class TestImportOlefile:
 class TestIterTextPartsDoc:
     """Test .doc extraction."""
 
+    @staticmethod
+    def _word_stream_with_piece_table(text_data: bytes, *, unicode_text: bool) -> bytes:
+        data = bytearray(512)
+        data[0:2] = b"\xdc\xa5"
+        data[32:34] = (14).to_bytes(2, "little")
+        data[62:64] = (22).to_bytes(2, "little")
+        data[152:154] = (68).to_bytes(2, "little")
+        fc_clx_offset = 154 + 33 * 8
+        table_offset = 300
+        text_offset = 120
+        cp_length = len(text_data) // 2 if unicode_text else len(text_data)
+        fc = text_offset if unicode_text else (text_offset * 2 | 0x40000000)
+        clx = b"\x02" + (16).to_bytes(4, "little")
+        clx += (0).to_bytes(4, "little") + cp_length.to_bytes(4, "little")
+        clx += b"\x00" * 2 + fc.to_bytes(4, "little") + b"\x00" * 2
+        data[table_offset : table_offset + len(clx)] = clx
+        data[text_offset : text_offset + len(text_data)] = text_data
+        data[fc_clx_offset : fc_clx_offset + 4] = table_offset.to_bytes(4, "little")
+        data[fc_clx_offset + 4 : fc_clx_offset + 8] = len(clx).to_bytes(4, "little")
+        return bytes(data)
+
     @patch("docfinder.ingestion.pdf_loader._import_olefile")
     def test_utf16_text_extraction(self, mock_import: MagicMock, tmp_path: Path) -> None:
-        """Should decode UTF-16-LE text from WordDocument stream."""
+        """Should decode Unicode text from a Word piece table."""
         from docfinder.ingestion.pdf_loader import iter_text_parts_doc
 
         mock_ole = MagicMock()
         mock_import.return_value = mock_ole
 
-        # Simulate a WordDocument stream with UTF-16-LE text after offset 1500.
-        # Text must be >40 characters to pass the confidence threshold.
         text = "Hello doc world " * 5 + "end."
-        data = bytearray(2000)
-        encoded = text.encode("utf-16-le")
-        data[1500 : 1500 + len(encoded)] = encoded
+        data = self._word_stream_with_piece_table(text.encode("utf-16-le"), unicode_text=True)
 
-        mock_ole.OleFileIO.return_value.openstream.return_value.read.return_value = bytes(data)
+        mock_ole.OleFileIO.return_value.openstream.side_effect = [
+            MagicMock(read=MagicMock(return_value=bytes(data))),
+            MagicMock(read=MagicMock(return_value=bytes(data))),
+        ]
 
         f = tmp_path / "test.doc"
         f.write_bytes(b"dummy")
         parts = list(iter_text_parts_doc(f))
         assert len(parts) >= 1
         assert "Hello doc world" in parts[0]
+
+    @patch("docfinder.ingestion.pdf_loader._import_olefile")
+    def test_ansi_text_extraction(self, mock_import: MagicMock, tmp_path: Path) -> None:
+        """Should decode compressed ANSI text from a Word piece table."""
+        from docfinder.ingestion.pdf_loader import iter_text_parts_doc
+
+        mock_ole = MagicMock()
+        mock_import.return_value = mock_ole
+        data = self._word_stream_with_piece_table(
+            "Caf\xe9 in a DOC".encode("cp1252"), unicode_text=False
+        )
+        mock_ole.OleFileIO.return_value.openstream.side_effect = [
+            MagicMock(read=MagicMock(return_value=data)),
+            MagicMock(read=MagicMock(return_value=data)),
+        ]
+
+        parts = list(iter_text_parts_doc(tmp_path / "test.doc"))
+
+        assert parts == ["Café in a DOC"]
+
+    @patch("docfinder.ingestion.pdf_loader._import_olefile")
+    def test_invalid_doc_does_not_extract_binary_strings(
+        self, mock_import: MagicMock, tmp_path: Path
+    ) -> None:
+        """Should reject invalid streams instead of indexing arbitrary metadata."""
+        from docfinder.ingestion.pdf_loader import iter_text_parts_doc
+
+        mock_ole = MagicMock()
+        mock_import.return_value = mock_ole
+        binary_data = b"\x00\x01#attachment:Pasted text #1\xff\xfe"
+        mock_ole.OleFileIO.return_value.openstream.return_value.read.return_value = binary_data
+
+        assert list(iter_text_parts_doc(tmp_path / "invalid.doc")) == []
 
     def test_read_error(self, tmp_path: Path) -> None:
         from docfinder.ingestion.pdf_loader import iter_text_parts_doc

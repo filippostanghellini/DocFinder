@@ -583,51 +583,94 @@ def _import_olefile():
 
 
 def _extract_text_from_doc_binary(path: Path) -> Iterator[str]:
-    """Heuristic text extraction from Word 97‑2003 (.doc) files via olefile."""
+    """Extract text from a Word 97-2003 file using its piece table."""
     olefile = _import_olefile()
     if olefile is None:
         return
     try:
         ole = olefile.OleFileIO(path)
         try:
-            stream = ole.openstream("WordDocument")
-            data = stream.read()
+            word_data = ole.openstream("WordDocument").read()
+            if len(word_data) < 32 or word_data[:2] not in (
+                b"\xec\xa5",  # Word 97-2003
+                b"\xdc\xa5",  # Word 6/95
+                b"\xdb\xa5",  # Word 95
+            ):
+                LOGGER.warning("Unsupported or invalid Word binary file: %s", path)
+                return
+
+            csw = int.from_bytes(word_data[32:34], "little")
+            offset = 34 + csw * 2
+            cslw = int.from_bytes(word_data[offset : offset + 2], "little")
+            offset += 2 + cslw * 4
+            cb_rg_fc_lcb = int.from_bytes(word_data[offset : offset + 2], "little")
+            offset += 2
+            fc_lcb = word_data[offset : offset + cb_rg_fc_lcb * 8]
+            # fcClx is entry 33 in FibRgFcLcb97 (fc followed by lcb).
+            clx_entry = 33 * 8
+            if len(fc_lcb) < clx_entry + 8:
+                LOGGER.warning("Word binary file has no CLX reference: %s", path)
+                return
+            fc_clx = int.from_bytes(fc_lcb[clx_entry : clx_entry + 4], "little")
+            lcb_clx = int.from_bytes(fc_lcb[clx_entry + 4 : clx_entry + 8], "little")
+            if not lcb_clx:
+                return
+
+            flags = int.from_bytes(word_data[10:12], "little")
+            table_name = "1Table" if flags & 0x0200 else "0Table"
+            table_data = ole.openstream(table_name).read()
+            clx = table_data[fc_clx : fc_clx + lcb_clx]
         finally:
             ole.close()
     except Exception as exc:
         LOGGER.error("Failed to read %s: %s", path, exc)
         return
 
+    # CLX may begin with formatting records before the piece table.
+    pos = 0
+    while pos < len(clx) and clx[pos] == 0x01:
+        if pos + 5 > len(clx):
+            return
+        pos += 5 + int.from_bytes(clx[pos + 1 : pos + 5], "little")
+    if pos >= len(clx) or clx[pos] != 0x02 or pos + 5 > len(clx):
+        LOGGER.warning("Word binary file has an invalid piece table: %s", path)
+        return
+
+    piece_table_size = int.from_bytes(clx[pos + 1 : pos + 5], "little")
+    piece_table = clx[pos + 5 : pos + 5 + piece_table_size]
+    if len(piece_table) < 4 or (len(piece_table) - 4) % 12:
+        LOGGER.warning("Word binary file has a truncated piece table: %s", path)
+        return
+
+    piece_count = (len(piece_table) - 4) // 12
+    cps = [
+        int.from_bytes(piece_table[index * 4 : index * 4 + 4], "little")
+        for index in range(piece_count + 1)
+    ]
     text_parts: list[str] = []
-
-    # Method 1 — try UTF-16-LE decoding after skipping the FIB header
-    for offset in (0, 512, 1024, 1500, 2000):
-        if offset >= len(data):
+    for index in range(piece_count):
+        pcd_offset = 4 * (piece_count + 1) + index * 8
+        fc = int.from_bytes(piece_table[pcd_offset + 2 : pcd_offset + 6], "little")
+        cp_length = cps[index + 1] - cps[index]
+        if cp_length <= 0:
             continue
-        try:
-            chunk = data[offset : offset + min(len(data) - offset, 100000)]
-            decoded = chunk.decode("utf-16-le", errors="replace")
-            cleaned = "".join(c if c.isprintable() or c in "\n\r\t" else " " for c in decoded)
-            cleaned = re.sub(r"[^\S\n\r\t]+", " ", cleaned).strip()
-            if len(cleaned) > 40:
-                text_parts.append(cleaned)
-                break
-        except Exception:
-            continue
+        compressed = bool(fc & 0x40000000)
+        if compressed:
+            # Compressed pieces store the byte offset multiplied by two.
+            start = (fc & 0x3FFFFFFF) // 2
+            raw = word_data[start : start + cp_length]
+            text_parts.append(raw.decode("cp1252", errors="replace"))
+        else:
+            start = fc
+            raw = word_data[start : start + cp_length * 2]
+            text_parts.append(raw.decode("utf-16-le", errors="replace"))
 
-    # Method 2 — fallback: extract printable ASCII runs
-    if not text_parts:
-        ascii_buf = ""
-        for b in data:
-            if 32 <= b <= 126 or b in (10, 13, 9):
-                ascii_buf += chr(b)
-            elif ascii_buf:
-                if len(ascii_buf) > 10:
-                    text_parts.append(ascii_buf.strip())
-                ascii_buf = ""
-
-    if text_parts:
-        yield "\n".join(text_parts)
+    text = "".join(text_parts)
+    text = text.replace("\x07", "\n").replace("\x0b", "\n").replace("\x0c", "\n")
+    text = "".join(char for char in text if char in "\n\r\t" or char.isprintable())
+    text = re.sub(r"[^\S\n\r\t]+", " ", text).strip()
+    if text:
+        yield text
 
 
 def iter_text_parts_doc(path: Path) -> Iterator[str]:

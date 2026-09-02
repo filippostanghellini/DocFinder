@@ -2162,6 +2162,8 @@
             }, 600);
           }).then(job => {
             const s = job.stats;
+            // Refresh the folder filters so documents indexed in this session are searchable.
+            loadSearchFolders();
             indexStatus.innerHTML = `
               <div style="display:flex; align-items:center; gap: 0.6rem; flex-wrap:wrap;">
                 <span class="badge badge-success">\u2713 Done</span>

@@ -152,6 +152,7 @@ class SpotlightPanel:
         self._panel: object | None = None
         self._webview: object | None = None
         self._handler: object | None = None
+        self._loaded = False
 
     def setup(self) -> None:
         """Create the NSPanel and WKWebView. Must be called from the Cocoa main thread."""
@@ -257,7 +258,8 @@ class SpotlightPanel:
             return
         try:
             self._panel.center()
-            self._panel.orderFrontRegardless()
+            self._panel.makeKeyAndOrderFront_(None)
+            self._panel.makeFirstResponder_(self._webview)
 
             # Clear previous results
             self._webview.evaluateJavaScript_completionHandler_(
@@ -267,6 +269,10 @@ class SpotlightPanel:
                 "if(r)r.innerHTML='';"
                 "if(i){i.value='';}"
                 "})();",
+                None,
+            )
+            self._webview.evaluateJavaScript_completionHandler_(
+                "document.getElementById('spotlight-input')?.focus();",
                 None,
             )
         except Exception as exc:
@@ -473,6 +479,8 @@ class GlobalHotkeyManager:
         self._tap = None  # CGEventTap handle (macOS)
         self._tap_source = None  # CFRunLoopSource (macOS)
         self._tap_thread: threading.Thread | None = None
+        self._tap_run_loop = None
+        self._native_hotkey_active = False
 
     def start(self, hotkey: str, enabled: bool = True) -> None:
         """Register the global hotkey. Replaces any previously registered one."""
@@ -641,8 +649,10 @@ class GlobalHotkeyManager:
 
         def _run_tap() -> None:
             loop = Quartz.CFRunLoopGetCurrent()
+            self._tap_run_loop = loop
             Quartz.CFRunLoopAddSource(loop, source, Quartz.kCFRunLoopCommonModes)
             Quartz.CGEventTapEnable(tap, True)
+            self._native_hotkey_active = True
             logger.info("CGEventTap hotkey active: %s", hotkey)
             Quartz.CFRunLoopRun()
 
@@ -652,7 +662,7 @@ class GlobalHotkeyManager:
         logger.info("Global hotkey registered via CGEventTap: %s", hotkey)
 
     def _start_pynput(self, hotkey: str) -> None:
-        """Fallback: register via pynput (passive listener, cannot suppress events)."""
+        """Fallback: register the hotkey via a single pynput listener."""
         try:
             from pynput import keyboard  # type: ignore[import-untyped]
 
@@ -670,10 +680,26 @@ class GlobalHotkeyManager:
         logger.debug("Global hotkey fired")
 
         if self.spotlight_panel is not None:
-            if self.spotlight_panel.is_visible():
-                self.spotlight_panel.hide()
-            else:
-                self.spotlight_panel.show()
+
+            def _toggle_panel() -> None:
+                if not self._native_hotkey_active and sys.platform == "darwin":
+                    try:
+                        import AppKit  # type: ignore[import-untyped]
+
+                        AppKit.NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+                    except Exception as exc:
+                        logger.debug("AppKit activate failed for hotkey fallback: %s", exc)
+                if self.spotlight_panel.is_visible():
+                    self.spotlight_panel._do_hide()
+                else:
+                    self.spotlight_panel._do_show()
+
+            try:
+                from PyObjCTools import AppHelper  # type: ignore[import-untyped]
+
+                AppHelper.callAfter(_toggle_panel)
+            except Exception:
+                _toggle_panel()
         else:
             # Fallback: activate main window + show CSS overlay
             if sys.platform == "darwin":
@@ -702,13 +728,16 @@ class GlobalHotkeyManager:
 
                 Quartz.CGEventTapEnable(self._tap, False)
                 if self._tap_source is not None:
-                    # Stop the run loop so the thread exits
-                    Quartz.CFRunLoopStop(Quartz.CFRunLoopGetMain())
+                    # Stop the event tap run loop, not Cocoa's main run loop.
+                    if self._tap_run_loop is not None:
+                        Quartz.CFRunLoopStop(self._tap_run_loop)
             except Exception:
                 pass
             self._tap = None
             self._tap_source = None
             self._tap_thread = None
+            self._tap_run_loop = None
+        self._native_hotkey_active = False
 
     def reload(self, hotkey: str, enabled: bool = True) -> None:
         """Stop the current listener and register a new hotkey."""
@@ -733,7 +762,9 @@ class DesktopApi:
         try:
             import webview
 
-            result = self.window.create_file_dialog(webview.FOLDER_DIALOG, allow_multiple=False)
+            dialog_type = getattr(webview, "FileDialog", None)
+            folder_dialog = dialog_type.FOLDER if dialog_type is not None else webview.FOLDER_DIALOG
+            result = self.window.create_file_dialog(folder_dialog, allow_multiple=False)
             return result[0] if result else None
         except Exception as exc:
             logger.warning("Folder picker dialog failed: %s", exc)

@@ -31,7 +31,7 @@ PDFs are parsed with PyMuPDF. Tables are detected automatically and rendered as 
 
 These formats use the OLE2 compound document structure (via `olefile`):
 
-- **.doc** — Heuristic extraction tries UTF-16-LE decoding at multiple offsets within the `WordDocument` stream, falling back to printable ASCII extraction.
+- **.doc** — The Word piece table is read from the OLE `WordDocument` and table streams, preserving ANSI and Unicode text without indexing binary metadata.
 - **.ppt** — A recursive binary record parser walks the `PowerPoint Document` stream looking for `TextCharsAtom` and `TextBytesAtom` records.
 
 ### EPUB

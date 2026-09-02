@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Multi-format document indexing** — in addition to PDF, TXT, Markdown and DOCX, DocFinder now indexes PowerPoint (.pptx, .ppt), OpenDocument (.odt, .odp, .odg), HTML (.htm) and EPUB files. Each format gets page-aware chunking: slides for presentations, 10-paragraph groups for DOCX, heading-based sections for Markdown, spine chapters for EPUB
 - **Embedding-model migration guard** — the index now records which model built it (new `meta` table); on model change the index is wiped once instead of failing with cryptic numpy errors, and search against a stale index raises an explicit "re-index your documents" error
+- **Online documentation** — added a MkDocs site covering installation, usage, supported formats, semantic search, AI chat, architecture, changelog and licensing
 
 ## [2.1.3] - 2026-05-13
 

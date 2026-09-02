@@ -227,6 +227,7 @@
     let activeIndex    = -1;
     let currentResults = [];
     let debounceTimer  = null;
+    let requestSerial  = 0;
 
     function escHtml(s) {
       return String(s)
@@ -307,6 +308,7 @@
         return;
       }
       spinner.classList.add('active');
+      const serial = ++requestSerial;
       try {
         const res  = await fetch(`${apiBase}/search`, {
           method: 'POST',
@@ -314,6 +316,7 @@
           body: JSON.stringify({ query: trimmed, top_k: 10 }),
         });
         const data = await res.json();
+        if (serial !== requestSerial) return;
         if (res.ok) {
           const scored = data.results || [];
           const relevant = scored.filter(r => r.score >= 0.2);
@@ -322,7 +325,9 @@
           results.innerHTML = `<div class="empty">${escHtml(data.detail || 'Error')}</div>`;
         }
       } catch (_) {
-        results.innerHTML = '<div class="empty">Search unavailable \u2014 is DocFinder indexed?</div>';
+        if (serial === requestSerial) {
+          results.innerHTML = '<div class="empty">Search unavailable \u2014 is DocFinder indexed?</div>';
+        }
       } finally {
         spinner.classList.remove('active');
       }
@@ -355,11 +360,6 @@
           openResult(currentResults[activeIndex].path);
         }
       }
-    });
-
-    // Hide on focus loss (clicking another app)
-    window.addEventListener('blur', () => {
-      setTimeout(() => { if (!document.hasFocus()) hideSpotlight(); }, 150);
     });
 
     // Auto-focus search on load and whenever the window regains focus
