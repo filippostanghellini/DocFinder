@@ -34,7 +34,7 @@ pip install torch --index-url https://download.pytorch.org/whl/cpu
 
 ## Architecture
 
-**Layout:** src layout; package `docfinder` in `src/docfinder/`. Version 2.1.3, license AGPL-3.0-or-later.
+**Layout:** src layout; package `docfinder` in `src/docfinder/`. Version 2.2.0, license AGPL-3.0-or-later.
 
 **Entry points:** `docfinder` CLI (cli.py / typer; commands `index`, `search`, `prune`, `web`) and `docfinder-gui` (gui.py: uvicorn in a thread + pywebview; macOS native SpotlightPanel via pyobjc, CGEventTap global hotkey). gui.py's `freeze_support()` + child-exit guard must stay before all other imports.
 
