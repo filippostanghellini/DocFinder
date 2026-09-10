@@ -49,6 +49,18 @@ def _get_embedder() -> EmbeddingModel:
     return _embedder
 
 
+def _preload_embedder() -> None:
+    """Warm the embedding model in the background.
+
+    Server startup (and the desktop window) must never block on a slow model
+    download or load; a failed preload is retried lazily on first request.
+    """
+    try:
+        _get_embedder()
+    except Exception:
+        LOGGER.exception("Embedding model preload failed — will retry on first use")
+
+
 # ── Singleton Reranker ────────────────────────────────────────────────────────
 _reranker: Reranker | None = None
 _reranker_lock = threading.Lock()
@@ -110,8 +122,9 @@ def _preload_reranker() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
-    # Pre-load embedder at startup so first request is instant
-    await asyncio.to_thread(_get_embedder)
+    # Pre-load the embedder in the background so the server starts (and the
+    # desktop window opens) without waiting for the model download/load.
+    threading.Thread(target=_preload_embedder, daemon=True).start()
     yield
 
 

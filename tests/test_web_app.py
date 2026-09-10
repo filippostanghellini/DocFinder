@@ -573,3 +573,20 @@ class TestFrontendRouter:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
         assert "DocFinder" in response.text
+
+
+class TestLifespanStartup:
+    """The app must start without waiting for the embedding model."""
+
+    def test_startup_succeeds_when_embedder_preload_fails(self) -> None:
+        """A failing model preload must not prevent the server from starting.
+
+        On a cold cache the bge-m3 download can take longer than the desktop
+        app's 30s server-startup timeout; startup must never block on it.
+        """
+        with patch(
+            "docfinder.web.app._get_embedder", side_effect=RuntimeError("model unavailable")
+        ):
+            with TestClient(app) as test_client:
+                response = test_client.get("/system/info")
+        assert response.status_code == 200

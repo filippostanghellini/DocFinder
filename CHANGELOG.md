@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **RAG models updated to the Qwen3.5 series** — tiers are now Qwen3.5-9B (16 GB+ RAM), Qwen3.5-4B (8–16 GB) and Qwen3.5-2B (any machine). The GGUF chat templates ship with reasoning ("thinking") disabled by default, keeping RAG answers clean without special handling. Requires `llama-cpp-python>=0.3.34` (first release bundling llama.cpp with Qwen3.5 support)
 
 ### Fixed
+- **Startup no longer waits for the embedding model** — the desktop app opens immediately while the model downloads/loads in the background; previously a cold bge-m3 download could exceed the 30-second startup timeout and close the app on first launch
 - **Spotlight panel focus** — the quick-search panel now becomes the key window, orders in front of other apps and focuses the input field automatically when summoned
 - **Global hotkey reliability on macOS** — the event-tap run loop is stopped correctly on reload/disable (previously the main run loop was stopped by mistake) and hotkey toggling is dispatched onto the Cocoa main thread
 - **Folder filters after indexing** — folders indexed in the current session now appear in the search filter list without reloading the page
