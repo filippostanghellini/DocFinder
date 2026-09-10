@@ -17,7 +17,7 @@ class TestAppConfig:
         # Default path depends on whether data/docfinder.db exists
         expected_path = _get_default_db_path()
         assert config.db_path == expected_path
-        assert config.model_name == "sentence-transformers/all-mpnet-base-v2"
+        assert config.model_name == "BAAI/bge-m3"
         assert config.chunk_chars == 1200
         assert config.overlap == 200
 

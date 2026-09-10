@@ -19,6 +19,9 @@ from docfinder.embedding.encoder import (
     detect_optimal_backend_config,
 )
 
+# Small model for integration tests: keeps them fast and independent of DEFAULT_MODEL
+TEST_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+
 
 class TestGPUDetection:
     """Test GPU availability detection."""
@@ -181,7 +184,7 @@ class TestEmbeddingConfig:
     def test_default_config(self) -> None:
         """Should create config with default values."""
         config = EmbeddingConfig()
-        assert config.model_name == "sentence-transformers/all-mpnet-base-v2"
+        assert config.model_name == "BAAI/bge-m3"
         assert config.batch_size == 32
         assert config.normalize is True
         assert config.backend is None
@@ -216,7 +219,7 @@ class TestEmbeddingModel:
 
     def test_auto_detection(self, sample_texts: list[str]) -> None:
         """Should auto-detect backend and work correctly."""
-        model = EmbeddingModel()
+        model = EmbeddingModel(EmbeddingConfig(model_name=TEST_MODEL))
         assert model.config.backend in ["torch", "onnx"]
         assert model.dimension > 0
 
@@ -227,7 +230,7 @@ class TestEmbeddingModel:
 
     def test_pytorch_backend(self, sample_texts: list[str]) -> None:
         """Should work with PyTorch backend."""
-        config = EmbeddingConfig(backend="torch")
+        config = EmbeddingConfig(model_name=TEST_MODEL, backend="torch")
         model = EmbeddingModel(config)
         assert model.config.backend == "torch"
         assert model.dimension > 0
@@ -242,7 +245,7 @@ class TestEmbeddingModel:
     )
     def test_onnx_backend(self, sample_texts: list[str]) -> None:
         """Should work with ONNX backend."""
-        config = EmbeddingConfig(backend="onnx")
+        config = EmbeddingConfig(model_name=TEST_MODEL, backend="onnx")
         model = EmbeddingModel(config)
         # Backend might fallback to torch if ONNX fails
         assert model.config.backend in ["onnx", "torch"]
@@ -254,14 +257,14 @@ class TestEmbeddingModel:
 
     def test_embed_query(self) -> None:
         """Should generate single query embedding."""
-        model = EmbeddingModel()
+        model = EmbeddingModel(EmbeddingConfig(model_name=TEST_MODEL))
         query_emb = model.embed_query("test query")
         assert query_emb.shape == (model.dimension,)
         assert query_emb.dtype == np.float32
 
     def test_embedding_normalization(self) -> None:
         """Should normalize embeddings when configured."""
-        config_normalized = EmbeddingConfig(normalize=True)
+        config_normalized = EmbeddingConfig(model_name=TEST_MODEL, normalize=True)
         model_normalized = EmbeddingModel(config_normalized)
 
         embeddings = model_normalized.embed(["test"])
@@ -271,7 +274,7 @@ class TestEmbeddingModel:
 
     def test_embedding_consistency(self) -> None:
         """Should produce consistent embeddings for same input."""
-        model = EmbeddingModel()
+        model = EmbeddingModel(EmbeddingConfig(model_name=TEST_MODEL))
         text = "consistency test"
 
         emb1 = model.embed_query(text)
@@ -285,12 +288,12 @@ class TestEmbeddingModel:
         texts = ["text"] * 100
 
         # Small batch
-        config_small = EmbeddingConfig(batch_size=8)
+        config_small = EmbeddingConfig(model_name=TEST_MODEL, batch_size=8)
         model_small = EmbeddingModel(config_small)
         emb_small = model_small.embed(texts)
 
         # Large batch
-        config_large = EmbeddingConfig(batch_size=32)
+        config_large = EmbeddingConfig(model_name=TEST_MODEL, batch_size=32)
         model_large = EmbeddingModel(config_large)
         emb_large = model_large.embed(texts)
 

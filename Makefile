@@ -1,4 +1,4 @@
-.PHONY: setup run run-web lint format format-check test check-all install install-gui clean build-macos build-windows build-linux
+.PHONY: setup run run-web lint format format-check test check-all install install-gui clean build-macos build-windows build-linux serve-docs build-docs
 
 # ── First-time setup ──────────────────────────────────────────────────────────
 # Creates a virtual environment and installs all dependencies in one command.
@@ -64,6 +64,18 @@ build-windows:
 # Build Linux app (AppImage)
 build-linux:
 	./scripts/build-linux.sh
+
+# ── Documentation ─────────────────────────────────────────────────────────────
+
+# Serve MkDocs documentation locally
+serve-docs:
+	.venv/bin/pip install -e ".[docs]" --quiet
+	.venv/bin/mkdocs serve
+
+# Build static documentation site
+build-docs:
+	.venv/bin/pip install -e ".[docs]" --quiet
+	.venv/bin/mkdocs build
 
 # Clean build artifacts
 clean:

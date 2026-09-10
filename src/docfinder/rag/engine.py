@@ -70,7 +70,7 @@ class RAGEngine:
         model_spec: ModelSpec | None = None,
         models_dir: Path | None = None,
         window_size: int = 10,
-        n_ctx: int = 4096,
+        n_ctx: int | None = None,
     ) -> "RAGEngine":
         """Convenience constructor that wires everything together.
 
@@ -83,6 +83,8 @@ class RAGEngine:
 
         if model_spec is None:
             model_spec = select_model()
+        if n_ctx is None:
+            n_ctx = model_spec.ctx_size
         model_path = ensure_model(model_spec, models_dir)
         llm = LocalLLM(model_path, n_ctx=n_ctx)
 

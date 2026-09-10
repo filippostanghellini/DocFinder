@@ -6,7 +6,23 @@ import hashlib
 from pathlib import Path
 from typing import Iterable, Iterator
 
-SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({".pdf", ".txt", ".md", ".docx"})
+SUPPORTED_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        ".pdf",
+        ".txt",
+        ".md",
+        ".docx",
+        ".odt",
+        ".odp",
+        ".odg",
+        ".doc",
+        ".ppt",
+        ".pptx",
+        ".html",
+        ".htm",
+        ".epub",
+    }
+)
 
 
 def iter_document_paths(inputs: Iterable[Path]) -> Iterator[Path]:
@@ -16,9 +32,17 @@ def iter_document_paths(inputs: Iterable[Path]) -> Iterator[Path]:
             yield from sorted(
                 p
                 for p in item.rglob("*")
-                if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS
+                if (
+                    p.is_file()
+                    and not p.name.startswith("~$")
+                    and p.suffix.lower() in SUPPORTED_EXTENSIONS
+                )
             )
-        elif item.is_file() and item.suffix.lower() in SUPPORTED_EXTENSIONS:
+        elif (
+            item.is_file()
+            and not item.name.startswith("~$")
+            and item.suffix.lower() in SUPPORTED_EXTENSIONS
+        ):
             yield item
 
 

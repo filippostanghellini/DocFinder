@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # Each entry maps a RAM tier to a recommended GGUF model.
 # repo_id  : Hugging Face repository hosting the GGUF file
 # filename : specific quantisation file to download
-# ctx_size : default context window the model was trained with
+# ctx_size : working context window used at load time (kept small to limit KV-cache RAM)
 # ram_min  : minimum available RAM in MB to use this tier
 
 
@@ -37,23 +37,23 @@ class ModelSpec:
 # Ordered largest → smallest so the first match wins.
 MODEL_TIERS: List[ModelSpec] = [
     ModelSpec(
-        name="Qwen2.5-7B-Instruct",
-        repo_id="bartowski/Qwen2.5-7B-Instruct-GGUF",
-        filename="Qwen2.5-7B-Instruct-Q4_K_M.gguf",
+        name="Qwen3.5-9B",
+        repo_id="unsloth/Qwen3.5-9B-GGUF",
+        filename="Qwen3.5-9B-Q4_K_M.gguf",
         ctx_size=8192,
         ram_min_mb=16_384,
     ),
     ModelSpec(
-        name="Qwen2.5-3B-Instruct",
-        repo_id="Qwen/Qwen2.5-3B-Instruct-GGUF",
-        filename="qwen2.5-3b-instruct-q4_k_m.gguf",
+        name="Qwen3.5-4B",
+        repo_id="unsloth/Qwen3.5-4B-GGUF",
+        filename="Qwen3.5-4B-Q4_K_M.gguf",
         ctx_size=8192,
         ram_min_mb=8_192,
     ),
     ModelSpec(
-        name="Qwen2.5-1.5B-Instruct",
-        repo_id="Qwen/Qwen2.5-1.5B-Instruct-GGUF",
-        filename="qwen2.5-1.5b-instruct-q4_k_m.gguf",
+        name="Qwen3.5-2B",
+        repo_id="unsloth/Qwen3.5-2B-GGUF",
+        filename="Qwen3.5-2B-Q4_K_M.gguf",
         ctx_size=8192,
         ram_min_mb=0,  # fallback — runs on anything
     ),

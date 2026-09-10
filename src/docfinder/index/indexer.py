@@ -147,6 +147,9 @@ class Indexer:
         exclude_paths: frozenset[str] | None = None,
     ) -> IndexStats:
         """Index documents with parallel parsing when beneficial."""
+        if self.store.ensure_embedding_model(self.embedder.config.model_name):
+            LOGGER.warning("Embedding model changed — the existing index was cleared")
+
         doc_files = find_documents(paths, exclude_paths)
         if not doc_files:
             LOGGER.warning("No supported documents found")
