@@ -14,6 +14,20 @@ class OllamaError(Exception):
     """Raised when an Ollama server cannot be reached or returns an error."""
 
 
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"}
+
+
+def is_local_url(url: str) -> bool:
+    """Return True if the URL points at this machine (no data leaves it)."""
+    from urllib.parse import urlsplit
+
+    try:
+        host = urlsplit(url).hostname or ""
+    except ValueError:
+        return False
+    return host.lower() in _LOCAL_HOSTS
+
+
 def _request(
     base_url: str, path: str, payload: dict | None = None, *, api_key: str = "", timeout: int = 60
 ) -> dict:

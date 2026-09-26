@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 from fastapi.testclient import TestClient
 
 from docfinder.index.storage import SQLiteVectorStore
+from docfinder.models import ChunkRecord, DocumentMetadata
 from docfinder.ollama import OllamaError
 from docfinder.web.app import app
 
@@ -316,3 +319,173 @@ class TestSearchIndexCompat:
             mock_searcher_class.return_value.search.return_value = []
             response = client.post("/search", json={"query": "test", "db": str(db_path)})
         assert response.status_code == 200
+
+
+class TestPrivacyMode:
+    """Tests for the 100% privacy feature."""
+
+    @patch("docfinder.web.app._get_embedder")
+    def test_index_privacy_with_remote_ollama_rejected(
+        self, mock_get_embedder: MagicMock, tmp_path
+    ) -> None:
+        from docfinder.ollama import OllamaEmbedder
+
+        mock_get_embedder.return_value = OllamaEmbedder("http://vps.example.com:11434", "m")
+        response = client.post("/index", json={"paths": [str(tmp_path)], "privacy": True})
+        assert response.status_code == 400
+        assert "privacy" in response.json()["detail"].lower()
+
+    def test_index_privacy_with_local_embedder_accepted(self, tmp_path) -> None:
+        with patch("docfinder.web.app._get_embedder") as mock_get:
+            mock_get.return_value = MagicMock(dimension=384)
+            with patch("docfinder.web.app._validate_paths") as mock_validate:
+                mock_validate.return_value = [tmp_path]
+                with patch("docfinder.web.app._run_index_job") as mock_run:
+                    mock_run.return_value = {
+                        "inserted": 0,
+                        "updated": 0,
+                        "skipped": 0,
+                        "failed": 0,
+                        "processed_files": [],
+                    }
+                    response = client.post(
+                        "/index", json={"paths": [str(tmp_path)], "privacy": True}
+                    )
+        assert response.status_code == 200
+        assert mock_run.call_args[0][5] is True  # privacy flag reaches the job
+
+    def test_index_privacy_with_localhost_ollama_accepted(self, tmp_path) -> None:
+        from docfinder.ollama import OllamaEmbedder
+
+        with patch("docfinder.web.app._get_embedder") as mock_get:
+            mock_get.return_value = OllamaEmbedder("http://127.0.0.1:11434", "m")
+            with patch("docfinder.web.app._validate_paths") as mock_validate:
+                mock_validate.return_value = [tmp_path]
+                with patch("docfinder.web.app._run_index_job") as mock_run:
+                    mock_run.return_value = {
+                        "inserted": 0,
+                        "updated": 0,
+                        "skipped": 0,
+                        "failed": 0,
+                        "processed_files": [],
+                    }
+                    response = client.post(
+                        "/index", json={"paths": [str(tmp_path)], "privacy": True}
+                    )
+        assert response.status_code == 200
+
+    def test_chat_privacy_doc_with_remote_ollama_forbidden(self, tmp_path) -> None:
+        from docfinder.ollama import OllamaLLM
+
+        db_path = tmp_path / "test.db"
+        store = SQLiteVectorStore(db_path, dimension=384)
+        doc = DocumentMetadata(
+            path=Path("/tmp/private.pdf"),
+            title="P",
+            sha256="x",
+            mtime=1.0,
+            size=10,
+        )
+        store.upsert_document(
+            doc,
+            [ChunkRecord(document_path=doc.path, index=0, text="t", metadata={})],
+            np.random.rand(1, 384).astype("float32"),
+            privacy=True,
+        )
+        store.close()
+
+        with patch("docfinder.web.app._get_embedder") as mock_get:
+            mock_get.return_value = MagicMock(dimension=384)
+            import docfinder.web.app as web_app
+
+            original = web_app._rag_llm
+            web_app._rag_llm = OllamaLLM("http://vps.example.com:11434", "m")
+            try:
+                response = client.post(
+                    "/rag/chat",
+                    json={
+                        "question": "test?",
+                        "document_path": "/tmp/private.pdf",
+                        "chunk_index": 0,
+                        "db": str(db_path),
+                    },
+                )
+                assert response.status_code == 403
+                assert "privacy" in response.json()["detail"].lower()
+            finally:
+                web_app._rag_llm = original
+
+    def test_chat_privacy_doc_with_localhost_ollama_allowed(self, tmp_path) -> None:
+        from docfinder.ollama import OllamaLLM
+
+        db_path = tmp_path / "test.db"
+        store = SQLiteVectorStore(db_path, dimension=384)
+        doc = DocumentMetadata(
+            path=Path("/tmp/private.pdf"),
+            title="P",
+            sha256="x",
+            mtime=1.0,
+            size=10,
+        )
+        store.upsert_document(
+            doc,
+            [ChunkRecord(document_path=doc.path, index=0, text="t", metadata={})],
+            np.random.rand(1, 384).astype("float32"),
+            privacy=True,
+        )
+        store.close()
+
+        fake_llm = OllamaLLM("http://127.0.0.1:11434", "m")
+        with patch("docfinder.web.app._get_embedder") as mock_get:
+            mock_get.return_value = MagicMock(dimension=384)
+            import docfinder.web.app as web_app
+
+            original = web_app._rag_llm
+            web_app._rag_llm = fake_llm
+            try:
+                with patch.object(OllamaLLM, "chat", return_value="answer"):
+                    response = client.post(
+                        "/rag/chat",
+                        json={
+                            "question": "test?",
+                            "document_path": "/tmp/private.pdf",
+                            "chunk_index": 0,
+                            "db": str(db_path),
+                        },
+                    )
+                assert response.status_code == 200
+                assert response.json()["answer"] == "answer"
+            finally:
+                web_app._rag_llm = original
+
+    def test_reindex_preserves_privacy_paths(self, tmp_path) -> None:
+        db_path = tmp_path / "test.db"
+        store = SQLiteVectorStore(db_path, dimension=384)
+        store.set_meta(
+            "source_paths",
+            json.dumps(
+                [
+                    {"path": str(tmp_path / "private"), "privacy": True},
+                    {"path": str(tmp_path / "open"), "privacy": False},
+                ]
+            ),
+        )
+        store.close()
+        (tmp_path / "private").mkdir()
+        (tmp_path / "open").mkdir()
+
+        with patch("docfinder.web.app._run_index_job") as mock_run:
+            mock_run.return_value = {
+                "inserted": 0,
+                "updated": 0,
+                "skipped": 0,
+                "failed": 0,
+                "processed_files": [],
+            }
+            with patch("docfinder.web.app._get_embedder") as mock_get:
+                mock_get.return_value = MagicMock(dimension=384)
+                response = client.post(f"/index/reindex?db={db_path}")
+
+        assert response.status_code == 200
+        privacy_flags = [call.args[5] for call in mock_run.call_args_list]
+        assert sorted(privacy_flags, key=str) == sorted([True, False], key=str)

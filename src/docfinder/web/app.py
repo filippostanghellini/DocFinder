@@ -28,7 +28,13 @@ from docfinder.index.indexer import Indexer
 from docfinder.index.reranker import Reranker
 from docfinder.index.search import Searcher, SearchResult
 from docfinder.index.storage import SQLiteVectorStore
-from docfinder.ollama import OllamaEmbedder, OllamaError, OllamaLLM, list_ollama_models
+from docfinder.ollama import (
+    OllamaEmbedder,
+    OllamaError,
+    OllamaLLM,
+    is_local_url,
+    list_ollama_models,
+)
 from docfinder.settings import load_settings
 from docfinder.settings import save_settings as _save_settings
 from docfinder.web.frontend import router as frontend_router
@@ -183,6 +189,7 @@ class IndexPayload(BaseModel):
     chunk_chars: int | None = None
     overlap: int | None = None
     exclude_paths: List[str] = []
+    privacy: bool = False
 
 
 class RAGPayload(BaseModel):
@@ -460,11 +467,22 @@ async def rag_chat(payload: RAGPayload) -> dict:
     try:
         # Look up document_id
         row = store.connection.execute(
-            "SELECT id FROM documents WHERE path = ?", (payload.document_path,)
+            "SELECT id, privacy FROM documents WHERE path = ?", (payload.document_path,)
         ).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="Document not found in index")
         doc_id = row["id"]
+
+        if (
+            row["privacy"]
+            and isinstance(_rag_llm, OllamaLLM)
+            and not is_local_url(_rag_llm.base_url)
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="This document was indexed in 100% privacy mode — "
+                "chat requires a local or localhost LLM",
+            )
 
         # Get context: try page-based first, fall back to fixed window
         import json as _json
@@ -690,7 +708,10 @@ async def ollama_models(url: str | None = None, api_key: str | None = None) -> d
 
 @app.post("/index/reindex")
 async def reindex_all(db: Path | None = None) -> dict[str, Any]:
-    """Clear the index and re-index the source paths recorded by previous index jobs."""
+    """Clear the index and re-index the source paths recorded by previous index jobs.
+
+    Paths indexed with the 100% privacy flag are re-indexed with the same flag.
+    """
     resolved_db = _resolve_db_path(db)
     if not resolved_db.exists():
         raise HTTPException(status_code=404, detail="Database not found")
@@ -698,15 +719,91 @@ async def reindex_all(db: Path | None = None) -> dict[str, Any]:
     store = SQLiteVectorStore(resolved_db, dimension=0)
     try:
         raw = store.get_meta("source_paths")
-        sources: List[str] = json.loads(raw) if raw else []
+        entries = json.loads(raw) if raw else []
     finally:
         store.close()
-    if not sources:
+
+    if not entries:
         raise HTTPException(
             status_code=400, detail="No source paths recorded. Index a folder first."
         )
 
-    return await index_documents(IndexPayload(paths=sources, db=str(resolved_db)))
+    # Tolerate both the dict format {"path", "privacy"} and the legacy plain-string one
+    recorded = [e if isinstance(e, dict) else {"path": e, "privacy": False} for e in entries]
+    available = [e for e in recorded if Path(e["path"]).exists()]
+    if not available:
+        raise HTTPException(
+            status_code=400,
+            detail="Recorded source paths no longer exist. Index a folder manually.",
+        )
+
+    groups: dict[bool, List[str]] = {True: [], False: []}
+    for e in available:
+        groups[bool(e["privacy"])].append(e["path"])
+
+    config = AppConfig(db_path=resolved_db)
+    _ensure_db_parent(resolved_db)
+
+    meta_store = SQLiteVectorStore(resolved_db, dimension=0)
+    try:
+        meta_store.set_meta("source_paths", json.dumps(available))
+    finally:
+        meta_store.close()
+
+    embedder = _get_embedder()
+    clear_store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
+    try:
+        clear_store.clear_all()
+    finally:
+        clear_store.close()
+
+    job_id = str(uuid.uuid4())
+    job: dict[str, Any] = {
+        "id": job_id,
+        "status": "running",
+        "processed": 0,
+        "total": 0,
+        "current_file": "",
+        "stats": None,
+        "error": None,
+    }
+    _index_jobs[job_id] = job
+
+    group_list = [(paths, privacy) for privacy, paths in groups.items() if paths]
+
+    async def _run() -> None:
+        merged: dict[str, Any] = {
+            "inserted": 0,
+            "updated": 0,
+            "skipped": 0,
+            "failed": 0,
+            "processed_files": [],
+        }
+        try:
+            for group_paths, group_privacy in group_list:
+                result = await asyncio.to_thread(
+                    _run_index_job,
+                    [Path(p) for p in group_paths],
+                    config,
+                    resolved_db,
+                    job,
+                    None,
+                    group_privacy,
+                )
+                for key in ("inserted", "updated", "skipped", "failed"):
+                    merged[key] += result[key]
+                merged["processed_files"].extend(result["processed_files"])
+            job["status"] = "complete"
+            job["stats"] = merged
+            _notify_indexing_done(merged)
+        except Exception as exc:
+            LOGGER.exception("Reindex job %s failed: %s", job_id, exc)
+            job["status"] = "error"
+            job["error"] = str(exc)
+            _notify_indexing_done(None, error=str(exc))
+
+    asyncio.create_task(_run())
+    return {"status": "ok", "job_id": job_id}
 
 
 @app.post("/settings")
@@ -759,6 +856,7 @@ def _run_index_job(
     resolved_db: Path,
     job: dict | None = None,
     exclude_paths: frozenset[str] | None = None,
+    privacy: bool = False,
 ) -> dict[str, Any]:
     embedder = _get_embedder()
 
@@ -769,7 +867,6 @@ def _run_index_job(
             job["current_file"] = current_file
 
     store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
-    store.set_meta("source_paths", json.dumps([str(p) for p in paths]))
     # No fixed embed_batch_size — Indexer adapts per-file based on available RAM
     indexer = Indexer(
         embedder,
@@ -777,6 +874,7 @@ def _run_index_job(
         chunk_chars=config.chunk_chars,
         overlap=config.overlap,
         progress_callback=_progress,
+        privacy=privacy,
     )
     try:
         stats = indexer.index(paths, exclude_paths=exclude_paths)
@@ -857,6 +955,18 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     if not payload.paths:
         raise HTTPException(status_code=400, detail="No path provided")
 
+    embedder = _get_embedder()
+    if (
+        payload.privacy
+        and isinstance(embedder, OllamaEmbedder)
+        and not is_local_url(embedder.base_url)
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="100% privacy mode requires a local embedding model — "
+            "the configured Ollama server is remote",
+        )
+
     config_defaults = AppConfig()
     config = AppConfig(
         db_path=Path(payload.db) if payload.db is not None else config_defaults.db_path,
@@ -868,6 +978,15 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     _ensure_db_parent(resolved_db)
 
     resolved_paths = _validate_paths(payload.paths)
+
+    meta_store = SQLiteVectorStore(resolved_db, dimension=0)
+    try:
+        meta_store.set_meta(
+            "source_paths",
+            json.dumps([{"path": str(p), "privacy": payload.privacy} for p in resolved_paths]),
+        )
+    finally:
+        meta_store.close()
 
     job_id = str(uuid.uuid4())
     job: dict[str, Any] = {
@@ -888,7 +1007,7 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     async def _run() -> None:
         try:
             result = await asyncio.to_thread(
-                _run_index_job, resolved_paths, config, resolved_db, job, exclude
+                _run_index_job, resolved_paths, config, resolved_db, job, exclude, payload.privacy
             )
             job["status"] = "complete"
             job["stats"] = result

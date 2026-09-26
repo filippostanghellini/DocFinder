@@ -46,6 +46,14 @@ Changing the embedding model invalidates the existing index: a warning banner ap
 Changing the chat model applies immediately. The server can be local or remote (VPS/Ollama
 provider).
 
+### 100% Privacy Mode
+
+The Index tab has a **100% privacy** checkbox. When checked, the indexed files are marked in the
+database with a privacy flag: indexing requires a local embedding model, and AI chat on those
+documents refuses remote LLMs (Ollama on `localhost` is allowed — data never leaves your
+machine). Privacy-marked documents show a shield badge in the Documents tab, and re-indexing
+preserves the flag.
+
 ## Web Interface
 
 Launch the web interface:

@@ -131,6 +131,7 @@ class Indexer:
         overlap: int = 200,
         embed_batch_size: int | None = None,
         progress_callback: Callable[[int, int, str], None] | None = None,
+        privacy: bool = False,
     ) -> None:
         self.embedder = embedder
         self.store = store
@@ -138,6 +139,7 @@ class Indexer:
         self.overlap = overlap
         self.embed_batch_size = embed_batch_size
         self.progress_callback = progress_callback
+        self.privacy = privacy
         self.last_num_workers: int = 1
 
     def index(
@@ -347,7 +349,7 @@ class Indexer:
         )
 
         with self.store.transaction():
-            doc_id, status = self.store.init_document(document)
+            doc_id, status = self.store.init_document(document, privacy=self.privacy)
             if status == "skipped":
                 return status
 
@@ -431,7 +433,7 @@ class Indexer:
         )
 
         with self.store.transaction():
-            doc_id, status = self.store.init_document(document)
+            doc_id, status = self.store.init_document(document, privacy=self.privacy)
             if status == "skipped":
                 return status
 

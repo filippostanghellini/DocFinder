@@ -20,6 +20,7 @@ no accounts, complete privacy.
 - :material-text-search: __Semantic search__ — find documents by meaning, not just keywords
 - :material-chat-outline: __Local AI chat__ — precise answers from your documents, powered by Qwen3.5 models running offline
 - :material-server-network: __Bring your own models__ — connect to a local or remote Ollama server and pick any embedding or chat model
+- :material-shield-check: __100% privacy mode__ — mark files to keep them on this machine only, remote LLMs blocked for chat
 - :material-file-document-multiple: __More formats__ — PDF, DOCX, PPTX, ODT, HTML, EPUB + others
 - :material-memory: __GPU accelerated__ — auto-detects Apple Silicon (Metal), NVIDIA (CUDA), AMD (ROCm)
 - :material-shield-lock: __100% private__ — your files never leave your machine

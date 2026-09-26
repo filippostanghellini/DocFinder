@@ -155,3 +155,25 @@ class TestOllamaLLM:
     def test_chat_missing_message(self, mock_request: MagicMock) -> None:
         mock_request.return_value = {}
         assert OllamaLLM("http://x", "m").chat([{"role": "user", "content": "hi"}]) == ""
+
+
+class TestIsLocalUrl:
+    def test_localhost_variants(self) -> None:
+        from docfinder.ollama import is_local_url
+
+        assert is_local_url("http://127.0.0.1:11434")
+        assert is_local_url("http://localhost:11434")
+        assert is_local_url("http://LOCALHOST:11434")
+        assert is_local_url("https://[::1]:11434")
+
+    def test_remote(self) -> None:
+        from docfinder.ollama import is_local_url
+
+        assert not is_local_url("http://vps.example.com:11434")
+        assert not is_local_url("http://8.8.8.8:11434")
+
+    def test_garbage(self) -> None:
+        from docfinder.ollama import is_local_url
+
+        assert is_local_url("not a url") is False  # urlsplit("") → no hostname
+        assert is_local_url("") is False

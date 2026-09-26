@@ -26,6 +26,7 @@
 - **Semantic search** — find documents by meaning, not just keywords (PDF, DOCX, PPTX, ODT, HTML, EPUB + others)
 - **AI chat** — ask questions about any document and get precise answers, powered by local Qwen3.5 models (automatically selects the best model for your hardware)
 - **Bring your own models (Ollama)** — connect to a local or remote Ollama server and pick any embedding or chat model it serves
+- **100% privacy mode** — per-indexing-run checkbox: files marked private never leave your machine (local embedder required, remote LLMs blocked for chat)
 - **100% local** — your files never leave your machine
 - **GPU accelerated** — auto-detects Apple Silicon (Metal), NVIDIA (CUDA), AMD (ROCm)
 - **Cross-platform** — native apps for macOS, Windows, and Linux
@@ -91,6 +92,19 @@ to any Ollama server and choose which models to use:
 Both choices are independent, so you can run a small embedding model and a larger chat LLM side
 by side on the same server. The server can be local or a VPS/remote Ollama provider — embeddings
 and chat requests go over HTTP.
+
+### 100% privacy mode
+
+The **100% privacy** checkbox in the Index tab marks an indexing run as strictly local:
+
+- **Indexing** requires a local embedding model — the checkbox is disabled while a remote
+  Ollama server is configured
+- **AI chat** on privacy-marked documents refuses remote LLMs (Ollama on `localhost` is fine —
+  data never leaves your machine); the built-in GGUF models are always allowed
+- Privacy-marked documents show a shield badge in the Documents tab, and re-indexing preserves
+  the flag
+
+Documents indexed without the flag keep working with any model, including remote Ollama servers.
 
 ## Contributing
 

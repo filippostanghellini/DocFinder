@@ -55,6 +55,7 @@ class SQLiteVectorStore:
                     sha256 TEXT NOT NULL,
                     mtime REAL NOT NULL,
                     size INTEGER NOT NULL,
+                    privacy INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
                 )
@@ -104,6 +105,10 @@ class SQLiteVectorStore:
             columns = {row["name"] for row in conn.execute("PRAGMA table_info(chunks)")}
             if "embedding" not in columns:
                 conn.execute("ALTER TABLE chunks ADD COLUMN embedding BLOB")
+
+            doc_columns = {row["name"] for row in conn.execute("PRAGMA table_info(documents)")}
+            if "privacy" not in doc_columns:
+                conn.execute("ALTER TABLE documents ADD COLUMN privacy INTEGER NOT NULL DEFAULT 0")
 
     @staticmethod
     def _normalize_path(path: str | Path) -> str:
@@ -170,7 +175,9 @@ class SQLiteVectorStore:
             normalized = normalized[:-1]
         return normalized
 
-    def init_document(self, document: DocumentMetadata) -> tuple[int, str]:
+    def init_document(
+        self, document: DocumentMetadata, *, privacy: bool = False
+    ) -> tuple[int, str]:
         """Initialize a document for insertion.
 
         Returns:
@@ -194,8 +201,8 @@ class SQLiteVectorStore:
 
         doc_id = conn.execute(
             """
-            INSERT INTO documents(path, title, sha256, mtime, size)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO documents(path, title, sha256, mtime, size, privacy)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 str(document.path),
@@ -203,6 +210,7 @@ class SQLiteVectorStore:
                 document.sha256,
                 document.mtime,
                 document.size,
+                int(privacy),
             ),
         ).lastrowid
 
@@ -237,14 +245,24 @@ class SQLiteVectorStore:
         document: DocumentMetadata,
         chunks: Sequence[ChunkRecord],
         embeddings: np.ndarray,
+        *,
+        privacy: bool = False,
     ) -> str:
         with self.transaction():
-            doc_id, status = self.init_document(document)
+            doc_id, status = self.init_document(document, privacy=privacy)
             if status == "skipped":
                 return status
 
             self.insert_chunks(doc_id, chunks, embeddings)
             return status
+
+    def is_document_privacy(self, document_path: str) -> bool:
+        """Return True if the document was indexed with the 100% privacy flag."""
+        row = self._conn.execute(
+            "SELECT privacy FROM documents WHERE REPLACE(path, '\\', '/') = ?",
+            (self._normalize_path(document_path),),
+        ).fetchone()
+        return bool(row and row["privacy"])
 
     def search(
         self,
@@ -499,6 +517,7 @@ class SQLiteVectorStore:
                 d.sha256,
                 d.mtime,
                 d.size,
+                d.privacy,
                 d.created_at,
                 d.updated_at,
                 COUNT(c.id) as chunk_count
@@ -517,6 +536,7 @@ class SQLiteVectorStore:
                 "sha256": row["sha256"],
                 "mtime": row["mtime"],
                 "size": row["size"],
+                "privacy": bool(row["privacy"]),
                 "created_at": row["created_at"],
                 "updated_at": row["updated_at"],
                 "chunk_count": row["chunk_count"],
