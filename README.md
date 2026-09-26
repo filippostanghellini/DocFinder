@@ -25,6 +25,7 @@
 
 - **Semantic search** — find documents by meaning, not just keywords (PDF, DOCX, PPTX, ODT, HTML, EPUB + others)
 - **AI chat** — ask questions about any document and get precise answers, powered by local Qwen3.5 models (automatically selects the best model for your hardware)
+- **Bring your own models (Ollama)** — connect to a local or remote Ollama server and pick any embedding or chat model it serves
 - **100% local** — your files never leave your machine
 - **GPU accelerated** — auto-detects Apple Silicon (Metal), NVIDIA (CUDA), AMD (ROCm)
 - **Cross-platform** — native apps for macOS, Windows, and Linux
@@ -74,6 +75,22 @@ DocFinder automatically selects the best available runtime on your machine:
 
 Indexing uses an adaptive parallel parser strategy by default, selected automatically based on your
 machine resources.
+
+### Custom models via Ollama
+
+DocFinder is not locked to its built-in models. In **Settings → Models & Ollama** you can connect
+to any Ollama server and choose which models to use:
+
+- **Server URL** (e.g. `http://127.0.0.1:11434`) plus an optional API key for remote Ollama
+  providers, with a one-click **Test connection** that lists the installed models
+- **Embedding model** — pick any embedding model served by Ollama; note that changing the
+  embedding model invalidates the existing index, so use the **Re-index now** button afterwards
+- **Chat model** — pick any chat model served by Ollama for the AI Chat; applies immediately,
+  no reindex needed
+
+Both choices are independent, so you can run a small embedding model and a larger chat LLM side
+by side on the same server. The server can be local or a VPS/remote Ollama provider — embeddings
+and chat requests go over HTTP.
 
 ## Contributing
 

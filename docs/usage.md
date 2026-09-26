@@ -29,6 +29,23 @@ Type your query in the search bar. Results are ranked by semantic relevance and 
 
 The global shortcut (configurable in Settings) lets you bring DocFinder to the front from anywhere. The default hotkey is `<alt>+d` on all platforms.
 
+### Models & Ollama (Settings)
+
+The **Models & Ollama** card in Settings lets you replace the built-in models with ones served by
+an Ollama server:
+
+1. Enter the **Ollama server URL** (e.g. `http://127.0.0.1:11434`) and, for remote providers, an
+   optional **API key**
+2. Click **Test connection** — a badge shows whether the server is reachable and how many models
+   are installed
+3. Pick the **embedding model** and the **chat model** from the lists of installed models
+4. Click **Save models**
+
+Changing the embedding model invalidates the existing index: a warning banner appears with a
+**Re-index now** button that clears and re-indexes the previously indexed folders automatically.
+Changing the chat model applies immediately. The server can be local or remote (VPS/Ollama
+provider).
+
 ## Web Interface
 
 Launch the web interface:
