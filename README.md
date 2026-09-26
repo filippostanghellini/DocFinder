@@ -93,6 +93,10 @@ Both choices are independent, so you can run a small embedding model and a large
 by side on the same server. The server can be local or a VPS/remote Ollama provider — embeddings
 and chat requests go over HTTP.
 
+<p align="center">
+  <img src="images/ollama_models.png" alt="Models & Ollama settings card" width="700">
+</p>
+
 ### 100% privacy mode
 
 The **100% privacy** checkbox in the Index tab marks an indexing run as strictly local:
@@ -105,6 +109,10 @@ The **100% privacy** checkbox in the Index tab marks an indexing run as strictly
   the flag
 
 Documents indexed without the flag keep working with any model, including remote Ollama servers.
+
+<p align="center">
+  <img src="images/100_privacy.png" alt="100% privacy checkbox in the Index tab" width="700">
+</p>
 
 ## Contributing
 
