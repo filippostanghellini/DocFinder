@@ -480,6 +480,14 @@ class SQLiteVectorStore:
                 conn.execute("DELETE FROM documents WHERE id = ?", (row["id"],))
         return len(missing)
 
+    def clear_all(self) -> int:
+        """Remove all documents and chunks. Returns the number of documents removed."""
+        with self.transaction() as conn:
+            removed = conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+            conn.execute("DELETE FROM chunks")
+            conn.execute("DELETE FROM documents")
+        return removed
+
     def list_documents(self) -> List[dict]:
         """List all indexed documents with their metadata."""
         rows = self._conn.execute(

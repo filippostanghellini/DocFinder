@@ -842,3 +842,49 @@ class TestGetStats:
         assert stats["document_count"] == 3
         assert stats["chunk_count"] == 6  # 2 chunks per document
         assert stats["total_size_bytes"] == 3300  # 1000 + 1100 + 1200
+
+
+class TestMeta:
+    """Test meta key-value storage."""
+
+    def test_set_and_get(self, temp_db):
+        assert temp_db.get_meta("embedding_model") is None
+        temp_db.set_meta("embedding_model", "all-mpnet-base-v2")
+        assert temp_db.get_meta("embedding_model") == "all-mpnet-base-v2"
+
+    def test_set_overwrites(self, temp_db):
+        temp_db.set_meta("embedding_model", "a")
+        temp_db.set_meta("embedding_model", "b")
+        assert temp_db.get_meta("embedding_model") == "b"
+
+    def test_survives_reopen(self, temp_db, tmp_path):
+        temp_db.set_meta("source_paths", '["/tmp/x"]')
+        temp_db.close()
+        reopened = SQLiteVectorStore(tmp_path / "test.db", dimension=384)
+        try:
+            assert reopened.get_meta("source_paths") == '["/tmp/x"]'
+        finally:
+            reopened.close()
+
+
+class TestClearAll:
+    def test_clears_documents_and_chunks(self, temp_db):
+        doc = DocumentMetadata(
+            path=Path("/tmp/test.pdf"),
+            title="Test",
+            sha256="abc",
+            mtime=1234567890.0,
+            size=1000,
+        )
+        chunks = [ChunkRecord(document_path=doc.path, index=0, text="t", metadata={})]
+        temp_db.upsert_document(doc, chunks, np.random.rand(1, 384).astype("float32"))
+
+        removed = temp_db.clear_all()
+
+        assert removed == 1
+        stats = temp_db.get_stats()
+        assert stats["document_count"] == 0
+        assert stats["chunk_count"] == 0
+
+    def test_clear_all_empty(self, temp_db):
+        assert temp_db.clear_all() == 0

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
+from docfinder.index.storage import SQLiteVectorStore
+from docfinder.ollama import OllamaError
 from docfinder.web.app import app
 
 client = TestClient(app)
@@ -141,3 +144,175 @@ class TestSpotlightHide:
             assert response.json()["status"] == "ok"
         finally:
             web_app._spotlight_hide_callback = original
+
+
+class TestOllamaModelsEndpoint:
+    """Tests for GET /api/ollama/models endpoint."""
+
+    @patch("docfinder.web.app.list_ollama_models")
+    def test_connected(self, mock_list: MagicMock) -> None:
+        mock_list.return_value = [{"name": "llama3", "size_bytes": 123}]
+        response = client.get("/api/ollama/models?url=http://x")
+        assert response.status_code == 200
+        assert response.json() == {
+            "connected": True,
+            "models": [{"name": "llama3", "size_bytes": 123}],
+            "error": None,
+        }
+
+    @patch("docfinder.web.app.list_ollama_models")
+    def test_unreachable_never_raises(self, mock_list: MagicMock) -> None:
+        mock_list.side_effect = OllamaError("Ollama server unreachable at http://x: boom")
+        response = client.get("/api/ollama/models?url=http://x")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["connected"] is False
+        assert "unreachable" in data["error"]
+
+    def test_no_url_configured(self) -> None:
+        response = client.get("/api/ollama/models")
+        assert response.status_code == 200
+        assert response.json()["connected"] is False
+
+
+class TestDeleteAllDocumentsEndpoint:
+    """Tests for DELETE /documents/all endpoint."""
+
+    @patch("docfinder.web.app.EmbeddingModel")
+    @patch("docfinder.web.app.SQLiteVectorStore")
+    def test_clears_store(
+        self, mock_store_class: MagicMock, mock_embedder_class: MagicMock, tmp_path
+    ) -> None:
+        db_path = tmp_path / "test.db"
+        db_path.touch()
+        mock_embedder_class.return_value = MagicMock(dimension=768)
+        mock_store = MagicMock()
+        mock_store.clear_all.return_value = 5
+        mock_store_class.return_value = mock_store
+
+        response = client.delete(f"/documents/delete-all?db={db_path}")
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok", "removed": 5}
+
+    def test_database_not_found(self, tmp_path) -> None:
+        response = client.delete(f"/documents/delete-all?db={tmp_path / 'missing.db'}")
+        assert response.status_code == 404
+
+
+class TestReindexEndpoint:
+    """Tests for POST /index/reindex endpoint."""
+
+    @patch("docfinder.web.app.SQLiteVectorStore")
+    def test_no_source_paths(self, mock_store_class: MagicMock, tmp_path) -> None:
+        db_path = tmp_path / "test.db"
+        db_path.touch()
+        mock_store = MagicMock()
+        mock_store.get_meta.return_value = None
+        mock_store_class.return_value = mock_store
+
+        response = client.post(f"/index/reindex?db={db_path}")
+        assert response.status_code == 400
+        assert "No source paths" in response.json()["detail"]
+
+    @patch("docfinder.web.app.SQLiteVectorStore")
+    def test_starts_index_job(self, mock_store_class: MagicMock, tmp_path) -> None:
+        db_path = tmp_path / "test.db"
+        db_path.touch()
+        mock_store = MagicMock()
+        mock_store.get_meta.return_value = json.dumps([str(tmp_path)])
+        mock_store_class.return_value = mock_store
+
+        with patch("docfinder.web.app._validate_paths") as mock_validate:
+            mock_validate.return_value = [tmp_path]
+            with patch("docfinder.web.app._run_index_job") as mock_run:
+                mock_run.return_value = {"inserted": 1, "updated": 0, "skipped": 0, "failed": 0}
+                response = client.post(f"/index/reindex?db={db_path}")
+        assert response.status_code == 200
+        assert response.json()["status"] == "ok"
+        assert "job_id" in response.json()
+
+
+class TestSettingsOllamaFields:
+    """Tests for Ollama settings persistence via POST /settings."""
+
+    @patch("docfinder.web.app._save_settings")
+    @patch("docfinder.web.app.load_settings")
+    def test_saves_ollama_fields(self, mock_load: MagicMock, mock_save: MagicMock) -> None:
+        mock_load.return_value = {"hotkey": "<alt>+d", "hotkey_enabled": True}
+        response = client.post(
+            "/settings",
+            json={
+                "embedding_backend": "ollama",
+                "embedding_model": "nomic-embed-text",
+                "ollama_url": "http://127.0.0.1:11434",
+                "llm_backend": "ollama",
+                "llm_model": "llama3",
+            },
+        )
+        assert response.status_code == 200
+        saved = mock_save.call_args[0][0]
+        assert saved["embedding_backend"] == "ollama"
+        assert saved["embedding_model"] == "nomic-embed-text"
+        assert saved["ollama_url"] == "http://127.0.0.1:11434"
+        assert saved["llm_backend"] == "ollama"
+        assert saved["llm_model"] == "llama3"
+
+    @patch("docfinder.web.app._save_settings")
+    @patch("docfinder.web.app.load_settings")
+    def test_embedding_change_resets_embedder(
+        self, mock_load: MagicMock, mock_save: MagicMock
+    ) -> None:
+        mock_load.return_value = {"hotkey": "<alt>+d", "embedding_backend": "local"}
+        with patch("docfinder.web.app._reset_embedder") as mock_reset:
+            response = client.post("/settings", json={"embedding_backend": "ollama"})
+        assert response.status_code == 200
+        mock_reset.assert_called_once()
+
+    @patch("docfinder.web.app._save_settings")
+    @patch("docfinder.web.app.load_settings")
+    def test_unchanged_settings_do_not_reset_embedder(
+        self, mock_load: MagicMock, mock_save: MagicMock
+    ) -> None:
+        mock_load.return_value = {"hotkey": "<alt>+d", "embedding_backend": "local"}
+        with patch("docfinder.web.app._reset_embedder") as mock_reset:
+            response = client.post("/settings", json={"hotkey": "<cmd>+k"})
+        assert response.status_code == 200
+        mock_reset.assert_not_called()
+
+
+class TestSearchIndexCompat:
+    """Tests for 409 Reindex-required behavior on /search (dimension mismatch)."""
+
+    @patch("docfinder.web.app._get_embedder")
+    def test_search_409_on_dimension_mismatch(self, mock_get_embedder: MagicMock, tmp_path) -> None:
+        db_path = tmp_path / "test.db"
+        store = SQLiteVectorStore(db_path, dimension=384)
+        store.close()
+
+        embedder = MagicMock()
+        embedder.model_name = "new-model"
+        embedder.dimension = 384
+        mock_get_embedder.return_value = embedder
+        with patch("docfinder.web.app.Searcher") as mock_searcher_class:
+            mock_searcher_class.return_value.search.side_effect = ValueError(
+                "Index vectors have 768 dimensions but the current embedding model "
+                "produces 384. The index was built with a different embedding model "
+                "— re-index your documents."
+            )
+            response = client.post("/search", json={"query": "test", "db": str(db_path)})
+        assert response.status_code == 409
+        assert "re-index" in response.json()["detail"]
+
+    @patch("docfinder.web.app._get_embedder")
+    def test_search_no_meta_passes(self, mock_get_embedder: MagicMock, tmp_path) -> None:
+        db_path = tmp_path / "test.db"
+        SQLiteVectorStore(db_path, dimension=384).close()
+
+        embedder = MagicMock()
+        embedder.model_name = "m"
+        embedder.dimension = 384
+        mock_get_embedder.return_value = embedder
+        with patch("docfinder.web.app.Searcher") as mock_searcher_class:
+            mock_searcher_class.return_value.search.return_value = []
+            response = client.post("/search", json={"query": "test", "db": str(db_path)})
+        assert response.status_code == 200

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import subprocess
@@ -27,6 +28,7 @@ from docfinder.index.indexer import Indexer
 from docfinder.index.reranker import Reranker
 from docfinder.index.search import Searcher, SearchResult
 from docfinder.index.storage import SQLiteVectorStore
+from docfinder.ollama import OllamaEmbedder, OllamaError, OllamaLLM, list_ollama_models
 from docfinder.settings import load_settings
 from docfinder.settings import save_settings as _save_settings
 from docfinder.web.frontend import router as frontend_router
@@ -34,18 +36,31 @@ from docfinder.web.frontend import router as frontend_router
 LOGGER = logging.getLogger(__name__)
 
 # ── Singleton EmbeddingModel ─────────────────────────────────────────────────
-_embedder: EmbeddingModel | None = None
+_embedder: EmbeddingModel | OllamaEmbedder | None = None
 _embedder_lock = threading.Lock()
 
 
-def _get_embedder() -> EmbeddingModel:
+def _build_embedder_from_settings() -> EmbeddingModel | OllamaEmbedder:
+    """Build the embedder from persisted settings (Ollama or local SentenceTransformer)."""
+    settings = load_settings()
+    if settings.get("embedding_backend") == "ollama" and settings.get("ollama_url"):
+        return OllamaEmbedder(
+            settings["ollama_url"],
+            settings.get("embedding_model") or "",
+            api_key=settings.get("ollama_api_key") or "",
+        )
+    config = AppConfig()
+    model_name = settings.get("embedding_model") or config.model_name
+    return EmbeddingModel(EmbeddingConfig(model_name=model_name))
+
+
+def _get_embedder() -> EmbeddingModel | OllamaEmbedder:
     """Return a cached EmbeddingModel, creating it on first call."""
     global _embedder
     if _embedder is None:
         with _embedder_lock:
             if _embedder is None:
-                config = AppConfig()
-                _embedder = EmbeddingModel(EmbeddingConfig(model_name=config.model_name))
+                _embedder = _build_embedder_from_settings()
     return _embedder
 
 
@@ -59,6 +74,13 @@ def _preload_embedder() -> None:
         _get_embedder()
     except Exception:
         LOGGER.exception("Embedding model preload failed — will retry on first use")
+
+
+def _reset_embedder() -> None:
+    """Drop the cached embedder so the next call rebuilds it from settings."""
+    global _embedder
+    with _embedder_lock:
+        _embedder = None
 
 
 # ── Singleton Reranker ────────────────────────────────────────────────────────
@@ -175,6 +197,16 @@ class SettingsPayload(BaseModel):
     hotkey_enabled: bool | None = None
     rag_enabled: bool | None = None
     rag_model: str | None = None
+    embedding_backend: str | None = None
+    embedding_model: str | None = None
+    ollama_url: str | None = None
+    ollama_api_key: str | None = None
+    llm_backend: str | None = None
+    llm_model: str | None = None
+
+
+_EMBEDDER_RESET_KEYS = ("embedding_backend", "embedding_model", "ollama_url", "ollama_api_key")
+_LLM_RESET_KEYS = ("llm_backend", "llm_model", "ollama_url", "ollama_api_key")
 
 
 def _resolve_db_path(db: Path | None) -> Path:
@@ -213,7 +245,8 @@ async def search_documents(payload: SearchPayload) -> dict[str, List[SearchResul
         # e.g. index built with a different embedding model — tell the user
         # instead of leaking a raw 500.
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    store.close()
+    finally:
+        store.close()
     return {"results": results}
 
 
@@ -246,12 +279,41 @@ _rag_download: dict[str, Any] = {
 
 
 def _load_rag_llm(model_name: str | None = None) -> None:
-    """Download (if needed) and load the RAG LLM.  Updates _rag_download state."""
+    """Download (if needed) and load the RAG LLM.  Updates _rag_download state.
+
+    Uses a remote Ollama LLM when configured in settings, otherwise the
+    local llama.cpp GGUF pipeline.
+    """
     global _rag_llm
+    settings = load_settings()
+    ollama_llm = (
+        settings.get("llm_backend") == "ollama"
+        and bool(settings.get("llm_model"))
+        and bool(settings.get("ollama_url"))
+    )
+    if ollama_llm:
+        _rag_download["status"] = "loading"
+        _rag_download["error"] = None
+        try:
+            list_ollama_models(settings["ollama_url"], api_key=settings.get("ollama_api_key") or "")
+        except OllamaError as exc:
+            _rag_download["status"] = "error"
+            _rag_download["error"] = str(exc)
+            return
+        _rag_llm = OllamaLLM(
+            settings["ollama_url"],
+            settings["llm_model"],
+            api_key=settings.get("ollama_api_key") or "",
+        )
+        _rag_download["status"] = "ready"
+        return
+
     from docfinder.rag.llm import _DEFAULT_MODELS_DIR, MODEL_TIERS, LocalLLM, ModelSpec
 
     # Pick the requested model or auto-select
     spec: ModelSpec | None = None
+    if model_name is None:
+        model_name = settings.get("rag_model") or None
     if model_name:
         for t in MODEL_TIERS:
             if t.name == model_name:
@@ -395,7 +457,6 @@ async def rag_chat(payload: RAGPayload) -> dict:
 
     embedder = _get_embedder()
     store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
-
     try:
         # Look up document_id
         row = store.connection.execute(
@@ -543,6 +604,23 @@ async def cleanup_missing_files(db: Path | None = None) -> dict[str, Any]:
     return {"status": "ok", "removed_count": removed_count}
 
 
+@app.delete("/documents/delete-all")
+async def delete_all_documents(db: Path | None = None) -> dict[str, Any]:
+    """Remove every indexed document and chunk (used before reindexing)."""
+    resolved_db = _resolve_db_path(db)
+    if not resolved_db.exists():
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    embedder = _get_embedder()
+    store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
+    try:
+        removed = store.clear_all()
+    finally:
+        store.close()
+
+    return {"status": "ok", "removed": removed}
+
+
 @app.delete("/documents/{doc_id}")
 async def delete_document_by_id(doc_id: int, db: Path | None = None) -> dict[str, Any]:
     """Delete a document by its ID."""
@@ -595,19 +673,70 @@ async def get_settings() -> dict:
     return load_settings()
 
 
+@app.get("/api/ollama/models")
+async def ollama_models(url: str | None = None, api_key: str | None = None) -> dict:
+    """List models on an Ollama server. Never raises: returns connected=false on error."""
+    settings = load_settings()
+    base_url = url or settings.get("ollama_url") or ""
+    key = api_key if api_key is not None else settings.get("ollama_api_key") or ""
+    if not base_url:
+        return {"connected": False, "models": [], "error": "No Ollama URL configured"}
+    try:
+        models = await asyncio.to_thread(list_ollama_models, base_url, api_key=key, timeout=5)
+        return {"connected": True, "models": models, "error": None}
+    except OllamaError as exc:
+        return {"connected": False, "models": [], "error": str(exc)}
+
+
+@app.post("/index/reindex")
+async def reindex_all(db: Path | None = None) -> dict[str, Any]:
+    """Clear the index and re-index the source paths recorded by previous index jobs."""
+    resolved_db = _resolve_db_path(db)
+    if not resolved_db.exists():
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    store = SQLiteVectorStore(resolved_db, dimension=0)
+    try:
+        raw = store.get_meta("source_paths")
+        sources: List[str] = json.loads(raw) if raw else []
+    finally:
+        store.close()
+    if not sources:
+        raise HTTPException(
+            status_code=400, detail="No source paths recorded. Index a folder first."
+        )
+
+    return await index_documents(IndexPayload(paths=sources, db=str(resolved_db)))
+
+
 @app.post("/settings")
 async def update_settings(payload: SettingsPayload) -> dict:
     """Persist updated settings and return the full settings dict."""
     current = load_settings()
-    if payload.hotkey is not None:
-        current["hotkey"] = payload.hotkey
-    if payload.hotkey_enabled is not None:
-        current["hotkey_enabled"] = payload.hotkey_enabled
-    if payload.rag_enabled is not None:
-        current["rag_enabled"] = payload.rag_enabled
-    if payload.rag_model is not None:
-        current["rag_model"] = payload.rag_model
+    before = {key: current.get(key) for key in _EMBEDDER_RESET_KEYS + _LLM_RESET_KEYS}
+    for field in (
+        "hotkey",
+        "hotkey_enabled",
+        "rag_enabled",
+        "rag_model",
+        "embedding_backend",
+        "embedding_model",
+        "ollama_url",
+        "ollama_api_key",
+        "llm_backend",
+        "llm_model",
+    ):
+        value = getattr(payload, field)
+        if value is not None:
+            current[field] = value
     _save_settings(current)
+
+    after = {key: current.get(key) for key in _EMBEDDER_RESET_KEYS + _LLM_RESET_KEYS}
+    if any(before[k] != after[k] for k in _EMBEDDER_RESET_KEYS):
+        _reset_embedder()
+    if any(before[k] != after[k] for k in _LLM_RESET_KEYS):
+        global _rag_llm
+        _rag_llm = None
     return current
 
 
@@ -640,6 +769,7 @@ def _run_index_job(
             job["current_file"] = current_file
 
     store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
+    store.set_meta("source_paths", json.dumps([str(p) for p in paths]))
     # No fixed embed_batch_size — Indexer adapts per-file based on available RAM
     indexer = Indexer(
         embedder,

@@ -1617,6 +1617,98 @@
           </div>
         </div>
 
+        <!-- ── Models & Ollama ─────────────────────────────────────────── -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+              Models & Ollama
+            </h2>
+          </div>
+
+          <p style="font-size:0.82rem; color:var(--text-2); margin-bottom:0.65rem; line-height:1.5;">
+            Choose which models DocFinder uses for embeddings, search results and AI chat.
+            Connect to a local or remote Ollama server to pick any model it serves.
+          </p>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">Ollama server URL</span>
+              <span class="setting-sub">Default local instance: http://127.0.0.1:11434</span>
+            </div>
+            <input id="ollama-url" type="text" class="form-input" style="width:260px;" placeholder="http://127.0.0.1:11434" autocomplete="off" spellcheck="false" />
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">API key</span>
+              <span class="setting-sub">Optional, for remote Ollama providers</span>
+            </div>
+            <input id="ollama-api-key" type="password" class="form-input" style="width:260px;" placeholder="None" autocomplete="off" />
+          </div>
+
+          <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem;">
+            <button id="ollama-test-btn" class="btn btn-secondary btn-sm">Test connection</button>
+            <span id="ollama-status" style="font-size:0.8rem;"></span>
+          </div>
+
+          <div id="ollama-models-section" style="display:none; margin-top:0.85rem;">
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-label">Embedding backend</span>
+                <span class="setting-sub">Used to build the index &mdash; changing it requires reindexing</span>
+              </div>
+              <select id="embedding-backend-select" class="form-input" style="width:200px;">
+                <option value="local">Local (built-in)</option>
+                <option value="ollama">Ollama</option>
+              </select>
+            </div>
+
+            <div class="setting-row" id="embedding-model-row" style="display:none;">
+              <div class="setting-info">
+                <span class="setting-label">Ollama embedding model</span>
+              </div>
+              <select id="embedding-model-select" class="form-input" style="width:260px;"></select>
+            </div>
+
+            <div id="embedding-reindex-note" class="info-box" style="display:none; border-left-color:var(--warning); background:rgba(245,158,11,0.08);">
+              Changing the embedding model invalidates the existing index: every file must be
+              indexed again. DocFinder will offer a quick re-index after you save.
+            </div>
+
+            <div class="setting-row" style="margin-top:0.35rem;">
+              <div class="setting-info">
+                <span class="setting-label">Chat LLM backend</span>
+                <span class="setting-sub">AI Chat answers &mdash; applies immediately, no reindex needed</span>
+              </div>
+              <select id="llm-backend-select" class="form-input" style="width:200px;">
+                <option value="local">Local (GGUF)</option>
+                <option value="ollama">Ollama</option>
+              </select>
+            </div>
+
+            <div class="setting-row" id="llm-model-row" style="display:none;">
+              <div class="setting-info">
+                <span class="setting-label">Ollama chat model</span>
+              </div>
+              <select id="llm-model-select" class="form-input" style="width:260px;"></select>
+            </div>
+          </div>
+
+          <div id="ollama-reindex-banner" style="display:none; margin-top:0.85rem; padding:0.65rem 0.85rem; background:rgba(245,158,11,0.08); border-left:2px solid var(--warning); border-radius:var(--radius-xs); font-size:0.8rem; line-height:1.5;">
+            <strong>Reindex required.</strong> The embedding model changed &mdash; saved settings
+            apply on save. After saving, click below to re-index automatically.
+            <div style="margin-top:0.5rem;">
+              <button id="reindex-btn" class="btn btn-primary btn-sm">Re-index now</button>
+              <span id="reindex-status" style="margin-left:0.5rem;"></span>
+            </div>
+          </div>
+
+          <div style="margin-top:1rem; display:flex; justify-content:flex-end;">
+            <button id="save-ollama-btn" class="btn btn-primary">Save models</button>
+          </div>
+        </div>
+
         <!-- ── Configuration settings ───────────────────────────────────── -->
         <div class="card">
           <div class="card-header">
@@ -2708,6 +2800,182 @@
         } catch { /* ignore transient fetch errors */ }
       }
 
+      // ── Models & Ollama settings ────────────────────────────────────────
+      const ollamaUrlInput    = document.getElementById('ollama-url');
+      const ollamaApiKeyInput = document.getElementById('ollama-api-key');
+      const ollamaTestBtn     = document.getElementById('ollama-test-btn');
+      const ollamaStatus      = document.getElementById('ollama-status');
+      const ollamaModelsSection = document.getElementById('ollama-models-section');
+      const embeddingBackendSelect = document.getElementById('embedding-backend-select');
+      const embeddingModelRow = document.getElementById('embedding-model-row');
+      const embeddingModelSelect = document.getElementById('embedding-model-select');
+      const embeddingReindexNote = document.getElementById('embedding-reindex-note');
+      const llmBackendSelect  = document.getElementById('llm-backend-select');
+      const llmModelRow       = document.getElementById('llm-model-row');
+      const llmModelSelect    = document.getElementById('llm-model-select');
+      const ollamaReindexBanner = document.getElementById('ollama-reindex-banner');
+      const reindexBtn        = document.getElementById('reindex-btn');
+      const reindexStatus     = document.getElementById('reindex-status');
+
+      let savedEmbeddingBackend = 'local';
+      let savedEmbeddingModel = '';
+      let ollamaModels = [];
+
+      function updateOllamaRows() {
+        const hasModels = ollamaModels.length > 0;
+        const embOllama = embeddingBackendSelect.value === 'ollama';
+        const llmOllama = llmBackendSelect.value === 'ollama';
+        embeddingModelRow.style.display = embOllama && hasModels ? '' : 'none';
+        llmModelRow.style.display = llmOllama && hasModels ? '' : 'none';
+        const embChanged = embOllama !== (savedEmbeddingBackend === 'ollama')
+          || (embOllama && embeddingModelSelect.value !== savedEmbeddingModel);
+        embeddingReindexNote.style.display = embChanged ? '' : 'none';
+        ollamaReindexBanner.style.display = embChanged ? '' : 'none';
+      }
+
+      function fillOllamaModelSelects() {
+        const options = ollamaModels.map(m =>
+          `<option value="${escHtml(m.name)}">${escHtml(m.name)}</option>`).join('');
+        embeddingModelSelect.innerHTML = options;
+        llmModelSelect.innerHTML = options;
+        if (savedEmbeddingModel && ollamaModels.some(m => m.name === savedEmbeddingModel)) {
+          embeddingModelSelect.value = savedEmbeddingModel;
+        }
+        if (settings.llm_model && ollamaModels.some(m => m.name === settings.llm_model)) {
+          llmModelSelect.value = settings.llm_model;
+        }
+      }
+
+      let settings = {};
+
+      ollamaTestBtn.addEventListener('click', async () => {
+        const url = ollamaUrlInput.value.trim();
+        ollamaStatus.textContent = 'Testing\u2026';
+        ollamaStatus.style.color = 'var(--text-2)';
+        if (!url) {
+          ollamaStatus.textContent = 'Enter a URL first';
+          ollamaStatus.style.color = 'var(--danger)';
+          ollamaModels = [];
+          ollamaModelsSection.style.display = 'none';
+          return;
+        }
+        try {
+          const params = new URLSearchParams({ url, api_key: ollamaApiKeyInput.value });
+          const res = await fetch(`${apiBase}/api/ollama/models?${params}`);
+          const data = await res.json();
+          if (data.connected) {
+            ollamaModels = data.models || [];
+            ollamaStatus.textContent = `Connected \u2014 ${ollamaModels.length} model${ollamaModels.length !== 1 ? 's' : ''}`;
+            ollamaStatus.style.color = 'var(--success)';
+            ollamaModelsSection.style.display = '';
+            fillOllamaModelSelects();
+          } else {
+            ollamaModels = [];
+            ollamaStatus.textContent = data.error || 'Connection failed';
+            ollamaStatus.style.color = 'var(--danger)';
+            ollamaModelsSection.style.display = 'none';
+          }
+        } catch (err) {
+          ollamaStatus.textContent = 'Connection failed';
+          ollamaStatus.style.color = 'var(--danger)';
+          ollamaModelsSection.style.display = 'none';
+        }
+        updateOllamaRows();
+      });
+
+      embeddingBackendSelect.addEventListener('change', updateOllamaRows);
+      embeddingModelSelect.addEventListener('change', updateOllamaRows);
+      llmBackendSelect.addEventListener('change', updateOllamaRows);
+
+      document.getElementById('save-ollama-btn').addEventListener('click', async () => {
+        const embOllama = embeddingBackendSelect.value === 'ollama';
+        const payload = {
+          ollama_url: ollamaUrlInput.value.trim(),
+          ollama_api_key: ollamaApiKeyInput.value,
+          embedding_backend: embeddingBackendSelect.value,
+          embedding_model: embOllama ? embeddingModelSelect.value : '',
+          llm_backend: llmBackendSelect.value,
+          llm_model: llmBackendSelect.value === 'ollama' ? llmModelSelect.value : '',
+        };
+        const willReindex = ollamaReindexBanner.style.display !== 'none';
+        try {
+          const res = await fetch(`${apiBase}/settings`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Save failed');
+          savedEmbeddingBackend = embeddingBackendSelect.value;
+          savedEmbeddingModel = payload.embedding_model;
+          settings.llm_model = payload.llm_model;
+          updateOllamaRows();
+          showToast('Model settings saved');
+          if (willReindex && payload.embedding_backend === 'ollama') {
+            reindexBtn.click();
+          }
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+
+      reindexBtn.addEventListener('click', async () => {
+        reindexBtn.disabled = true;
+        reindexStatus.textContent = 'Re-indexing\u2026';
+        reindexStatus.style.color = 'var(--text-2)';
+        try {
+          const res = await fetch(`${apiBase}/index/reindex`, { method: 'POST' });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || 'Reindex failed');
+          if (!data.job_id) {
+            reindexStatus.textContent = data.detail || 'Nothing to reindex';
+            reindexStatus.style.color = 'var(--warning)';
+            return;
+          }
+          await new Promise((resolve, reject) => {
+            const interval = setInterval(async () => {
+              try {
+                const job = await (await fetch(`${apiBase}/index/status/${data.job_id}`)).json();
+                if (job.status === 'running') {
+                  reindexStatus.textContent = job.total > 0
+                    ? `${job.processed} / ${job.total} files\u2026` : 'Starting\u2026';
+                } else if (job.status === 'complete') {
+                  clearInterval(interval); resolve(job);
+                } else if (job.status === 'error') {
+                  clearInterval(interval); reject(new Error(job.error || 'Reindex failed'));
+                }
+              } catch (err) { clearInterval(interval); reject(err); }
+            }, 600);
+          });
+          reindexStatus.textContent = '\u2713 Reindexed';
+          reindexStatus.style.color = 'var(--success)';
+          showToast('Reindex completed');
+          loadSearchFolders();
+        } catch (err) {
+          reindexStatus.textContent = escHtml(err.message);
+          reindexStatus.style.color = 'var(--danger)';
+          showToast(err.message, 'error');
+        } finally {
+          reindexBtn.disabled = false;
+        }
+      });
+
+      async function loadOllamaSettings() {
+        try {
+          const res = await fetch(`${apiBase}/settings`);
+          settings = await res.json();
+          ollamaUrlInput.value = settings.ollama_url || '';
+          ollamaApiKeyInput.value = settings.ollama_api_key || '';
+          embeddingBackendSelect.value = settings.embedding_backend === 'ollama' ? 'ollama' : 'local';
+          llmBackendSelect.value = settings.llm_backend === 'ollama' ? 'ollama' : 'local';
+          savedEmbeddingBackend = embeddingBackendSelect.value;
+          savedEmbeddingModel = settings.embedding_model || '';
+          updateOllamaRows();
+          if (ollamaUrlInput.value.trim()) {
+            ollamaTestBtn.click();
+          }
+        } catch (_err) {}
+      }
+
       // ── Hotkey capture modal
       const hotkeyModal    = document.getElementById('hotkey-modal');
       const captureDisplay = document.getElementById('hotkey-capture-display');
@@ -2735,6 +3003,7 @@
 
       // Load settings when switching to the tab
       document.querySelector('[data-tab="settings"]').addEventListener('click', loadSettingsTab);
+      document.querySelector('[data-tab="settings"]').addEventListener('click', loadOllamaSettings);
 
       // ── Native folder picker (pywebview only) ────────────────────────────
       // The Browse button is hidden by default and shown only when running
