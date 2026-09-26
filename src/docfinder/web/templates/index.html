@@ -954,6 +954,14 @@
 
       .documents-table tbody tr:hover td { background: var(--bg-2); }
 
+      .documents-table th.sort-th { cursor: pointer; user-select: none; }
+      .documents-table th.sort-th:hover { color: var(--text-1); }
+      .documents-table th[aria-sort="ascending"],
+      .documents-table th[aria-sort="descending"] { color: var(--text-1); }
+      .sort-arrow { display: inline-flex; margin-left: 0.3em; vertical-align: -2px; color: var(--text-2); }
+      .sort-arrow-idle { opacity: 0.45; }
+      th.sort-th:hover .sort-arrow-idle { opacity: 0.8; }
+
       .doc-title { font-weight: 500; }
 
       .doc-path {
@@ -1503,15 +1511,30 @@
               Indexed Library
             </h2>
             <div style="display:flex; gap: 0.4rem;">
-              <button id="cleanup-btn" class="btn btn-secondary btn-sm">
+              <button id="cleanup-btn" class="btn btn-secondary btn-sm" title="Remove from the index every document whose file no longer exists on disk">
                 <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M6 5l-3 3 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 Clean up
               </button>
-              <button id="refresh-docs-btn" class="btn btn-secondary btn-sm">
+              <button id="refresh-docs-btn" class="btn btn-secondary btn-sm" title="Reload the document list from the index">
                 <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M13 8A5 5 0 1 1 8 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M8 1l3 2-3 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 Refresh
               </button>
             </div>
+          </div>
+
+          <p style="font-size:0.78rem; color:var(--text-2); margin:0 0 0.6rem;">
+            <strong>Clean up</strong> removes documents whose files were deleted or moved on disk;
+            <strong>Refresh</strong> simply reloads this list from the index. Use the filter to show
+            only documents marked with the shield.
+          </p>
+
+          <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.8rem;">
+            <label for="docs-privacy-filter" style="font-size:0.82rem; color:var(--text-2);">Filter</label>
+            <select id="docs-privacy-filter" class="form-input" style="flex:0 0 auto; min-width:0; width:auto; padding:0.35rem 0.6rem; font-size:0.82rem;">
+              <option value="all" selected>All documents</option>
+              <option value="private">100% privacy only</option>
+              <option value="normal">Without 100% privacy</option>
+            </select>
           </div>
 
           <div id="stats-container" class="stats-grid"></div>
@@ -2318,13 +2341,18 @@
       const selectAllCb     = document.getElementById('select-all-checkbox');
       const deleteSelectedBtn = document.getElementById('delete-selected-btn');
       const selectedCount   = document.getElementById('selected-count');
+      const docsPrivacyFilter = document.getElementById('docs-privacy-filter');
       let selectedDocIds    = new Set();
+      let cachedDocuments   = [];
+      let docSort           = { key: 'updated_at', dir: 'desc' };
 
       async function loadDocuments() {
         docsContainer.innerHTML = '<div class="loading"><div class="spinner"></div><span>Loading library\u2026</span></div>';
         try {
           const res  = await fetch(`${apiBase}/documents`);
           const data = await res.json();
+
+          cachedDocuments = data.documents;
 
           statsContainer.innerHTML = `
             <div class="stat-card">
@@ -2340,77 +2368,130 @@
               <div class="stat-label">Total size</div>
             </div>`;
 
-          if (!data.documents.length) {
-            bulkActions.style.display = 'none';
-            docsContainer.innerHTML = `
-              <div class="empty-state">
-                <div class="icon">\ud83d\udced</div>
-                <p>No indexed documents yet</p>
-                <p style="font-size:0.8rem; margin-top:0.3rem; color:var(--text-3);">Switch to the <strong>Index</strong> tab to add your PDFs.</p>
-              </div>`;
-            return;
-          }
-
-          bulkActions.style.display = 'flex';
-          selectedDocIds.clear();
-          updateSelectedCount();
-
-          docsContainer.innerHTML = `
-            <div style="overflow-x:auto; border-radius: var(--radius-sm); border: 1px solid var(--border);">
-              <table class="documents-table">
-                <thead>
-                  <tr>
-                    <th style="width:32px;"></th>
-                    <th>Title</th>
-                    <th>Path</th>
-                    <th>Size</th>
-                    <th>Chunks</th>
-                    <th>Indexed</th>
-                    <th style="width:80px;">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${data.documents.map(doc => `
-                    <tr data-id="${doc.id}">
-                      <td><input type="checkbox" class="doc-checkbox" data-id="${doc.id}" /></td>
-                      <td class="doc-title">${escHtml(doc.title || '\u2014')}${doc.privacy ? ' <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="vertical-align:-1px;color:var(--success)" title="100% privacy"><path d="M8 1.5l5 2v3.5c0 3.6-2.1 6.3-5 7.5-2.9-1.2-5-3.9-5-7.5V3.5l5-2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>' : ''}</td>
-                      <td class="doc-path" title="${escHtml(doc.path)}">${escHtml(doc.path)}</td>
-                      <td class="doc-meta">${formatSize(doc.size)}</td>
-                      <td class="doc-meta">${doc.chunk_count}</td>
-                      <td class="doc-meta">${formatDate(doc.updated_at)}</td>
-                      <td style="white-space:nowrap;">
-                        <button class="btn btn-ghost btn-sm open-doc-btn" data-path="${escHtml(doc.path)}" title="Open file">
-                          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 4h8l2 2v8H2V4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 2h4v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 7l5-5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-                        </button>
-                        <button class="btn btn-ghost btn-sm delete-doc-btn" data-id="${doc.id}" data-title="${escHtml(doc.title || doc.path)}" title="Remove from index">
-                          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V2h4v2M13 4l-1 10H4L3 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        </button>
-                      </td>
-                    </tr>`).join('')}
-                </tbody>
-              </table>
-            </div>`;
-
-          document.querySelectorAll('.doc-checkbox').forEach(cb => {
-            cb.addEventListener('change', e => {
-              const id = parseInt(e.target.dataset.id);
-              e.target.checked ? selectedDocIds.add(id) : selectedDocIds.delete(id);
-              updateSelectedCount();
-            });
-          });
-
-          document.querySelectorAll('.delete-doc-btn').forEach(btn => {
-            btn.addEventListener('click', () => showDeleteModal([parseInt(btn.dataset.id)], btn.dataset.title));
-          });
-
-          document.querySelectorAll('.open-doc-btn').forEach(btn => {
-            btn.addEventListener('click', () => openDocument(btn.dataset.path));
-          });
-
+          renderDocuments();
         } catch (err) {
           docsContainer.innerHTML = `<div class="empty-state"><div class="icon">\u26a0\ufe0f</div><p style="color:var(--danger);">${escHtml(err.message)}</p></div>`;
         }
       }
+
+      function sortDocuments(documents) {
+        const { key, dir } = docSort;
+        const mul = dir === 'asc' ? 1 : -1;
+        return [...documents].sort((a, b) => {
+          if (key === 'title') {
+            return mul * (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base' });
+          }
+          if (key === 'updated_at') {
+            return mul * String(a.updated_at || '').localeCompare(String(b.updated_at || ''));
+          }
+          return mul * ((a[key] || 0) - (b[key] || 0));
+        });
+      }
+
+      function renderDocuments() {
+        const mode = docsPrivacyFilter.value;
+        const documents = sortDocuments(cachedDocuments.filter(doc =>
+          mode === 'all' || (mode === 'private' ? doc.privacy : !doc.privacy)));
+
+        if (!cachedDocuments.length) {
+          bulkActions.style.display = 'none';
+          docsContainer.innerHTML = `
+            <div class="empty-state">
+              <div class="icon">\ud83d\udced</div>
+              <p>No indexed documents yet</p>
+              <p style="font-size:0.8rem; margin-top:0.3rem; color:var(--text-3);">Switch to the <strong>Index</strong> tab to add your PDFs.</p>
+            </div>`;
+          return;
+        }
+
+        if (!documents.length) {
+          bulkActions.style.display = 'none';
+          docsContainer.innerHTML = `
+            <div class="empty-state">
+              <div class="icon">\ud83d\uded1</div>
+              <p>No documents match this filter</p>
+            </div>`;
+          return;
+        }
+
+        bulkActions.style.display = 'flex';
+        selectedDocIds.clear();
+        updateSelectedCount();
+
+        const caret = (d, cls) =>
+          `<span class="sort-arrow ${cls}"><svg width="9" height="9" viewBox="0 0 16 16" fill="currentColor"><path d="${d}"/></svg></span>`;
+        const arrowUp   = caret('M8 3l5 6H3z', '');
+        const arrowDown = caret('M8 13L3 7h10z', '');
+        const arrowIdle = arrowDown.replace('"sort-arrow "', '"sort-arrow sort-arrow-idle"');
+        const ariaFor = key => docSort.key === key ? (docSort.dir === 'asc' ? 'ascending' : 'descending') : 'none';
+        const th = (key, label) => {
+          const active = docSort.key === key;
+          const html = active ? (docSort.dir === 'asc' ? arrowUp : arrowDown) : arrowIdle;
+          return `<th class="sort-th" data-sort-key="${key}" aria-sort="${ariaFor(key)}" title="Sort by ${label}">${label}${html}</th>`;
+        };
+
+        docsContainer.innerHTML = `
+          <div style="overflow-x:auto; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+            <table class="documents-table">
+              <thead>
+                <tr>
+                  <th style="width:32px;"></th>
+                  ${th('title', 'Title')}
+                  <th>Path</th>
+                  ${th('size', 'Size')}
+                  ${th('chunk_count', 'Chunks')}
+                  ${th('updated_at', 'Indexed')}
+                  <th style="width:80px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${documents.map(doc => `
+                  <tr data-id="${doc.id}">
+                    <td><input type="checkbox" class="doc-checkbox" data-id="${doc.id}" /></td>
+                    <td class="doc-title">${escHtml(doc.title || '\u2014')}${doc.privacy ? ' <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="vertical-align:-1px;color:var(--success)" title="100% privacy"><path d="M8 1.5l5 2v3.5c0 3.6-2.1 6.3-5 7.5-2.9-1.2-5-3.9-5-7.5V3.5l5-2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>' : ''}</td>
+                    <td class="doc-path" title="${escHtml(doc.path)}">${escHtml(doc.path)}</td>
+                    <td class="doc-meta">${formatSize(doc.size)}</td>
+                    <td class="doc-meta">${doc.chunk_count}</td>
+                    <td class="doc-meta">${formatDate(doc.updated_at)}</td>
+                    <td style="white-space:nowrap;">
+                      <button class="btn btn-ghost btn-sm open-doc-btn" data-path="${escHtml(doc.path)}" title="Open file">
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 4h8l2 2v8H2V4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 2h4v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 7l5-5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                      </button>
+                      <button class="btn btn-ghost btn-sm delete-doc-btn" data-id="${doc.id}" data-title="${escHtml(doc.title || doc.path)}" title="Remove from index">
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V2h4v2M13 4l-1 10H4L3 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      </button>
+                    </td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`;
+
+        document.querySelectorAll('.doc-checkbox').forEach(cb => {
+          cb.addEventListener('change', e => {
+            const id = parseInt(e.target.dataset.id);
+            e.target.checked ? selectedDocIds.add(id) : selectedDocIds.delete(id);
+            updateSelectedCount();
+          });
+        });
+
+        document.querySelectorAll('.delete-doc-btn').forEach(btn => {
+          btn.addEventListener('click', () => showDeleteModal([parseInt(btn.dataset.id)], btn.dataset.title));
+        });
+
+        document.querySelectorAll('.open-doc-btn').forEach(btn => {
+          btn.addEventListener('click', () => openDocument(btn.dataset.path));
+        });
+      }
+
+      docsPrivacyFilter.addEventListener('change', renderDocuments);
+
+      docsContainer.addEventListener('click', e => {
+        const th = e.target.closest('.sort-th');
+        if (!th) return;
+        const key = th.dataset.sortKey;
+        docSort = { key, dir: docSort.key === key && docSort.dir === 'desc' ? 'asc' : 'desc' };
+        renderDocuments();
+      });
 
       function updateSelectedCount() {
         selectedCount.textContent = selectedDocIds.size;

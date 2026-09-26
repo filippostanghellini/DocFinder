@@ -48,6 +48,17 @@ provider).
 
 ![Models & Ollama settings card](images/ollama_models.png)
 
+### Indexed Library (Documents tab)
+
+The Documents tab lists everything that has been indexed, with document and chunk counts. Use the
+**Filter** dropdown to show **All documents**, only **100% privacy** ones (those with the shield
+badge), or only documents **without** the privacy flag. Two buttons sit in the card header:
+
+- **Clean up** — removes from the index every document whose file no longer exists on disk (e.g.
+  you deleted or moved it)
+- **Refresh** — reloads the list from the index; use it after external changes or to update
+  counts.
+
 ### 100% Privacy Mode
 
 The Index tab has a **100% privacy** checkbox. When checked, the indexed files are marked in the
