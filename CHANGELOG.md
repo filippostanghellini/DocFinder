@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-10-05
+
+### Added
+- **Bring your own models (Ollama)** — connect to any local or remote Ollama server and use its models instead of the built-in ones (*Settings → Models & Ollama*): server URL with optional API key and a one-click connection test listing installed models, embedding and chat models chosen independently (changing the embedding model requires a re-index, the chat model applies immediately)
+- **100% privacy mode** — per-indexing-run checkbox that marks documents as strictly local: indexing requires a local embedding model, and AI chat on privacy-marked documents refuses remote LLMs (Ollama on `localhost` is allowed — data never leaves the machine); marked documents show a shield badge and keep the flag across re-indexing
+- **Library filters in the Documents tab** — filter indexed documents by privacy flag, plus **Clean up** (drop index entries whose file no longer exists on disk) and **Refresh** buttons
+
+### Fixed
+- **Offline model loading** — the embedding and reranker models now load directly from the local Hugging Face cache when there is no internet; previously every startup stalled for minutes on connection retries even with all files already cached
+
 ## [2.2.0] - 2026-09-10
 
 ### Added
@@ -297,7 +307,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed linting issues for consistent code style
 - Updated ruff configuration to use non-deprecated settings
 
-[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/filippostanghellini/DocFinder/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/filippostanghellini/DocFinder/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/filippostanghellini/DocFinder/compare/v2.1.3...v2.2.0
 [2.1.3]: https://github.com/filippostanghellini/DocFinder/compare/v2.1.2...v2.1.3
 [2.1.2]: https://github.com/filippostanghellini/DocFinder/compare/v2.1.1...v2.1.2
