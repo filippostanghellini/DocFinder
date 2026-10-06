@@ -335,6 +335,7 @@ class TestReindexEndpoint:
                 response = client.post(f"/index/reindex?db={db_path}")
         assert response.status_code == 200
         assert response.json()["status"] == "ok"
+        assert "job_id" in response.json()
 
     def test_rebuild_copies_completed_stage_to_live_index(self, tmp_path) -> None:
         import docfinder.web.app as web_app
@@ -746,9 +747,12 @@ class TestPrivacyMode:
             mock_run.side_effect = assert_locked
             with patch("docfinder.web.app._get_embedder") as mock_get:
                 mock_get.return_value = MagicMock(dimension=384)
-                response = client.post(f"/index/reindex?db={db_path}")
+                result = web_app._rebuild_index(
+                    db_path,
+                    {"id": "privacy-reindex", "processed": 0, "total": 0, "current_file": ""},
+                )
 
-        assert response.status_code == 200
+        assert result["failed"] == 0
         privacy_flags = [call.args[5] for call in mock_run.call_args_list]
         assert sorted(privacy_flags, key=str) == sorted([True, False], key=str)
         private_call = next(call for call in mock_run.call_args_list if call.args[5])
