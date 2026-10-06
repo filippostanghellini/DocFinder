@@ -140,6 +140,20 @@ class SQLiteVectorStore:
         if stored == model_name:
             return False
 
+        try:
+            identity = json.loads(model_name)
+        except json.JSONDecodeError:
+            identity = {}
+        if stored == identity.get("model_name") and identity.get("backend") in {
+            "local",
+            "torch",
+            "onnx",
+            "openvino",
+        }:
+            # Pre-identity indexes were local-only and stored just the model name.
+            self.set_meta("embedding_model", model_name)
+            return False
+
         has_vectors = self._conn.execute("SELECT 1 FROM chunks LIMIT 1").fetchone() is not None
         if stored is None and not has_vectors:
             # Fresh index (or a legacy one that never held vectors): stamp it.
@@ -188,11 +202,13 @@ class SQLiteVectorStore:
         conn = self._conn
 
         existing = conn.execute(
-            "SELECT id, sha256 FROM documents WHERE REPLACE(path, '\\', '/') = ?",
+            "SELECT id, sha256, privacy FROM documents WHERE REPLACE(path, '\\', '/') = ?",
             (self._normalize_path(document.path),),
         ).fetchone()
 
         if existing and existing["sha256"] == document.sha256:
+            if privacy and not existing["privacy"]:
+                conn.execute("UPDATE documents SET privacy = 1 WHERE id = ?", (existing["id"],))
             return -1, "skipped"
 
         if existing:

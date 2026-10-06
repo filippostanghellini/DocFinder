@@ -292,6 +292,15 @@ class TestEnsureEmbeddingModel:
         assert temp_db.ensure_embedding_model("model-a") is False
         assert temp_db.get_stats()["document_count"] == 1
 
+    def test_legacy_local_model_identity_is_migrated_without_wipe(self, temp_db):
+        temp_db.ensure_embedding_model("model-a")
+        self._insert_doc(temp_db)
+        identity = '{"backend":"torch","model_name":"model-a"}'
+
+        assert temp_db.ensure_embedding_model(identity) is False
+        assert temp_db.get_stats()["document_count"] == 1
+        assert temp_db.get_meta("embedding_model") == identity
+
     def test_model_change_wipes_index(self, temp_db):
         temp_db.ensure_embedding_model("old-model")
         self._insert_doc(temp_db)
@@ -911,6 +920,19 @@ class TestPrivacyFlag:
             [ChunkRecord(document_path=doc.path, index=0, text="t", metadata={})],
             np.random.rand(1, 384).astype("float32"),
             privacy=True,
+        )
+        assert temp_db.is_document_privacy("/tmp/private.pdf") is True
+
+    def test_unchanged_document_can_be_marked_private(self, temp_db):
+        doc = self._doc(Path("/tmp/private.pdf"))
+        chunks = [ChunkRecord(document_path=doc.path, index=0, text="t", metadata={})]
+        temp_db.upsert_document(doc, chunks, np.random.rand(1, 384).astype("float32"))
+
+        assert (
+            temp_db.upsert_document(
+                doc, chunks, np.random.rand(1, 384).astype("float32"), privacy=True
+            )
+            == "skipped"
         )
         assert temp_db.is_document_privacy("/tmp/private.pdf") is True
 

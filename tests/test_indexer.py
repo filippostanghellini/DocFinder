@@ -1,6 +1,7 @@
 """Tests for Indexer."""
 
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -97,6 +98,7 @@ class TestIndexer:
     def mock_embedder(self):
         """Create mock EmbeddingModel."""
         embedder = Mock()
+        embedder.config = SimpleNamespace(model_name="test-model", backend=None)
         embedder.embed.return_value = np.random.rand(2, 384).astype("float32")
         return embedder
 
@@ -135,13 +137,28 @@ class TestIndexer:
     def test_index_checks_embedding_model_before_scan(self, mock_iter, indexer, tmp_path):
         """Embedding-model guard runs first, and a wipe does not abort indexing."""
         indexer.embedder.config.model_name = "BAAI/bge-m3"
+        indexer.embedder.config.backend = None
         indexer.store.ensure_embedding_model.return_value = True
 
         stats = indexer.index([tmp_path])
 
-        indexer.store.ensure_embedding_model.assert_called_once_with("BAAI/bge-m3")
+        indexer.store.ensure_embedding_model.assert_called_once_with(
+            '{"backend":"local","model_name":"BAAI/bge-m3"}'
+        )
         mock_iter.assert_called_once()
         assert stats is not None
+
+    def test_ollama_index_identity_includes_server(self, mock_embedder, mock_store, tmp_path):
+        from types import SimpleNamespace
+
+        from docfinder.index.indexer import _embedding_identity
+
+        mock_embedder.config = SimpleNamespace(model_name="embed", backend="ollama")
+        mock_embedder.base_url = "https://one.example/"
+        first = _embedding_identity(mock_embedder)
+        mock_embedder.base_url = "https://two.example"
+
+        assert first != _embedding_identity(mock_embedder)
 
     @patch("docfinder.index.indexer.iter_document_paths")
     @patch("docfinder.index.indexer.build_chunks")
@@ -471,6 +488,7 @@ class TestParallelIndexing:
     def mock_embedder(self):
         """Create mock EmbeddingModel."""
         embedder = Mock()
+        embedder.config = SimpleNamespace(model_name="test-model", backend=None)
         embedder.embed.return_value = np.random.rand(2, 384).astype("float32")
         return embedder
 

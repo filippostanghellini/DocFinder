@@ -1676,6 +1676,9 @@
             </div>
             <input id="ollama-api-key" type="password" class="form-input" style="width:260px;" placeholder="None" autocomplete="off" />
           </div>
+          <label style="display:block; margin:0.4rem 0 0 0; font-size:0.78rem; color:var(--text-2);">
+            <input id="clear-ollama-api-key" type="checkbox" /> Clear saved API key
+          </label>
 
           <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem;">
             <button id="ollama-test-btn" class="btn btn-secondary btn-sm">Test connection</button>
@@ -2917,6 +2920,7 @@
       // ── Models & Ollama settings ────────────────────────────────────────
       const ollamaUrlInput    = document.getElementById('ollama-url');
       const ollamaApiKeyInput = document.getElementById('ollama-api-key');
+      const clearOllamaApiKey = document.getElementById('clear-ollama-api-key');
       const ollamaTestBtn     = document.getElementById('ollama-test-btn');
       const ollamaStatus      = document.getElementById('ollama-status');
       const ollamaModelsSection = document.getElementById('ollama-models-section');
@@ -2974,8 +2978,14 @@
           return;
         }
         try {
-          const params = new URLSearchParams({ url, api_key: ollamaApiKeyInput.value });
-          const res = await fetch(`${apiBase}/api/ollama/models?${params}`);
+          const res = await fetch(`${apiBase}/api/ollama/models`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              url,
+              api_key: clearOllamaApiKey.checked ? '' : (ollamaApiKeyInput.value || null),
+            }),
+          });
           const data = await res.json();
           if (data.connected) {
             ollamaModels = data.models || [];
@@ -3005,7 +3015,7 @@
         const embOllama = embeddingBackendSelect.value === 'ollama';
         const payload = {
           ollama_url: ollamaUrlInput.value.trim(),
-          ollama_api_key: ollamaApiKeyInput.value,
+          ollama_api_key: clearOllamaApiKey.checked ? '' : (ollamaApiKeyInput.value || null),
           embedding_backend: embeddingBackendSelect.value,
           embedding_model: embOllama ? embeddingModelSelect.value : '',
           llm_backend: llmBackendSelect.value,
@@ -3019,6 +3029,11 @@
             body: JSON.stringify(payload),
           });
           if (!res.ok) throw new Error((await res.json()).detail || 'Save failed');
+          settings = await res.json();
+          ollamaApiKeyInput.value = '';
+          clearOllamaApiKey.checked = false;
+          ollamaApiKeyInput.placeholder = settings.has_ollama_api_key
+            ? 'Saved — blank keeps current key' : 'None';
           savedEmbeddingBackend = embeddingBackendSelect.value;
           savedEmbeddingModel = payload.embedding_model;
           settings.llm_model = payload.llm_model;
@@ -3079,7 +3094,9 @@
           const res = await fetch(`${apiBase}/settings`);
           settings = await res.json();
           ollamaUrlInput.value = settings.ollama_url || '';
-          ollamaApiKeyInput.value = settings.ollama_api_key || '';
+          ollamaApiKeyInput.value = '';
+          ollamaApiKeyInput.placeholder = settings.has_ollama_api_key
+            ? 'Saved — blank keeps current key' : 'None';
           embeddingBackendSelect.value = settings.embedding_backend === 'ollama' ? 'ollama' : 'local';
           llmBackendSelect.value = settings.llm_backend === 'ollama' ? 'ollama' : 'local';
           savedEmbeddingBackend = embeddingBackendSelect.value;

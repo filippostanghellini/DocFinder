@@ -6,16 +6,16 @@ import asyncio
 import json
 import logging
 import os
+import sqlite3
 import subprocess
 import sys
 import threading
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from pathlib import Path
-from typing import Any, List
+from typing import Any, Callable, List
 
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from docfinder.config import AppConfig
@@ -106,6 +106,8 @@ def _get_reranker() -> Reranker:
 
 # ── Async indexing job registry ───────────────────────────────────────────────
 _index_jobs: dict[str, dict] = {}
+# ponytail: one in-process write lock; per-DB locks if multi-DB throughput matters.
+_db_write_lock = threading.Lock()
 
 # ── GUI callback registry (set by the desktop GUI layer, not used in web mode) ─
 _spotlight_hide_callback: object = None  # callable | None
@@ -157,12 +159,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="DocFinder Web", version="2.3.0", lifespan=lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 app.include_router(frontend_router)
 
 
@@ -212,8 +208,13 @@ class SettingsPayload(BaseModel):
     llm_model: str | None = None
 
 
+class OllamaModelsPayload(BaseModel):
+    url: str | None = None
+    api_key: str | None = None
+
+
 _EMBEDDER_RESET_KEYS = ("embedding_backend", "embedding_model", "ollama_url", "ollama_api_key")
-_LLM_RESET_KEYS = ("llm_backend", "llm_model", "ollama_url", "ollama_api_key")
+_LLM_RESET_KEYS = ("llm_backend", "llm_model", "rag_model", "ollama_url", "ollama_api_key")
 
 
 def _resolve_db_path(db: Path | None) -> Path:
@@ -223,6 +224,15 @@ def _resolve_db_path(db: Path | None) -> Path:
 
 def _ensure_db_parent(db_path: Path) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def _write_store(db_path: Path, dimension: int, operation: Callable) -> Any:
+    with _db_write_lock:
+        store = SQLiteVectorStore(db_path, dimension=dimension)
+        try:
+            return operation(store)
+        finally:
+            store.close()
 
 
 @app.post("/search")
@@ -374,6 +384,22 @@ def _load_rag_llm(model_name: str | None = None) -> None:
     _rag_download["status"] = "ready"
 
 
+def _schedule_rag_load(model_name: str | None = None) -> None:
+    """Load the selected chat model in the background."""
+    _rag_download["status"] = "downloading"
+    _rag_download["error"] = None
+
+    async def _run() -> None:
+        try:
+            await asyncio.to_thread(_load_rag_llm, model_name)
+        except Exception as exc:
+            LOGGER.exception("RAG model download/load failed: %s", exc)
+            _rag_download["status"] = "error"
+            _rag_download["error"] = str(exc)
+
+    asyncio.create_task(_run())
+
+
 @app.get("/rag/models")
 async def rag_models() -> dict:
     """Return available model tiers with a recommended flag."""
@@ -420,22 +446,10 @@ async def rag_download(model_name: str | None = None) -> dict:
     if _rag_download["status"] in ("downloading", "loading"):
         return {"status": "already_running"}
 
-    _rag_download["status"] = "downloading"
-    _rag_download["error"] = None
-
     # Read user preference from settings
     settings = load_settings()
     chosen = model_name or settings.get("rag_model")
-
-    async def _run():
-        try:
-            await asyncio.to_thread(_load_rag_llm, chosen)
-        except Exception as exc:
-            LOGGER.exception("RAG model download/load failed: %s", exc)
-            _rag_download["status"] = "error"
-            _rag_download["error"] = str(exc)
-
-    asyncio.create_task(_run())
+    _schedule_rag_load(chosen)
     return {"status": "started"}
 
 
@@ -613,11 +627,12 @@ async def cleanup_missing_files(db: Path | None = None) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="Database not found")
 
     embedder = _get_embedder()
-    store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
-    try:
-        removed_count = store.remove_missing_files()
-    finally:
-        store.close()
+    removed_count = await asyncio.to_thread(
+        _write_store,
+        resolved_db,
+        embedder.dimension,
+        lambda store: store.remove_missing_files(),
+    )
 
     return {"status": "ok", "removed_count": removed_count}
 
@@ -630,11 +645,9 @@ async def delete_all_documents(db: Path | None = None) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="Database not found")
 
     embedder = _get_embedder()
-    store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
-    try:
-        removed = store.clear_all()
-    finally:
-        store.close()
+    removed = await asyncio.to_thread(
+        _write_store, resolved_db, embedder.dimension, lambda store: store.clear_all()
+    )
 
     return {"status": "ok", "removed": removed}
 
@@ -647,11 +660,9 @@ async def delete_document_by_id(doc_id: int, db: Path | None = None) -> dict[str
         raise HTTPException(status_code=404, detail="Database not found")
 
     embedder = _get_embedder()
-    store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
-    try:
-        deleted = store.delete_document(doc_id)
-    finally:
-        store.close()
+    deleted = await asyncio.to_thread(
+        _write_store, resolved_db, embedder.dimension, lambda store: store.delete_document(doc_id)
+    )
 
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Document with ID {doc_id} not found")
@@ -670,14 +681,13 @@ async def delete_document(payload: DeleteDocumentRequest, db: Path | None = None
         raise HTTPException(status_code=404, detail="Database not found")
 
     embedder = _get_embedder()
-    store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
-    try:
+
+    def operation(store: SQLiteVectorStore) -> bool:
         if payload.doc_id is not None:
-            deleted = store.delete_document(payload.doc_id)
-        else:
-            deleted = store.delete_document_by_path(payload.path)  # type: ignore
-    finally:
-        store.close()
+            return store.delete_document(payload.doc_id)
+        return store.delete_document_by_path(payload.path)  # type: ignore[arg-type]
+
+    deleted = await asyncio.to_thread(_write_store, resolved_db, embedder.dimension, operation)
 
     if not deleted:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -688,15 +698,24 @@ async def delete_document(payload: DeleteDocumentRequest, db: Path | None = None
 @app.get("/settings")
 async def get_settings() -> dict:
     """Return current user settings."""
-    return load_settings()
+    return _public_settings(load_settings())
 
 
-@app.get("/api/ollama/models")
-async def ollama_models(url: str | None = None, api_key: str | None = None) -> dict:
+def _public_settings(settings: dict) -> dict:
+    public = dict(settings)
+    public["has_ollama_api_key"] = bool(public.pop("ollama_api_key", ""))
+    return public
+
+
+@app.post("/api/ollama/models")
+async def ollama_models(payload: OllamaModelsPayload) -> dict:
     """List models on an Ollama server. Never raises: returns connected=false on error."""
     settings = load_settings()
-    base_url = url or settings.get("ollama_url") or ""
-    key = api_key if api_key is not None else settings.get("ollama_api_key") or ""
+    base_url = payload.url or settings.get("ollama_url") or ""
+    saved_url = (settings.get("ollama_url") or "").rstrip("/")
+    key = payload.api_key
+    if key is None:
+        key = (settings.get("ollama_api_key") or "") if base_url.rstrip("/") == saved_url else ""
     if not base_url:
         return {"connected": False, "models": [], "error": "No Ollama URL configured"}
     try:
@@ -708,54 +727,13 @@ async def ollama_models(url: str | None = None, api_key: str | None = None) -> d
 
 @app.post("/index/reindex")
 async def reindex_all(db: Path | None = None) -> dict[str, Any]:
-    """Clear the index and re-index the source paths recorded by previous index jobs.
-
-    Paths indexed with the 100% privacy flag are re-indexed with the same flag.
-    """
+    """Rebuild the recorded sources and atomically replace the index on success."""
     resolved_db = _resolve_db_path(db)
     if not resolved_db.exists():
         raise HTTPException(status_code=404, detail="Database not found")
 
-    store = SQLiteVectorStore(resolved_db, dimension=0)
-    try:
-        raw = store.get_meta("source_paths")
-        entries = json.loads(raw) if raw else []
-    finally:
-        store.close()
-
-    if not entries:
-        raise HTTPException(
-            status_code=400, detail="No source paths recorded. Index a folder first."
-        )
-
-    # Tolerate both the dict format {"path", "privacy"} and the legacy plain-string one
-    recorded = [e if isinstance(e, dict) else {"path": e, "privacy": False} for e in entries]
-    available = [e for e in recorded if Path(e["path"]).exists()]
-    if not available:
-        raise HTTPException(
-            status_code=400,
-            detail="Recorded source paths no longer exist. Index a folder manually.",
-        )
-
-    groups: dict[bool, List[str]] = {True: [], False: []}
-    for e in available:
-        groups[bool(e["privacy"])].append(e["path"])
-
-    config = AppConfig(db_path=resolved_db)
-    _ensure_db_parent(resolved_db)
-
-    meta_store = SQLiteVectorStore(resolved_db, dimension=0)
-    try:
-        meta_store.set_meta("source_paths", json.dumps(available))
-    finally:
-        meta_store.close()
-
-    embedder = _get_embedder()
-    clear_store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
-    try:
-        clear_store.clear_all()
-    finally:
-        clear_store.close()
+    entries = await asyncio.to_thread(_load_source_manifest_locked, resolved_db)
+    _require_available_sources(entries)
 
     job_id = str(uuid.uuid4())
     job: dict[str, Any] = {
@@ -769,30 +747,9 @@ async def reindex_all(db: Path | None = None) -> dict[str, Any]:
     }
     _index_jobs[job_id] = job
 
-    group_list = [(paths, privacy) for privacy, paths in groups.items() if paths]
-
     async def _run() -> None:
-        merged: dict[str, Any] = {
-            "inserted": 0,
-            "updated": 0,
-            "skipped": 0,
-            "failed": 0,
-            "processed_files": [],
-        }
         try:
-            for group_paths, group_privacy in group_list:
-                result = await asyncio.to_thread(
-                    _run_index_job,
-                    [Path(p) for p in group_paths],
-                    config,
-                    resolved_db,
-                    job,
-                    None,
-                    group_privacy,
-                )
-                for key in ("inserted", "updated", "skipped", "failed"):
-                    merged[key] += result[key]
-                merged["processed_files"].extend(result["processed_files"])
+            merged = await asyncio.to_thread(_rebuild_index, resolved_db, job)
             job["status"] = "complete"
             job["stats"] = merged
             _notify_indexing_done(merged)
@@ -804,6 +761,166 @@ async def reindex_all(db: Path | None = None) -> dict[str, Any]:
 
     asyncio.create_task(_run())
     return {"status": "ok", "job_id": job_id}
+
+
+def _load_source_manifest(db_path: Path) -> list[dict[str, Any]]:
+    store = SQLiteVectorStore(db_path, dimension=0)
+    try:
+        raw = store.get_meta("source_paths")
+    finally:
+        store.close()
+    return _normalize_source_manifest(json.loads(raw) if raw else [])
+
+
+def _load_source_manifest_locked(db_path: Path) -> list[dict[str, Any]]:
+    with _db_write_lock:
+        return _load_source_manifest(db_path)
+
+
+def _require_available_sources(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not entries:
+        raise HTTPException(
+            status_code=400, detail="No source paths recorded. Index a folder first."
+        )
+    missing = [entry["path"] for entry in entries if not Path(entry["path"]).exists()]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail="Re-index cancelled; reconnect missing source paths first: "
+            + ", ".join(missing),
+        )
+    return entries
+
+
+def _rebuild_index(resolved_db: Path, job: dict) -> dict[str, Any]:
+    embedder = _get_embedder()
+    dimension = embedder.dimension
+    with _db_write_lock:
+        job_id = job["id"]
+        staging_db = resolved_db.with_name(f".{resolved_db.name}.{job_id}.reindex")
+        _ensure_db_parent(resolved_db)
+        conn = sqlite3.connect(resolved_db)
+        try:
+            # Hold SQLite's cross-process write reservation through rebuild and replacement.
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT value FROM meta WHERE key = 'source_paths'").fetchone()
+            available = _require_available_sources(
+                _normalize_source_manifest(json.loads(row[0]) if row else [])
+            )
+
+            stage_store = SQLiteVectorStore(staging_db, dimension=dimension)
+            try:
+                stage_store.set_meta("source_paths", json.dumps(available))
+            finally:
+                stage_store.close()
+
+            config = AppConfig(db_path=staging_db)
+            merged: dict[str, Any] = {
+                "inserted": 0,
+                "updated": 0,
+                "skipped": 0,
+                "failed": 0,
+                "processed_files": [],
+            }
+            for entry in available:
+                result = _run_index_job(
+                    [Path(entry["path"])],
+                    config,
+                    staging_db,
+                    job,
+                    frozenset(entry["exclude_paths"]) or None,
+                    bool(entry["privacy"]),
+                    lock_db=False,
+                )
+                for key in ("inserted", "updated", "skipped", "failed"):
+                    merged[key] += result[key]
+                merged["processed_files"].extend(result["processed_files"])
+            if merged["failed"]:
+                raise RuntimeError(
+                    f"Re-index failed for {merged['failed']} files; the existing index was kept"
+                )
+            _require_available_sources(available)
+
+            conn.execute("ATTACH DATABASE ? AS rebuilt", (str(staging_db),))
+            conn.execute("DELETE FROM chunks")
+            conn.execute("DELETE FROM documents")
+            conn.execute("DELETE FROM meta")
+            conn.execute(
+                """INSERT INTO documents
+                   (id, path, title, sha256, mtime, size, privacy, created_at, updated_at)
+                   SELECT id, path, title, sha256, mtime, size, privacy, created_at, updated_at
+                   FROM rebuilt.documents"""
+            )
+            conn.execute(
+                """INSERT INTO chunks
+                   (id, document_id, chunk_index, text, metadata, embedding, created_at)
+                   SELECT id, document_id, chunk_index, text, metadata, embedding, created_at
+                   FROM rebuilt.chunks"""
+            )
+            conn.execute("INSERT INTO meta (key, value) SELECT key, value FROM rebuilt.meta")
+            conn.commit()
+            return merged
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+            for suffix in ("", "-wal", "-shm"):
+                try:
+                    Path(f"{staging_db}{suffix}").unlink()
+                except FileNotFoundError:
+                    pass
+
+
+def _normalize_source_manifest(entries: list) -> list[dict[str, Any]]:
+    """Read current and legacy source-path manifests into one stable format."""
+    normalized = []
+    for entry in entries:
+        if isinstance(entry, str):
+            entry = {"path": entry}
+        if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
+            continue
+        exclusions = entry.get("exclude_paths", [])
+        normalized.append(
+            {
+                "path": entry["path"],
+                "privacy": bool(entry.get("privacy", False)),
+                "exclude_paths": [p for p in exclusions if isinstance(p, str)]
+                if isinstance(exclusions, list)
+                else [],
+            }
+        )
+    return normalized
+
+
+def _merge_source_manifest(
+    existing: list, paths: list[Path], privacy: bool, exclude_paths: list[str]
+) -> list[dict[str, Any]]:
+    manifest = _normalize_source_manifest(existing)
+    by_path = {os.path.normcase(os.path.abspath(entry["path"])): entry for entry in manifest}
+    for path in paths:
+        key = os.path.normcase(os.path.abspath(path))
+        previous = by_path.get(key, {"path": str(path), "privacy": False, "exclude_paths": []})
+        previous["privacy"] = bool(previous["privacy"] or privacy)
+        previous["exclude_paths"] = sorted(set(exclude_paths))
+        by_path[key] = previous
+    return list(by_path.values())
+
+
+def _save_source_manifest(
+    db_path: Path, paths: list[Path], privacy: bool, exclude_paths: list[str]
+) -> None:
+    with _db_write_lock:
+        store = SQLiteVectorStore(db_path, dimension=0)
+        try:
+            raw = store.get_meta("source_paths")
+            previous = json.loads(raw) if raw else []
+            store.set_meta(
+                "source_paths",
+                json.dumps(_merge_source_manifest(previous, paths, privacy, exclude_paths)),
+            )
+        finally:
+            store.close()
 
 
 @app.post("/settings")
@@ -831,10 +948,13 @@ async def update_settings(payload: SettingsPayload) -> dict:
     after = {key: current.get(key) for key in _EMBEDDER_RESET_KEYS + _LLM_RESET_KEYS}
     if any(before[k] != after[k] for k in _EMBEDDER_RESET_KEYS):
         _reset_embedder()
-    if any(before[k] != after[k] for k in _LLM_RESET_KEYS):
+    llm_changed = any(before[k] != after[k] for k in _LLM_RESET_KEYS)
+    if llm_changed:
         global _rag_llm
         _rag_llm = None
-    return current
+        if current.get("rag_enabled"):
+            _schedule_rag_load()
+    return _public_settings(current)
 
 
 def _compute_embed_batch_size() -> int:
@@ -857,8 +977,11 @@ def _run_index_job(
     job: dict | None = None,
     exclude_paths: frozenset[str] | None = None,
     privacy: bool = False,
+    *,
+    lock_db: bool = True,
 ) -> dict[str, Any]:
     embedder = _get_embedder()
+    dimension = embedder.dimension
 
     def _progress(processed: int, total: int, current_file: str) -> None:
         if job is not None:
@@ -866,20 +989,21 @@ def _run_index_job(
             job["total"] = total
             job["current_file"] = current_file
 
-    store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
-    # No fixed embed_batch_size — Indexer adapts per-file based on available RAM
-    indexer = Indexer(
-        embedder,
-        store,
-        chunk_chars=config.chunk_chars,
-        overlap=config.overlap,
-        progress_callback=_progress,
-        privacy=privacy,
-    )
-    try:
-        stats = indexer.index(paths, exclude_paths=exclude_paths)
-    finally:
-        store.close()
+    with _db_write_lock if lock_db else nullcontext():
+        store = SQLiteVectorStore(resolved_db, dimension=dimension)
+        # No fixed embed_batch_size — Indexer adapts per-file based on available RAM
+        indexer = Indexer(
+            embedder,
+            store,
+            chunk_chars=config.chunk_chars,
+            overlap=config.overlap,
+            progress_callback=_progress,
+            privacy=privacy,
+        )
+        try:
+            stats = indexer.index(paths, exclude_paths=exclude_paths)
+        finally:
+            store.close()
 
     return {
         "inserted": stats.inserted,
@@ -979,14 +1103,13 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
 
     resolved_paths = _validate_paths(payload.paths)
 
-    meta_store = SQLiteVectorStore(resolved_db, dimension=0)
-    try:
-        meta_store.set_meta(
-            "source_paths",
-            json.dumps([{"path": str(p), "privacy": payload.privacy} for p in resolved_paths]),
-        )
-    finally:
-        meta_store.close()
+    await asyncio.to_thread(
+        _save_source_manifest,
+        resolved_db,
+        resolved_paths,
+        payload.privacy,
+        payload.exclude_paths,
+    )
 
     job_id = str(uuid.uuid4())
     job: dict[str, Any] = {
