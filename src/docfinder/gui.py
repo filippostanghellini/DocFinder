@@ -724,15 +724,21 @@ class GlobalHotkeyManager:
             self._listener = None
         if self._tap is not None:
             try:
+                import objc  # type: ignore[import-untyped]
                 import Quartz  # type: ignore[import-untyped]
-
-                Quartz.CGEventTapEnable(self._tap, False)
-                if self._tap_source is not None:
+            except ImportError as exc:
+                logger.debug("Could not import Quartz while stopping event tap: %s", exc)
+            else:
+                try:
+                    Quartz.CGEventTapEnable(self._tap, False)
+                except objc.error as exc:
+                    logger.debug("Could not disable event tap: %s", exc)
+                if self._tap_source is not None and self._tap_run_loop is not None:
                     # Stop the event tap run loop, not Cocoa's main run loop.
-                    if self._tap_run_loop is not None:
+                    try:
                         Quartz.CFRunLoopStop(self._tap_run_loop)
-            except Exception:
-                pass
+                    except objc.error as exc:
+                        logger.debug("Could not stop event tap run loop: %s", exc)
             self._tap = None
             self._tap_source = None
             self._tap_thread = None

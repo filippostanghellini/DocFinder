@@ -55,6 +55,7 @@ class SQLiteVectorStore:
                     sha256 TEXT NOT NULL,
                     mtime REAL NOT NULL,
                     size INTEGER NOT NULL,
+                    privacy INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
                 )
@@ -105,6 +106,10 @@ class SQLiteVectorStore:
             if "embedding" not in columns:
                 conn.execute("ALTER TABLE chunks ADD COLUMN embedding BLOB")
 
+            doc_columns = {row["name"] for row in conn.execute("PRAGMA table_info(documents)")}
+            if "privacy" not in doc_columns:
+                conn.execute("ALTER TABLE documents ADD COLUMN privacy INTEGER NOT NULL DEFAULT 0")
+
     @staticmethod
     def _normalize_path(path: str | Path) -> str:
         """Return a separator-stable representation for stored paths."""
@@ -133,6 +138,20 @@ class SQLiteVectorStore:
         """
         stored = self.get_meta("embedding_model")
         if stored == model_name:
+            return False
+
+        try:
+            identity = json.loads(model_name)
+        except json.JSONDecodeError:
+            identity = {}
+        if stored == identity.get("model_name") and identity.get("backend") in {
+            "local",
+            "torch",
+            "onnx",
+            "openvino",
+        }:
+            # Pre-identity indexes were local-only and stored just the model name.
+            self.set_meta("embedding_model", model_name)
             return False
 
         has_vectors = self._conn.execute("SELECT 1 FROM chunks LIMIT 1").fetchone() is not None
@@ -170,7 +189,9 @@ class SQLiteVectorStore:
             normalized = normalized[:-1]
         return normalized
 
-    def init_document(self, document: DocumentMetadata) -> tuple[int, str]:
+    def init_document(
+        self, document: DocumentMetadata, *, privacy: bool = False
+    ) -> tuple[int, str]:
         """Initialize a document for insertion.
 
         Returns:
@@ -181,11 +202,13 @@ class SQLiteVectorStore:
         conn = self._conn
 
         existing = conn.execute(
-            "SELECT id, sha256 FROM documents WHERE REPLACE(path, '\\', '/') = ?",
+            "SELECT id, sha256, privacy FROM documents WHERE REPLACE(path, '\\', '/') = ?",
             (self._normalize_path(document.path),),
         ).fetchone()
 
         if existing and existing["sha256"] == document.sha256:
+            if privacy and not existing["privacy"]:
+                conn.execute("UPDATE documents SET privacy = 1 WHERE id = ?", (existing["id"],))
             return -1, "skipped"
 
         if existing:
@@ -194,8 +217,8 @@ class SQLiteVectorStore:
 
         doc_id = conn.execute(
             """
-            INSERT INTO documents(path, title, sha256, mtime, size)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO documents(path, title, sha256, mtime, size, privacy)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 str(document.path),
@@ -203,6 +226,7 @@ class SQLiteVectorStore:
                 document.sha256,
                 document.mtime,
                 document.size,
+                int(privacy),
             ),
         ).lastrowid
 
@@ -237,14 +261,24 @@ class SQLiteVectorStore:
         document: DocumentMetadata,
         chunks: Sequence[ChunkRecord],
         embeddings: np.ndarray,
+        *,
+        privacy: bool = False,
     ) -> str:
         with self.transaction():
-            doc_id, status = self.init_document(document)
+            doc_id, status = self.init_document(document, privacy=privacy)
             if status == "skipped":
                 return status
 
             self.insert_chunks(doc_id, chunks, embeddings)
             return status
+
+    def is_document_privacy(self, document_path: str) -> bool:
+        """Return True if the document was indexed with the 100% privacy flag."""
+        row = self._conn.execute(
+            "SELECT privacy FROM documents WHERE REPLACE(path, '\\', '/') = ?",
+            (self._normalize_path(document_path),),
+        ).fetchone()
+        return bool(row and row["privacy"])
 
     def search(
         self,
@@ -480,6 +514,14 @@ class SQLiteVectorStore:
                 conn.execute("DELETE FROM documents WHERE id = ?", (row["id"],))
         return len(missing)
 
+    def clear_all(self) -> int:
+        """Remove all documents and chunks. Returns the number of documents removed."""
+        with self.transaction() as conn:
+            removed = conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+            conn.execute("DELETE FROM chunks")
+            conn.execute("DELETE FROM documents")
+        return removed
+
     def list_documents(self) -> List[dict]:
         """List all indexed documents with their metadata."""
         rows = self._conn.execute(
@@ -491,6 +533,7 @@ class SQLiteVectorStore:
                 d.sha256,
                 d.mtime,
                 d.size,
+                d.privacy,
                 d.created_at,
                 d.updated_at,
                 COUNT(c.id) as chunk_count
@@ -509,6 +552,7 @@ class SQLiteVectorStore:
                 "sha256": row["sha256"],
                 "mtime": row["mtime"],
                 "size": row["size"],
+                "privacy": bool(row["privacy"]),
                 "created_at": row["created_at"],
                 "updated_at": row["updated_at"],
                 "chunk_count": row["chunk_count"],

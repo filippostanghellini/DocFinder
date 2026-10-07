@@ -65,6 +65,22 @@ Open the chat panel to start asking questions. Type a question about your indexe
 
 The web UI at `http://127.0.0.1:8000` includes a chat interface with the same functionality.
 
+### Ollama models
+
+The chat LLM does not have to be the built-in Qwen3.5 GGUF model. In **Settings → Models &
+Ollama** you can switch the Chat LLM backend to **Ollama** and pick any chat model installed on
+an Ollama server:
+
+1. Enter the server URL (e.g. `http://127.0.0.1:11434`) — an API key is optional, for remote
+   Ollama providers
+2. Click **Test connection** to list the models installed on that server
+3. Set **Chat LLM backend** to *Ollama* and pick a chat model
+4. Save — the model applies immediately, no reindex needed and nothing to download
+   (the model is served by Ollama)
+
+The server can run on your machine or on a VPS/remote Ollama provider, which is useful when your
+computer lacks the resources for an accurate LLM.
+
 ### API
 
 The FastAPI backend exposes a chat endpoint:

@@ -18,6 +18,18 @@ model = SentenceTransformer("BAAI/bge-m3")
 embedding = model.encode(chunk_text)
 ```
 
+!!! note "Custom embedding models via Ollama"
+
+    The embedding model is not fixed. In **Settings → Models & Ollama** you can connect to a
+    local or remote Ollama server and pick any embedding model it serves. Changing the embedding
+    model invalidates the existing index — DocFinder detects the mismatch and reindexes from
+    scratch (or use the **Re-index now** button right after saving).
+
+    With a remote embedding server, the **query text** (not document content) is sent to the
+    server at search time. Documents indexed with the **100% privacy** checkbox are unaffected:
+    their content never leaves your machine, but note that searching still sends your typed
+    query to the remote embedder.
+
 ### 3. Storage
 
 Embeddings and their text are stored in a local SQLite database with WAL mode enabled. Cosine similarity is computed in pure NumPy — no vector database extensions required.

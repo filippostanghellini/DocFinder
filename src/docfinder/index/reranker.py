@@ -6,6 +6,8 @@ import logging
 import math
 from typing import List
 
+from docfinder.embedding.encoder import is_hf_offline
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,7 +33,7 @@ class Reranker:
         if self._model is None:
             from sentence_transformers import CrossEncoder
 
-            self._model = CrossEncoder(self.model_name)
+            self._model = CrossEncoder(self.model_name, local_files_only=is_hf_offline())
             logger.info("Loaded reranker model: %s", self.model_name)
 
     def rerank(self, query: str, results: List[dict], *, top_k: int = 10) -> List[dict]:

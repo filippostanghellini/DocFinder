@@ -292,6 +292,15 @@ class TestEnsureEmbeddingModel:
         assert temp_db.ensure_embedding_model("model-a") is False
         assert temp_db.get_stats()["document_count"] == 1
 
+    def test_legacy_local_model_identity_is_migrated_without_wipe(self, temp_db):
+        temp_db.ensure_embedding_model("model-a")
+        self._insert_doc(temp_db)
+        identity = '{"backend":"torch","model_name":"model-a"}'
+
+        assert temp_db.ensure_embedding_model(identity) is False
+        assert temp_db.get_stats()["document_count"] == 1
+        assert temp_db.get_meta("embedding_model") == identity
+
     def test_model_change_wipes_index(self, temp_db):
         temp_db.ensure_embedding_model("old-model")
         self._insert_doc(temp_db)
@@ -842,3 +851,132 @@ class TestGetStats:
         assert stats["document_count"] == 3
         assert stats["chunk_count"] == 6  # 2 chunks per document
         assert stats["total_size_bytes"] == 3300  # 1000 + 1100 + 1200
+
+
+class TestMeta:
+    """Test meta key-value storage."""
+
+    def test_set_and_get(self, temp_db):
+        assert temp_db.get_meta("embedding_model") is None
+        temp_db.set_meta("embedding_model", "all-mpnet-base-v2")
+        assert temp_db.get_meta("embedding_model") == "all-mpnet-base-v2"
+
+    def test_set_overwrites(self, temp_db):
+        temp_db.set_meta("embedding_model", "a")
+        temp_db.set_meta("embedding_model", "b")
+        assert temp_db.get_meta("embedding_model") == "b"
+
+    def test_survives_reopen(self, temp_db, tmp_path):
+        temp_db.set_meta("source_paths", '["/tmp/x"]')
+        temp_db.close()
+        reopened = SQLiteVectorStore(tmp_path / "test.db", dimension=384)
+        try:
+            assert reopened.get_meta("source_paths") == '["/tmp/x"]'
+        finally:
+            reopened.close()
+
+
+class TestClearAll:
+    def test_clears_documents_and_chunks(self, temp_db):
+        doc = DocumentMetadata(
+            path=Path("/tmp/test.pdf"),
+            title="Test",
+            sha256="abc",
+            mtime=1234567890.0,
+            size=1000,
+        )
+        chunks = [ChunkRecord(document_path=doc.path, index=0, text="t", metadata={})]
+        temp_db.upsert_document(doc, chunks, np.random.rand(1, 384).astype("float32"))
+
+        removed = temp_db.clear_all()
+
+        assert removed == 1
+        stats = temp_db.get_stats()
+        assert stats["document_count"] == 0
+        assert stats["chunk_count"] == 0
+
+    def test_clear_all_empty(self, temp_db):
+        assert temp_db.clear_all() == 0
+
+
+class TestPrivacyFlag:
+    """Test the per-document 100% privacy flag."""
+
+    def _doc(self, path: Path) -> DocumentMetadata:
+        return DocumentMetadata(path=path, title="T", sha256="abc", mtime=1234567890.0, size=1000)
+
+    def test_default_privacy_false(self, temp_db):
+        temp_db.upsert_document(
+            self._doc(Path("/tmp/a.pdf")),
+            [ChunkRecord(document_path=Path("/tmp/a.pdf"), index=0, text="t", metadata={})],
+            np.random.rand(1, 384).astype("float32"),
+        )
+        assert temp_db.is_document_privacy("/tmp/a.pdf") is False
+
+    def test_privacy_roundtrip(self, temp_db):
+        doc = self._doc(Path("/tmp/private.pdf"))
+        temp_db.upsert_document(
+            doc,
+            [ChunkRecord(document_path=doc.path, index=0, text="t", metadata={})],
+            np.random.rand(1, 384).astype("float32"),
+            privacy=True,
+        )
+        assert temp_db.is_document_privacy("/tmp/private.pdf") is True
+
+    def test_unchanged_document_can_be_marked_private(self, temp_db):
+        doc = self._doc(Path("/tmp/private.pdf"))
+        chunks = [ChunkRecord(document_path=doc.path, index=0, text="t", metadata={})]
+        temp_db.upsert_document(doc, chunks, np.random.rand(1, 384).astype("float32"))
+
+        assert (
+            temp_db.upsert_document(
+                doc, chunks, np.random.rand(1, 384).astype("float32"), privacy=True
+            )
+            == "skipped"
+        )
+        assert temp_db.is_document_privacy("/tmp/private.pdf") is True
+
+    def test_list_documents_exposes_privacy(self, temp_db):
+        doc = self._doc(Path("/tmp/private.pdf"))
+        temp_db.upsert_document(
+            doc,
+            [ChunkRecord(document_path=doc.path, index=0, text="t", metadata={})],
+            np.random.rand(1, 384).astype("float32"),
+            privacy=True,
+        )
+        assert temp_db.list_documents()[0]["privacy"] is True
+
+    def test_missing_document_is_not_privacy(self, temp_db):
+        assert temp_db.is_document_privacy("/tmp/never-indexed.pdf") is False
+
+    def test_old_db_without_privacy_column_migrates(self, tmp_path):
+        """A pre-privacy database gains the column with default 0 on reopen."""
+        db_path = tmp_path / "legacy.db"
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            """
+            CREATE TABLE documents (
+                id INTEGER PRIMARY KEY,
+                path TEXT NOT NULL UNIQUE,
+                title TEXT,
+                sha256 TEXT NOT NULL,
+                mtime REAL NOT NULL,
+                size INTEGER NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO documents(path, title, sha256, mtime, size) VALUES (?, ?, ?, ?, ?)",
+            ("/tmp/old.pdf", "Old", "sha", 1.0, 10),
+        )
+        conn.commit()
+        conn.close()
+
+        store = SQLiteVectorStore(db_path, dimension=384)
+        try:
+            assert store.is_document_privacy("/tmp/old.pdf") is False
+            assert store.list_documents()[0]["privacy"] is False
+        finally:
+            store.close()

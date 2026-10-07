@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import platform
+import socket
 import sys
 from dataclasses import dataclass
 from typing import Iterable, Literal, Sequence
@@ -14,6 +15,21 @@ from sentence_transformers import SentenceTransformer
 DEFAULT_MODEL = "BAAI/bge-m3"
 
 logger = logging.getLogger(__name__)
+
+
+def is_hf_offline(timeout: float = 3.0) -> bool:
+    """Detect whether Hugging Face Hub is unreachable (no internet).
+
+    SentenceTransformer/CrossEncoder re-check huggingface.co on every load even
+    when all model files are already in the local cache; without internet that
+    turns into minutes of connection retries, freezing startup. When offline,
+    callers must pass ``local_files_only=True`` so the cached copy loads directly.
+    """
+    try:
+        socket.create_connection(("huggingface.co", 443), timeout=timeout).close()
+        return False
+    except OSError:
+        return True
 
 
 def _check_gpu_availability() -> tuple[bool, str | None]:
@@ -261,11 +277,13 @@ class EmbeddingModel:
         if self.config.backend == "onnx" and self.config.onnx_model_file:
             model_kwargs["file_name"] = self.config.onnx_model_file
 
-        # Load model
+        # Load model (offline: use the local cache directly, skip network checks)
+        offline = is_hf_offline()
         return SentenceTransformer(
             self.config.model_name,
             backend=self.config.backend,
             device=self.config.device,
+            local_files_only=offline,
             model_kwargs=model_kwargs if model_kwargs else None,
         )
 

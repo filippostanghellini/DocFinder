@@ -954,6 +954,14 @@
 
       .documents-table tbody tr:hover td { background: var(--bg-2); }
 
+      .documents-table th.sort-th { cursor: pointer; user-select: none; }
+      .documents-table th.sort-th:hover { color: var(--text-1); }
+      .documents-table th[aria-sort="ascending"],
+      .documents-table th[aria-sort="descending"] { color: var(--text-1); }
+      .sort-arrow { display: inline-flex; margin-left: 0.3em; vertical-align: -2px; color: var(--text-2); }
+      .sort-arrow-idle { opacity: 0.45; }
+      th.sort-th:hover .sort-arrow-idle { opacity: 0.8; }
+
       .doc-title { font-weight: 500; }
 
       .doc-path {
@@ -1469,6 +1477,13 @@
               Index
             </button>
           </form>
+          <label class="checkbox-row" id="privacy-row" title="Indexed files never leave this machine: requires a local embedding model and blocks remote Ollama LLMs for AI chat on these documents">
+            <input type="checkbox" id="index-privacy" />
+            <span>100% privacy &mdash; keep these files on this machine only</span>
+          </label>
+          <div id="privacy-note" style="display:none; font-size:0.78rem; color:var(--warning); margin-top:0.3rem;">
+            100% privacy needs a local embedding model &mdash; switch it in Settings &rarr; Models &amp; Ollama.
+          </div>
           <div id="folder-preview" class="folder-preview" style="display:none;"></div>
           <div id="index-status" style="margin-top: 0.85rem;"></div>
         </div>
@@ -1496,15 +1511,30 @@
               Indexed Library
             </h2>
             <div style="display:flex; gap: 0.4rem;">
-              <button id="cleanup-btn" class="btn btn-secondary btn-sm">
+              <button id="cleanup-btn" class="btn btn-secondary btn-sm" title="Remove from the index every document whose file no longer exists on disk">
                 <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M6 5l-3 3 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 Clean up
               </button>
-              <button id="refresh-docs-btn" class="btn btn-secondary btn-sm">
+              <button id="refresh-docs-btn" class="btn btn-secondary btn-sm" title="Reload the document list from the index">
                 <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M13 8A5 5 0 1 1 8 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M8 1l3 2-3 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 Refresh
               </button>
             </div>
+          </div>
+
+          <p style="font-size:0.78rem; color:var(--text-2); margin:0 0 0.6rem;">
+            <strong>Clean up</strong> removes documents whose files were deleted or moved on disk;
+            <strong>Refresh</strong> simply reloads this list from the index. Use the filter to show
+            only documents marked with the shield.
+          </p>
+
+          <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.8rem;">
+            <label for="docs-privacy-filter" style="font-size:0.82rem; color:var(--text-2);">Filter</label>
+            <select id="docs-privacy-filter" class="form-input" style="flex:0 0 auto; min-width:0; width:auto; padding:0.35rem 0.6rem; font-size:0.82rem;">
+              <option value="all" selected>All documents</option>
+              <option value="private">100% privacy only</option>
+              <option value="normal">Without 100% privacy</option>
+            </select>
           </div>
 
           <div id="stats-container" class="stats-grid"></div>
@@ -1614,6 +1644,101 @@
             </div>
 
             <div id="rag-status-msg" style="display:none; margin-top:0.5rem; font-size:0.82rem; padding:0.5rem 0.7rem; border-radius:var(--radius-sm);"></div>
+          </div>
+        </div>
+
+        <!-- ── Models & Ollama ─────────────────────────────────────────── -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+              Models & Ollama
+            </h2>
+          </div>
+
+          <p style="font-size:0.82rem; color:var(--text-2); margin-bottom:0.65rem; line-height:1.5;">
+            Choose which models DocFinder uses for embeddings, search results and AI chat.
+            Connect to a local or remote Ollama server to pick any model it serves.
+          </p>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">Ollama server URL</span>
+              <span class="setting-sub">Default local instance: http://127.0.0.1:11434</span>
+            </div>
+            <input id="ollama-url" type="text" class="form-input" style="width:260px;" placeholder="http://127.0.0.1:11434" autocomplete="off" spellcheck="false" />
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">API key</span>
+              <span class="setting-sub">Optional, for remote Ollama providers</span>
+            </div>
+            <input id="ollama-api-key" type="password" class="form-input" style="width:260px;" placeholder="None" autocomplete="off" />
+          </div>
+          <label style="display:block; margin:0.4rem 0 0 0; font-size:0.78rem; color:var(--text-2);">
+            <input id="clear-ollama-api-key" type="checkbox" /> Clear saved API key
+          </label>
+
+          <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem;">
+            <button id="ollama-test-btn" class="btn btn-secondary btn-sm">Test connection</button>
+            <span id="ollama-status" style="font-size:0.8rem;"></span>
+          </div>
+
+          <div id="ollama-models-section" style="display:none; margin-top:0.85rem;">
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-label">Embedding backend</span>
+                <span class="setting-sub">Used to build the index &mdash; changing it requires reindexing</span>
+              </div>
+              <select id="embedding-backend-select" class="form-input" style="width:200px;">
+                <option value="local">Local (built-in)</option>
+                <option value="ollama">Ollama</option>
+              </select>
+            </div>
+
+            <div class="setting-row" id="embedding-model-row" style="display:none;">
+              <div class="setting-info">
+                <span class="setting-label">Ollama embedding model</span>
+              </div>
+              <select id="embedding-model-select" class="form-input" style="width:260px;"></select>
+            </div>
+
+            <div id="embedding-reindex-note" class="info-box" style="display:none; border-left-color:var(--warning); background:rgba(245,158,11,0.08);">
+              Changing the embedding model invalidates the existing index: every file must be
+              indexed again. DocFinder will offer a quick re-index after you save.
+            </div>
+
+            <div class="setting-row" style="margin-top:0.35rem;">
+              <div class="setting-info">
+                <span class="setting-label">Chat LLM backend</span>
+                <span class="setting-sub">AI Chat answers &mdash; applies immediately, no reindex needed</span>
+              </div>
+              <select id="llm-backend-select" class="form-input" style="width:200px;">
+                <option value="local">Local (GGUF)</option>
+                <option value="ollama">Ollama</option>
+              </select>
+            </div>
+
+            <div class="setting-row" id="llm-model-row" style="display:none;">
+              <div class="setting-info">
+                <span class="setting-label">Ollama chat model</span>
+              </div>
+              <select id="llm-model-select" class="form-input" style="width:260px;"></select>
+            </div>
+          </div>
+
+          <div id="ollama-reindex-banner" style="display:none; margin-top:0.85rem; padding:0.65rem 0.85rem; background:rgba(245,158,11,0.08); border-left:2px solid var(--warning); border-radius:var(--radius-xs); font-size:0.8rem; line-height:1.5;">
+            <strong>Reindex required.</strong> The embedding model changed &mdash; saved settings
+            apply on save. After saving, click below to re-index automatically.
+            <div style="margin-top:0.5rem;">
+              <button id="reindex-btn" class="btn btn-primary btn-sm">Re-index now</button>
+              <span id="reindex-status" style="margin-left:0.5rem;"></span>
+            </div>
+          </div>
+
+          <div style="margin-top:1rem; display:flex; justify-content:flex-end;">
+            <button id="save-ollama-btn" class="btn btn-primary">Save models</button>
           </div>
         </div>
 
@@ -1749,6 +1874,7 @@
         document.getElementById('query').focus();
         loadSearchFolders();
         loadRagEnabled();
+        updatePrivacyAvailability();
       });
 
       // ── Toast ────────────────────────────────────────────────────────────
@@ -1777,6 +1903,27 @@
         return new Date(s).toLocaleDateString(undefined, {
           day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'
         });
+      }
+
+      // ── 100% privacy checkbox gating ─────────────────────────────────────
+      function isLocalUrl(url) {
+        try {
+          return ['localhost','127.0.0.1','::1','0.0.0.0']
+            .includes(new URL(url).hostname.toLowerCase());
+        } catch { return false; }
+      }
+
+      async function updatePrivacyAvailability() {
+        const cb = document.getElementById('index-privacy');
+        const note = document.getElementById('privacy-note');
+        try {
+          const s = await (await fetch(`${apiBase}/settings`)).json();
+          const blocked = s.embedding_backend === 'ollama' && s.ollama_url
+            && !isLocalUrl(s.ollama_url);
+          cb.disabled = blocked;
+          note.style.display = blocked ? '' : 'none';
+          if (blocked) cb.checked = false;
+        } catch { /* keep current state */ }
       }
 
       // ── Search ───────────────────────────────────────────────────────────
@@ -2136,7 +2283,11 @@
           const startRes = await fetch(`${apiBase}/index`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ paths: [targetPath], exclude_paths: excludePaths }),
+            body: JSON.stringify({
+              paths: [targetPath],
+              exclude_paths: excludePaths,
+              privacy: document.getElementById('index-privacy').checked,
+            }),
           });
           const startData = await startRes.json();
           if (!startRes.ok) throw new Error(startData.detail || 'Failed to start indexing');
@@ -2193,13 +2344,18 @@
       const selectAllCb     = document.getElementById('select-all-checkbox');
       const deleteSelectedBtn = document.getElementById('delete-selected-btn');
       const selectedCount   = document.getElementById('selected-count');
+      const docsPrivacyFilter = document.getElementById('docs-privacy-filter');
       let selectedDocIds    = new Set();
+      let cachedDocuments   = [];
+      let docSort           = { key: 'updated_at', dir: 'desc' };
 
       async function loadDocuments() {
         docsContainer.innerHTML = '<div class="loading"><div class="spinner"></div><span>Loading library\u2026</span></div>';
         try {
           const res  = await fetch(`${apiBase}/documents`);
           const data = await res.json();
+
+          cachedDocuments = data.documents;
 
           statsContainer.innerHTML = `
             <div class="stat-card">
@@ -2215,77 +2371,130 @@
               <div class="stat-label">Total size</div>
             </div>`;
 
-          if (!data.documents.length) {
-            bulkActions.style.display = 'none';
-            docsContainer.innerHTML = `
-              <div class="empty-state">
-                <div class="icon">\ud83d\udced</div>
-                <p>No indexed documents yet</p>
-                <p style="font-size:0.8rem; margin-top:0.3rem; color:var(--text-3);">Switch to the <strong>Index</strong> tab to add your PDFs.</p>
-              </div>`;
-            return;
-          }
-
-          bulkActions.style.display = 'flex';
-          selectedDocIds.clear();
-          updateSelectedCount();
-
-          docsContainer.innerHTML = `
-            <div style="overflow-x:auto; border-radius: var(--radius-sm); border: 1px solid var(--border);">
-              <table class="documents-table">
-                <thead>
-                  <tr>
-                    <th style="width:32px;"></th>
-                    <th>Title</th>
-                    <th>Path</th>
-                    <th>Size</th>
-                    <th>Chunks</th>
-                    <th>Indexed</th>
-                    <th style="width:80px;">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${data.documents.map(doc => `
-                    <tr data-id="${doc.id}">
-                      <td><input type="checkbox" class="doc-checkbox" data-id="${doc.id}" /></td>
-                      <td class="doc-title">${escHtml(doc.title || '\u2014')}</td>
-                      <td class="doc-path" title="${escHtml(doc.path)}">${escHtml(doc.path)}</td>
-                      <td class="doc-meta">${formatSize(doc.size)}</td>
-                      <td class="doc-meta">${doc.chunk_count}</td>
-                      <td class="doc-meta">${formatDate(doc.updated_at)}</td>
-                      <td style="white-space:nowrap;">
-                        <button class="btn btn-ghost btn-sm open-doc-btn" data-path="${escHtml(doc.path)}" title="Open file">
-                          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 4h8l2 2v8H2V4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 2h4v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 7l5-5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-                        </button>
-                        <button class="btn btn-ghost btn-sm delete-doc-btn" data-id="${doc.id}" data-title="${escHtml(doc.title || doc.path)}" title="Remove from index">
-                          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V2h4v2M13 4l-1 10H4L3 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        </button>
-                      </td>
-                    </tr>`).join('')}
-                </tbody>
-              </table>
-            </div>`;
-
-          document.querySelectorAll('.doc-checkbox').forEach(cb => {
-            cb.addEventListener('change', e => {
-              const id = parseInt(e.target.dataset.id);
-              e.target.checked ? selectedDocIds.add(id) : selectedDocIds.delete(id);
-              updateSelectedCount();
-            });
-          });
-
-          document.querySelectorAll('.delete-doc-btn').forEach(btn => {
-            btn.addEventListener('click', () => showDeleteModal([parseInt(btn.dataset.id)], btn.dataset.title));
-          });
-
-          document.querySelectorAll('.open-doc-btn').forEach(btn => {
-            btn.addEventListener('click', () => openDocument(btn.dataset.path));
-          });
-
+          renderDocuments();
         } catch (err) {
           docsContainer.innerHTML = `<div class="empty-state"><div class="icon">\u26a0\ufe0f</div><p style="color:var(--danger);">${escHtml(err.message)}</p></div>`;
         }
       }
+
+      function sortDocuments(documents) {
+        const { key, dir } = docSort;
+        const mul = dir === 'asc' ? 1 : -1;
+        return [...documents].sort((a, b) => {
+          if (key === 'title') {
+            return mul * (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base' });
+          }
+          if (key === 'updated_at') {
+            return mul * String(a.updated_at || '').localeCompare(String(b.updated_at || ''));
+          }
+          return mul * ((a[key] || 0) - (b[key] || 0));
+        });
+      }
+
+      function renderDocuments() {
+        const mode = docsPrivacyFilter.value;
+        const documents = sortDocuments(cachedDocuments.filter(doc =>
+          mode === 'all' || (mode === 'private' ? doc.privacy : !doc.privacy)));
+
+        if (!cachedDocuments.length) {
+          bulkActions.style.display = 'none';
+          docsContainer.innerHTML = `
+            <div class="empty-state">
+              <div class="icon">\ud83d\udced</div>
+              <p>No indexed documents yet</p>
+              <p style="font-size:0.8rem; margin-top:0.3rem; color:var(--text-3);">Switch to the <strong>Index</strong> tab to add your PDFs.</p>
+            </div>`;
+          return;
+        }
+
+        if (!documents.length) {
+          bulkActions.style.display = 'none';
+          docsContainer.innerHTML = `
+            <div class="empty-state">
+              <div class="icon">\ud83d\uded1</div>
+              <p>No documents match this filter</p>
+            </div>`;
+          return;
+        }
+
+        bulkActions.style.display = 'flex';
+        selectedDocIds.clear();
+        updateSelectedCount();
+
+        const caret = (d, cls) =>
+          `<span class="sort-arrow ${cls}"><svg width="9" height="9" viewBox="0 0 16 16" fill="currentColor"><path d="${d}"/></svg></span>`;
+        const arrowUp   = caret('M8 3l5 6H3z', '');
+        const arrowDown = caret('M8 13L3 7h10z', '');
+        const arrowIdle = arrowDown.replace('"sort-arrow "', '"sort-arrow sort-arrow-idle"');
+        const ariaFor = key => docSort.key === key ? (docSort.dir === 'asc' ? 'ascending' : 'descending') : 'none';
+        const th = (key, label) => {
+          const active = docSort.key === key;
+          const html = active ? (docSort.dir === 'asc' ? arrowUp : arrowDown) : arrowIdle;
+          return `<th class="sort-th" data-sort-key="${key}" aria-sort="${ariaFor(key)}" title="Sort by ${label}">${label}${html}</th>`;
+        };
+
+        docsContainer.innerHTML = `
+          <div style="overflow-x:auto; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+            <table class="documents-table">
+              <thead>
+                <tr>
+                  <th style="width:32px;"></th>
+                  ${th('title', 'Title')}
+                  <th>Path</th>
+                  ${th('size', 'Size')}
+                  ${th('chunk_count', 'Chunks')}
+                  ${th('updated_at', 'Indexed')}
+                  <th style="width:80px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${documents.map(doc => `
+                  <tr data-id="${doc.id}">
+                    <td><input type="checkbox" class="doc-checkbox" data-id="${doc.id}" /></td>
+                    <td class="doc-title">${escHtml(doc.title || '\u2014')}${doc.privacy ? ' <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="vertical-align:-1px;color:var(--success)" title="100% privacy"><path d="M8 1.5l5 2v3.5c0 3.6-2.1 6.3-5 7.5-2.9-1.2-5-3.9-5-7.5V3.5l5-2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>' : ''}</td>
+                    <td class="doc-path" title="${escHtml(doc.path)}">${escHtml(doc.path)}</td>
+                    <td class="doc-meta">${formatSize(doc.size)}</td>
+                    <td class="doc-meta">${doc.chunk_count}</td>
+                    <td class="doc-meta">${formatDate(doc.updated_at)}</td>
+                    <td style="white-space:nowrap;">
+                      <button class="btn btn-ghost btn-sm open-doc-btn" data-path="${escHtml(doc.path)}" title="Open file">
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 4h8l2 2v8H2V4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 2h4v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 7l5-5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                      </button>
+                      <button class="btn btn-ghost btn-sm delete-doc-btn" data-id="${doc.id}" data-title="${escHtml(doc.title || doc.path)}" title="Remove from index">
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V2h4v2M13 4l-1 10H4L3 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      </button>
+                    </td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`;
+
+        document.querySelectorAll('.doc-checkbox').forEach(cb => {
+          cb.addEventListener('change', e => {
+            const id = parseInt(e.target.dataset.id);
+            e.target.checked ? selectedDocIds.add(id) : selectedDocIds.delete(id);
+            updateSelectedCount();
+          });
+        });
+
+        document.querySelectorAll('.delete-doc-btn').forEach(btn => {
+          btn.addEventListener('click', () => showDeleteModal([parseInt(btn.dataset.id)], btn.dataset.title));
+        });
+
+        document.querySelectorAll('.open-doc-btn').forEach(btn => {
+          btn.addEventListener('click', () => openDocument(btn.dataset.path));
+        });
+      }
+
+      docsPrivacyFilter.addEventListener('change', renderDocuments);
+
+      docsContainer.addEventListener('click', e => {
+        const th = e.target.closest('.sort-th');
+        if (!th) return;
+        const key = th.dataset.sortKey;
+        docSort = { key, dir: docSort.key === key && docSort.dir === 'desc' ? 'asc' : 'desc' };
+        renderDocuments();
+      });
 
       function updateSelectedCount() {
         selectedCount.textContent = selectedDocIds.size;
@@ -2708,6 +2917,197 @@
         } catch { /* ignore transient fetch errors */ }
       }
 
+      // ── Models & Ollama settings ────────────────────────────────────────
+      const ollamaUrlInput    = document.getElementById('ollama-url');
+      const ollamaApiKeyInput = document.getElementById('ollama-api-key');
+      const clearOllamaApiKey = document.getElementById('clear-ollama-api-key');
+      const ollamaTestBtn     = document.getElementById('ollama-test-btn');
+      const ollamaStatus      = document.getElementById('ollama-status');
+      const ollamaModelsSection = document.getElementById('ollama-models-section');
+      const embeddingBackendSelect = document.getElementById('embedding-backend-select');
+      const embeddingModelRow = document.getElementById('embedding-model-row');
+      const embeddingModelSelect = document.getElementById('embedding-model-select');
+      const embeddingReindexNote = document.getElementById('embedding-reindex-note');
+      const llmBackendSelect  = document.getElementById('llm-backend-select');
+      const llmModelRow       = document.getElementById('llm-model-row');
+      const llmModelSelect    = document.getElementById('llm-model-select');
+      const ollamaReindexBanner = document.getElementById('ollama-reindex-banner');
+      const reindexBtn        = document.getElementById('reindex-btn');
+      const reindexStatus     = document.getElementById('reindex-status');
+
+      let savedEmbeddingBackend = 'local';
+      let savedEmbeddingModel = '';
+      let ollamaModels = [];
+
+      function updateOllamaRows() {
+        const hasModels = ollamaModels.length > 0;
+        const embOllama = embeddingBackendSelect.value === 'ollama';
+        const llmOllama = llmBackendSelect.value === 'ollama';
+        embeddingModelRow.style.display = embOllama && hasModels ? '' : 'none';
+        llmModelRow.style.display = llmOllama && hasModels ? '' : 'none';
+        const embChanged = embOllama !== (savedEmbeddingBackend === 'ollama')
+          || (embOllama && embeddingModelSelect.value !== savedEmbeddingModel);
+        embeddingReindexNote.style.display = embChanged ? '' : 'none';
+        ollamaReindexBanner.style.display = embChanged ? '' : 'none';
+      }
+
+      function fillOllamaModelSelects() {
+        const options = ollamaModels.map(m =>
+          `<option value="${escHtml(m.name)}">${escHtml(m.name)}</option>`).join('');
+        embeddingModelSelect.innerHTML = options;
+        llmModelSelect.innerHTML = options;
+        if (savedEmbeddingModel && ollamaModels.some(m => m.name === savedEmbeddingModel)) {
+          embeddingModelSelect.value = savedEmbeddingModel;
+        }
+        if (settings.llm_model && ollamaModels.some(m => m.name === settings.llm_model)) {
+          llmModelSelect.value = settings.llm_model;
+        }
+      }
+
+      let settings = {};
+
+      ollamaTestBtn.addEventListener('click', async () => {
+        const url = ollamaUrlInput.value.trim();
+        ollamaStatus.textContent = 'Testing\u2026';
+        ollamaStatus.style.color = 'var(--text-2)';
+        if (!url) {
+          ollamaStatus.textContent = 'Enter a URL first';
+          ollamaStatus.style.color = 'var(--danger)';
+          ollamaModels = [];
+          ollamaModelsSection.style.display = 'none';
+          return;
+        }
+        try {
+          const res = await fetch(`${apiBase}/api/ollama/models`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              url,
+              api_key: clearOllamaApiKey.checked ? '' : (ollamaApiKeyInput.value || null),
+            }),
+          });
+          const data = await res.json();
+          if (data.connected) {
+            ollamaModels = data.models || [];
+            ollamaStatus.textContent = `Connected \u2014 ${ollamaModels.length} model${ollamaModels.length !== 1 ? 's' : ''}`;
+            ollamaStatus.style.color = 'var(--success)';
+            ollamaModelsSection.style.display = '';
+            fillOllamaModelSelects();
+          } else {
+            ollamaModels = [];
+            ollamaStatus.textContent = data.error || 'Connection failed';
+            ollamaStatus.style.color = 'var(--danger)';
+            ollamaModelsSection.style.display = 'none';
+          }
+        } catch (err) {
+          ollamaStatus.textContent = 'Connection failed';
+          ollamaStatus.style.color = 'var(--danger)';
+          ollamaModelsSection.style.display = 'none';
+        }
+        updateOllamaRows();
+      });
+
+      embeddingBackendSelect.addEventListener('change', updateOllamaRows);
+      embeddingModelSelect.addEventListener('change', updateOllamaRows);
+      llmBackendSelect.addEventListener('change', updateOllamaRows);
+
+      document.getElementById('save-ollama-btn').addEventListener('click', async () => {
+        const embOllama = embeddingBackendSelect.value === 'ollama';
+        const payload = {
+          ollama_url: ollamaUrlInput.value.trim(),
+          ollama_api_key: clearOllamaApiKey.checked ? '' : (ollamaApiKeyInput.value || null),
+          embedding_backend: embeddingBackendSelect.value,
+          embedding_model: embOllama ? embeddingModelSelect.value : '',
+          llm_backend: llmBackendSelect.value,
+          llm_model: llmBackendSelect.value === 'ollama' ? llmModelSelect.value : '',
+        };
+        const willReindex = ollamaReindexBanner.style.display !== 'none';
+        try {
+          const res = await fetch(`${apiBase}/settings`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Save failed');
+          settings = await res.json();
+          ollamaApiKeyInput.value = '';
+          clearOllamaApiKey.checked = false;
+          ollamaApiKeyInput.placeholder = settings.has_ollama_api_key
+            ? 'Saved — blank keeps current key' : 'None';
+          savedEmbeddingBackend = embeddingBackendSelect.value;
+          savedEmbeddingModel = payload.embedding_model;
+          settings.llm_model = payload.llm_model;
+          updateOllamaRows();
+          updatePrivacyAvailability();
+          showToast('Model settings saved');
+          if (willReindex && payload.embedding_backend === 'ollama') {
+            reindexBtn.click();
+          }
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+
+      reindexBtn.addEventListener('click', async () => {
+        reindexBtn.disabled = true;
+        reindexStatus.textContent = 'Re-indexing\u2026';
+        reindexStatus.style.color = 'var(--text-2)';
+        try {
+          const res = await fetch(`${apiBase}/index/reindex`, { method: 'POST' });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || 'Reindex failed');
+          if (!data.job_id) {
+            reindexStatus.textContent = data.detail || 'Nothing to reindex';
+            reindexStatus.style.color = 'var(--warning)';
+            return;
+          }
+          await new Promise((resolve, reject) => {
+            const interval = setInterval(async () => {
+              try {
+                const job = await (await fetch(`${apiBase}/index/status/${data.job_id}`)).json();
+                if (job.status === 'running') {
+                  reindexStatus.textContent = job.total > 0
+                    ? `${job.processed} / ${job.total} files\u2026` : 'Starting\u2026';
+                } else if (job.status === 'complete') {
+                  clearInterval(interval); resolve(job);
+                } else if (job.status === 'error') {
+                  clearInterval(interval); reject(new Error(job.error || 'Reindex failed'));
+                }
+              } catch (err) { clearInterval(interval); reject(err); }
+            }, 600);
+          });
+          reindexStatus.textContent = '\u2713 Reindexed';
+          reindexStatus.style.color = 'var(--success)';
+          showToast('Reindex completed');
+          loadSearchFolders();
+        } catch (err) {
+          reindexStatus.textContent = escHtml(err.message);
+          reindexStatus.style.color = 'var(--danger)';
+          showToast(err.message, 'error');
+        } finally {
+          reindexBtn.disabled = false;
+        }
+      });
+
+      async function loadOllamaSettings() {
+        try {
+          const res = await fetch(`${apiBase}/settings`);
+          settings = await res.json();
+          ollamaUrlInput.value = settings.ollama_url || '';
+          ollamaApiKeyInput.value = '';
+          ollamaApiKeyInput.placeholder = settings.has_ollama_api_key
+            ? 'Saved — blank keeps current key' : 'None';
+          embeddingBackendSelect.value = settings.embedding_backend === 'ollama' ? 'ollama' : 'local';
+          llmBackendSelect.value = settings.llm_backend === 'ollama' ? 'ollama' : 'local';
+          savedEmbeddingBackend = embeddingBackendSelect.value;
+          savedEmbeddingModel = settings.embedding_model || '';
+          updateOllamaRows();
+          if (ollamaUrlInput.value.trim()) {
+            ollamaTestBtn.click();
+          }
+        } catch (_err) {}
+      }
+
       // ── Hotkey capture modal
       const hotkeyModal    = document.getElementById('hotkey-modal');
       const captureDisplay = document.getElementById('hotkey-capture-display');
@@ -2735,6 +3135,7 @@
 
       // Load settings when switching to the tab
       document.querySelector('[data-tab="settings"]').addEventListener('click', loadSettingsTab);
+      document.querySelector('[data-tab="settings"]').addEventListener('click', loadOllamaSettings);
 
       // ── Native folder picker (pywebview only) ────────────────────────────
       // The Browse button is hidden by default and shown only when running

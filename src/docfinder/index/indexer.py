@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import gc
+import json
 import logging
 import os
 import sys
@@ -19,6 +20,15 @@ from docfinder.utils.files import compute_sha256, iter_document_paths
 from docfinder.utils.memory import get_memory_info
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _embedding_identity(embedder) -> str:
+    config = embedder.config
+    backend = getattr(config, "backend", None) or "local"
+    identity = {"backend": backend, "model_name": config.model_name}
+    if backend == "ollama":
+        identity["server"] = embedder.base_url.rstrip("/")
+    return json.dumps(identity, sort_keys=True, separators=(",", ":"))
 
 
 def find_documents(
@@ -131,6 +141,7 @@ class Indexer:
         overlap: int = 200,
         embed_batch_size: int | None = None,
         progress_callback: Callable[[int, int, str], None] | None = None,
+        privacy: bool = False,
     ) -> None:
         self.embedder = embedder
         self.store = store
@@ -138,6 +149,7 @@ class Indexer:
         self.overlap = overlap
         self.embed_batch_size = embed_batch_size
         self.progress_callback = progress_callback
+        self.privacy = privacy
         self.last_num_workers: int = 1
 
     def index(
@@ -147,7 +159,7 @@ class Indexer:
         exclude_paths: frozenset[str] | None = None,
     ) -> IndexStats:
         """Index documents with parallel parsing when beneficial."""
-        if self.store.ensure_embedding_model(self.embedder.config.model_name):
+        if self.store.ensure_embedding_model(_embedding_identity(self.embedder)):
             LOGGER.warning("Embedding model changed — the existing index was cleared")
 
         doc_files = find_documents(paths, exclude_paths)
@@ -347,7 +359,7 @@ class Indexer:
         )
 
         with self.store.transaction():
-            doc_id, status = self.store.init_document(document)
+            doc_id, status = self.store.init_document(document, privacy=self.privacy)
             if status == "skipped":
                 return status
 
@@ -431,7 +443,7 @@ class Indexer:
         )
 
         with self.store.transaction():
-            doc_id, status = self.store.init_document(document)
+            doc_id, status = self.store.init_document(document, privacy=self.privacy)
             if status == "skipped":
                 return status
 

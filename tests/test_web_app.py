@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -100,9 +101,11 @@ class TestSearchEndpoint:
 
         mock_embedder = MagicMock()
         mock_embedder.dimension = 768
+        mock_embedder.model_name = "m"
         mock_embedder_class.return_value = mock_embedder
 
         mock_store = MagicMock()
+        mock_store.get_meta.return_value = None
         mock_store_class.return_value = mock_store
 
         # Use real SearchResult instead of MagicMock
@@ -139,9 +142,11 @@ class TestSearchEndpoint:
 
         mock_embedder = MagicMock()
         mock_embedder.dimension = 768
+        mock_embedder.model_name = "m"
         mock_embedder_class.return_value = mock_embedder
 
         mock_store = MagicMock()
+        mock_store.get_meta.return_value = None
         mock_store_class.return_value = mock_store
 
         mock_searcher = MagicMock()
@@ -169,9 +174,11 @@ class TestSearchEndpoint:
 
         mock_embedder = MagicMock()
         mock_embedder.dimension = 768
+        mock_embedder.model_name = "m"
         mock_embedder_class.return_value = mock_embedder
 
         mock_store = MagicMock()
+        mock_store.get_meta.return_value = None
         mock_store_class.return_value = mock_store
 
         mock_searcher = MagicMock()
@@ -245,9 +252,11 @@ class TestSearchFoldersEndpoint:
 
         mock_embedder = MagicMock()
         mock_embedder.dimension = 768
+        mock_embedder.model_name = "m"
         mock_embedder_class.return_value = mock_embedder
 
         mock_store = MagicMock()
+        mock_store.get_meta.return_value = None
         mock_store.list_indexed_directories.return_value = [
             {"path": "/Users/test/articles", "document_count": 7},
             {"path": "/Users/test/posters", "document_count": 2},
@@ -343,9 +352,11 @@ class TestDocumentsEndpoint:
 
         mock_embedder = MagicMock()
         mock_embedder.dimension = 768
+        mock_embedder.model_name = "m"
         mock_embedder_class.return_value = mock_embedder
 
         mock_store = MagicMock()
+        mock_store.get_meta.return_value = None
         mock_store.list_documents.return_value = [{"id": 1, "path": "/doc.pdf", "title": "Test"}]
         mock_store.get_stats.return_value = {
             "document_count": 1,
@@ -385,9 +396,11 @@ class TestDeleteDocumentEndpoint:
 
         mock_embedder = MagicMock()
         mock_embedder.dimension = 768
+        mock_embedder.model_name = "m"
         mock_embedder_class.return_value = mock_embedder
 
         mock_store = MagicMock()
+        mock_store.get_meta.return_value = None
         mock_store.delete_document.return_value = False
         mock_store_class.return_value = mock_store
 
@@ -409,9 +422,11 @@ class TestDeleteDocumentEndpoint:
 
         mock_embedder = MagicMock()
         mock_embedder.dimension = 768
+        mock_embedder.model_name = "m"
         mock_embedder_class.return_value = mock_embedder
 
         mock_store = MagicMock()
+        mock_store.get_meta.return_value = None
         mock_store.delete_document.return_value = True
         mock_store_class.return_value = mock_store
 
@@ -443,9 +458,11 @@ class TestDeleteDocumentByPathEndpoint:
 
         mock_embedder = MagicMock()
         mock_embedder.dimension = 768
+        mock_embedder.model_name = "m"
         mock_embedder_class.return_value = mock_embedder
 
         mock_store = MagicMock()
+        mock_store.get_meta.return_value = None
         mock_store.delete_document_by_path.return_value = True
         mock_store_class.return_value = mock_store
 
@@ -484,9 +501,11 @@ class TestCleanupEndpoint:
 
         mock_embedder = MagicMock()
         mock_embedder.dimension = 768
+        mock_embedder.model_name = "m"
         mock_embedder_class.return_value = mock_embedder
 
         mock_store = MagicMock()
+        mock_store.get_meta.return_value = None
         mock_store.remove_missing_files.return_value = 2
         mock_store_class.return_value = mock_store
 
@@ -557,7 +576,22 @@ class TestIndexEndpoint:
                 "processed_files": [],
             }
 
-            response = client.post("/index", json={"paths": [str(test_dir)]})
+            with patch("docfinder.web.app._preload_embedder"):
+                with TestClient(app) as test_client:
+                    response = test_client.post(
+                        "/index", json={"paths": [str(test_dir)], "db": str(tmp_path / "test.db")}
+                    )
+                    if response.status_code == 200:
+                        job_id = response.json()["job_id"]
+                        deadline = time.monotonic() + 5
+                        while time.monotonic() < deadline:
+                            job = test_client.get(f"/index/status/{job_id}").json()
+                            if job["status"] != "running":
+                                assert job["status"] == "complete", job
+                                break
+                            time.sleep(0.01)
+                        else:
+                            raise AssertionError(f"Index job {job_id} did not finish")
             assert response.status_code == 200
             assert response.json()["status"] == "ok"
         finally:

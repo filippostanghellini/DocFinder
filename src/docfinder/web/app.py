@@ -3,18 +3,19 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
+import sqlite3
 import subprocess
 import sys
 import threading
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from pathlib import Path
-from typing import Any, List
+from typing import Any, Callable, List
 
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from docfinder.config import AppConfig
@@ -27,6 +28,13 @@ from docfinder.index.indexer import Indexer
 from docfinder.index.reranker import Reranker
 from docfinder.index.search import Searcher, SearchResult
 from docfinder.index.storage import SQLiteVectorStore
+from docfinder.ollama import (
+    OllamaEmbedder,
+    OllamaError,
+    OllamaLLM,
+    is_local_url,
+    list_ollama_models,
+)
 from docfinder.settings import load_settings
 from docfinder.settings import save_settings as _save_settings
 from docfinder.web.frontend import router as frontend_router
@@ -34,18 +42,31 @@ from docfinder.web.frontend import router as frontend_router
 LOGGER = logging.getLogger(__name__)
 
 # ── Singleton EmbeddingModel ─────────────────────────────────────────────────
-_embedder: EmbeddingModel | None = None
+_embedder: EmbeddingModel | OllamaEmbedder | None = None
 _embedder_lock = threading.Lock()
 
 
-def _get_embedder() -> EmbeddingModel:
+def _build_embedder_from_settings() -> EmbeddingModel | OllamaEmbedder:
+    """Build the embedder from persisted settings (Ollama or local SentenceTransformer)."""
+    settings = load_settings()
+    if settings.get("embedding_backend") == "ollama" and settings.get("ollama_url"):
+        return OllamaEmbedder(
+            settings["ollama_url"],
+            settings.get("embedding_model") or "",
+            api_key=settings.get("ollama_api_key") or "",
+        )
+    config = AppConfig()
+    model_name = settings.get("embedding_model") or config.model_name
+    return EmbeddingModel(EmbeddingConfig(model_name=model_name))
+
+
+def _get_embedder() -> EmbeddingModel | OllamaEmbedder:
     """Return a cached EmbeddingModel, creating it on first call."""
     global _embedder
     if _embedder is None:
         with _embedder_lock:
             if _embedder is None:
-                config = AppConfig()
-                _embedder = EmbeddingModel(EmbeddingConfig(model_name=config.model_name))
+                _embedder = _build_embedder_from_settings()
     return _embedder
 
 
@@ -59,6 +80,13 @@ def _preload_embedder() -> None:
         _get_embedder()
     except Exception:
         LOGGER.exception("Embedding model preload failed — will retry on first use")
+
+
+def _reset_embedder() -> None:
+    """Drop the cached embedder so the next call rebuilds it from settings."""
+    global _embedder
+    with _embedder_lock:
+        _embedder = None
 
 
 # ── Singleton Reranker ────────────────────────────────────────────────────────
@@ -78,6 +106,8 @@ def _get_reranker() -> Reranker:
 
 # ── Async indexing job registry ───────────────────────────────────────────────
 _index_jobs: dict[str, dict] = {}
+# ponytail: one in-process write lock; per-DB locks if multi-DB throughput matters.
+_db_write_lock = threading.Lock()
 
 # ── GUI callback registry (set by the desktop GUI layer, not used in web mode) ─
 _spotlight_hide_callback: object = None  # callable | None
@@ -128,13 +158,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="DocFinder Web", version="2.2.0", lifespan=lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app = FastAPI(title="DocFinder Web", version="2.3.0", lifespan=lifespan)
 app.include_router(frontend_router)
 
 
@@ -161,6 +185,7 @@ class IndexPayload(BaseModel):
     chunk_chars: int | None = None
     overlap: int | None = None
     exclude_paths: List[str] = []
+    privacy: bool = False
 
 
 class RAGPayload(BaseModel):
@@ -175,6 +200,21 @@ class SettingsPayload(BaseModel):
     hotkey_enabled: bool | None = None
     rag_enabled: bool | None = None
     rag_model: str | None = None
+    embedding_backend: str | None = None
+    embedding_model: str | None = None
+    ollama_url: str | None = None
+    ollama_api_key: str | None = None
+    llm_backend: str | None = None
+    llm_model: str | None = None
+
+
+class OllamaModelsPayload(BaseModel):
+    url: str | None = None
+    api_key: str | None = None
+
+
+_EMBEDDER_RESET_KEYS = ("embedding_backend", "embedding_model", "ollama_url", "ollama_api_key")
+_LLM_RESET_KEYS = ("llm_backend", "llm_model", "rag_model", "ollama_url", "ollama_api_key")
 
 
 def _resolve_db_path(db: Path | None) -> Path:
@@ -184,6 +224,15 @@ def _resolve_db_path(db: Path | None) -> Path:
 
 def _ensure_db_parent(db_path: Path) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def _write_store(db_path: Path, dimension: int, operation: Callable) -> Any:
+    with _db_write_lock:
+        store = SQLiteVectorStore(db_path, dimension=dimension)
+        try:
+            return operation(store)
+        finally:
+            store.close()
 
 
 @app.post("/search")
@@ -213,7 +262,8 @@ async def search_documents(payload: SearchPayload) -> dict[str, List[SearchResul
         # e.g. index built with a different embedding model — tell the user
         # instead of leaking a raw 500.
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    store.close()
+    finally:
+        store.close()
     return {"results": results}
 
 
@@ -246,12 +296,41 @@ _rag_download: dict[str, Any] = {
 
 
 def _load_rag_llm(model_name: str | None = None) -> None:
-    """Download (if needed) and load the RAG LLM.  Updates _rag_download state."""
+    """Download (if needed) and load the RAG LLM.  Updates _rag_download state.
+
+    Uses a remote Ollama LLM when configured in settings, otherwise the
+    local llama.cpp GGUF pipeline.
+    """
     global _rag_llm
+    settings = load_settings()
+    ollama_llm = (
+        settings.get("llm_backend") == "ollama"
+        and bool(settings.get("llm_model"))
+        and bool(settings.get("ollama_url"))
+    )
+    if ollama_llm:
+        _rag_download["status"] = "loading"
+        _rag_download["error"] = None
+        try:
+            list_ollama_models(settings["ollama_url"], api_key=settings.get("ollama_api_key") or "")
+        except OllamaError as exc:
+            _rag_download["status"] = "error"
+            _rag_download["error"] = str(exc)
+            return
+        _rag_llm = OllamaLLM(
+            settings["ollama_url"],
+            settings["llm_model"],
+            api_key=settings.get("ollama_api_key") or "",
+        )
+        _rag_download["status"] = "ready"
+        return
+
     from docfinder.rag.llm import _DEFAULT_MODELS_DIR, MODEL_TIERS, LocalLLM, ModelSpec
 
     # Pick the requested model or auto-select
     spec: ModelSpec | None = None
+    if model_name is None:
+        model_name = settings.get("rag_model") or None
     if model_name:
         for t in MODEL_TIERS:
             if t.name == model_name:
@@ -305,6 +384,22 @@ def _load_rag_llm(model_name: str | None = None) -> None:
     _rag_download["status"] = "ready"
 
 
+def _schedule_rag_load(model_name: str | None = None) -> None:
+    """Load the selected chat model in the background."""
+    _rag_download["status"] = "downloading"
+    _rag_download["error"] = None
+
+    async def _run() -> None:
+        try:
+            await asyncio.to_thread(_load_rag_llm, model_name)
+        except Exception as exc:
+            LOGGER.exception("RAG model download/load failed: %s", exc)
+            _rag_download["status"] = "error"
+            _rag_download["error"] = str(exc)
+
+    asyncio.create_task(_run())
+
+
 @app.get("/rag/models")
 async def rag_models() -> dict:
     """Return available model tiers with a recommended flag."""
@@ -351,22 +446,10 @@ async def rag_download(model_name: str | None = None) -> dict:
     if _rag_download["status"] in ("downloading", "loading"):
         return {"status": "already_running"}
 
-    _rag_download["status"] = "downloading"
-    _rag_download["error"] = None
-
     # Read user preference from settings
     settings = load_settings()
     chosen = model_name or settings.get("rag_model")
-
-    async def _run():
-        try:
-            await asyncio.to_thread(_load_rag_llm, chosen)
-        except Exception as exc:
-            LOGGER.exception("RAG model download/load failed: %s", exc)
-            _rag_download["status"] = "error"
-            _rag_download["error"] = str(exc)
-
-    asyncio.create_task(_run())
+    _schedule_rag_load(chosen)
     return {"status": "started"}
 
 
@@ -395,15 +478,26 @@ async def rag_chat(payload: RAGPayload) -> dict:
 
     embedder = _get_embedder()
     store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
-
     try:
         # Look up document_id
         row = store.connection.execute(
-            "SELECT id FROM documents WHERE path = ?", (payload.document_path,)
+            "SELECT id, privacy FROM documents WHERE REPLACE(path, '\\', '/') = ?",
+            (payload.document_path.replace("\\", "/"),),
         ).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="Document not found in index")
         doc_id = row["id"]
+
+        if (
+            row["privacy"]
+            and isinstance(_rag_llm, OllamaLLM)
+            and not is_local_url(_rag_llm.base_url)
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="This document was indexed in 100% privacy mode — "
+                "chat requires a local or localhost LLM",
+            )
 
         # Get context: try page-based first, fall back to fixed window
         import json as _json
@@ -534,13 +628,29 @@ async def cleanup_missing_files(db: Path | None = None) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="Database not found")
 
     embedder = _get_embedder()
-    store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
-    try:
-        removed_count = store.remove_missing_files()
-    finally:
-        store.close()
+    removed_count = await asyncio.to_thread(
+        _write_store,
+        resolved_db,
+        embedder.dimension,
+        lambda store: store.remove_missing_files(),
+    )
 
     return {"status": "ok", "removed_count": removed_count}
+
+
+@app.delete("/documents/delete-all")
+async def delete_all_documents(db: Path | None = None) -> dict[str, Any]:
+    """Remove every indexed document and chunk (used before reindexing)."""
+    resolved_db = _resolve_db_path(db)
+    if not resolved_db.exists():
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    embedder = _get_embedder()
+    removed = await asyncio.to_thread(
+        _write_store, resolved_db, embedder.dimension, lambda store: store.clear_all()
+    )
+
+    return {"status": "ok", "removed": removed}
 
 
 @app.delete("/documents/{doc_id}")
@@ -551,11 +661,9 @@ async def delete_document_by_id(doc_id: int, db: Path | None = None) -> dict[str
         raise HTTPException(status_code=404, detail="Database not found")
 
     embedder = _get_embedder()
-    store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
-    try:
-        deleted = store.delete_document(doc_id)
-    finally:
-        store.close()
+    deleted = await asyncio.to_thread(
+        _write_store, resolved_db, embedder.dimension, lambda store: store.delete_document(doc_id)
+    )
 
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Document with ID {doc_id} not found")
@@ -574,14 +682,13 @@ async def delete_document(payload: DeleteDocumentRequest, db: Path | None = None
         raise HTTPException(status_code=404, detail="Database not found")
 
     embedder = _get_embedder()
-    store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
-    try:
+
+    def operation(store: SQLiteVectorStore) -> bool:
         if payload.doc_id is not None:
-            deleted = store.delete_document(payload.doc_id)
-        else:
-            deleted = store.delete_document_by_path(payload.path)  # type: ignore
-    finally:
-        store.close()
+            return store.delete_document(payload.doc_id)
+        return store.delete_document_by_path(payload.path)  # type: ignore[arg-type]
+
+    deleted = await asyncio.to_thread(_write_store, resolved_db, embedder.dimension, operation)
 
     if not deleted:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -592,23 +699,264 @@ async def delete_document(payload: DeleteDocumentRequest, db: Path | None = None
 @app.get("/settings")
 async def get_settings() -> dict:
     """Return current user settings."""
-    return load_settings()
+    return _public_settings(load_settings())
+
+
+def _public_settings(settings: dict) -> dict:
+    public = dict(settings)
+    public["has_ollama_api_key"] = bool(public.pop("ollama_api_key", ""))
+    return public
+
+
+@app.post("/api/ollama/models")
+async def ollama_models(payload: OllamaModelsPayload) -> dict:
+    """List models on an Ollama server. Never raises: returns connected=false on error."""
+    settings = load_settings()
+    base_url = payload.url or settings.get("ollama_url") or ""
+    saved_url = (settings.get("ollama_url") or "").rstrip("/")
+    key = payload.api_key
+    if key is None:
+        key = (settings.get("ollama_api_key") or "") if base_url.rstrip("/") == saved_url else ""
+    if not base_url:
+        return {"connected": False, "models": [], "error": "No Ollama URL configured"}
+    try:
+        models = await asyncio.to_thread(list_ollama_models, base_url, api_key=key, timeout=5)
+        return {"connected": True, "models": models, "error": None}
+    except OllamaError:
+        return {"connected": False, "models": [], "error": "Could not connect to Ollama server"}
+
+
+@app.post("/index/reindex")
+async def reindex_all(db: Path | None = None) -> dict[str, Any]:
+    """Rebuild the recorded sources and atomically replace the index on success."""
+    resolved_db = _resolve_db_path(db)
+    if not resolved_db.exists():
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    entries = await asyncio.to_thread(_load_source_manifest_locked, resolved_db)
+    _require_available_sources(entries)
+
+    job_id = str(uuid.uuid4())
+    job: dict[str, Any] = {
+        "id": job_id,
+        "status": "running",
+        "processed": 0,
+        "total": 0,
+        "current_file": "",
+        "stats": None,
+        "error": None,
+    }
+    _index_jobs[job_id] = job
+
+    async def _run() -> None:
+        try:
+            merged = await asyncio.to_thread(_rebuild_index, resolved_db, job)
+            job["status"] = "complete"
+            job["stats"] = merged
+            _notify_indexing_done(merged)
+        except Exception as exc:
+            LOGGER.exception("Reindex job %s failed: %s", job_id, exc)
+            job["status"] = "error"
+            job["error"] = str(exc)
+            _notify_indexing_done(None, error=str(exc))
+
+    asyncio.create_task(_run())
+    return {"status": "ok", "job_id": job_id}
+
+
+def _load_source_manifest(db_path: Path) -> list[dict[str, Any]]:
+    store = SQLiteVectorStore(db_path, dimension=0)
+    try:
+        raw = store.get_meta("source_paths")
+    finally:
+        store.close()
+    return _normalize_source_manifest(json.loads(raw) if raw else [])
+
+
+def _load_source_manifest_locked(db_path: Path) -> list[dict[str, Any]]:
+    with _db_write_lock:
+        return _load_source_manifest(db_path)
+
+
+def _require_available_sources(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not entries:
+        raise HTTPException(
+            status_code=400, detail="No source paths recorded. Index a folder first."
+        )
+    missing = [entry["path"] for entry in entries if not Path(entry["path"]).exists()]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail="Re-index cancelled; reconnect missing source paths first: "
+            + ", ".join(missing),
+        )
+    return entries
+
+
+def _rebuild_index(resolved_db: Path, job: dict) -> dict[str, Any]:
+    embedder = _get_embedder()
+    dimension = embedder.dimension
+    with _db_write_lock:
+        job_id = job["id"]
+        staging_db = resolved_db.with_name(f".{resolved_db.name}.{job_id}.reindex")
+        _ensure_db_parent(resolved_db)
+        conn = sqlite3.connect(resolved_db)
+        try:
+            # Hold SQLite's cross-process write reservation through rebuild and replacement.
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT value FROM meta WHERE key = 'source_paths'").fetchone()
+            available = _require_available_sources(
+                _normalize_source_manifest(json.loads(row[0]) if row else [])
+            )
+
+            stage_store = SQLiteVectorStore(staging_db, dimension=dimension)
+            try:
+                stage_store.set_meta("source_paths", json.dumps(available))
+            finally:
+                stage_store.close()
+
+            config = AppConfig(db_path=staging_db)
+            merged: dict[str, Any] = {
+                "inserted": 0,
+                "updated": 0,
+                "skipped": 0,
+                "failed": 0,
+                "processed_files": [],
+            }
+            for entry in available:
+                result = _run_index_job(
+                    [Path(entry["path"])],
+                    config,
+                    staging_db,
+                    job,
+                    frozenset(entry["exclude_paths"]) or None,
+                    bool(entry["privacy"]),
+                    lock_db=False,
+                )
+                for key in ("inserted", "updated", "skipped", "failed"):
+                    merged[key] += result[key]
+                merged["processed_files"].extend(result["processed_files"])
+            if merged["failed"]:
+                raise RuntimeError(
+                    f"Re-index failed for {merged['failed']} files; the existing index was kept"
+                )
+            _require_available_sources(available)
+
+            conn.execute("ATTACH DATABASE ? AS rebuilt", (str(staging_db),))
+            conn.execute("DELETE FROM chunks")
+            conn.execute("DELETE FROM documents")
+            conn.execute("DELETE FROM meta")
+            conn.execute(
+                """INSERT INTO documents
+                   (id, path, title, sha256, mtime, size, privacy, created_at, updated_at)
+                   SELECT id, path, title, sha256, mtime, size, privacy, created_at, updated_at
+                   FROM rebuilt.documents"""
+            )
+            conn.execute(
+                """INSERT INTO chunks
+                   (id, document_id, chunk_index, text, metadata, embedding, created_at)
+                   SELECT id, document_id, chunk_index, text, metadata, embedding, created_at
+                   FROM rebuilt.chunks"""
+            )
+            conn.execute("INSERT INTO meta (key, value) SELECT key, value FROM rebuilt.meta")
+            conn.commit()
+            return merged
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+            for suffix in ("", "-wal", "-shm"):
+                try:
+                    Path(f"{staging_db}{suffix}").unlink()
+                except FileNotFoundError:
+                    # Staging cleanup is best effort when a file was never created.
+                    pass
+
+
+def _normalize_source_manifest(entries: list) -> list[dict[str, Any]]:
+    """Read current and legacy source-path manifests into one stable format."""
+    normalized = []
+    for entry in entries:
+        if isinstance(entry, str):
+            entry = {"path": entry}
+        if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
+            continue
+        exclusions = entry.get("exclude_paths", [])
+        normalized.append(
+            {
+                "path": entry["path"],
+                "privacy": bool(entry.get("privacy", False)),
+                "exclude_paths": [p for p in exclusions if isinstance(p, str)]
+                if isinstance(exclusions, list)
+                else [],
+            }
+        )
+    return normalized
+
+
+def _merge_source_manifest(
+    existing: list, paths: list[Path], privacy: bool, exclude_paths: list[str]
+) -> list[dict[str, Any]]:
+    manifest = _normalize_source_manifest(existing)
+    by_path = {os.path.normcase(os.path.abspath(entry["path"])): entry for entry in manifest}
+    for path in paths:
+        key = os.path.normcase(os.path.abspath(path))
+        previous = by_path.get(key, {"path": str(path), "privacy": False, "exclude_paths": []})
+        previous["privacy"] = bool(previous["privacy"] or privacy)
+        previous["exclude_paths"] = sorted(set(exclude_paths))
+        by_path[key] = previous
+    return list(by_path.values())
+
+
+def _save_source_manifest(
+    db_path: Path, paths: list[Path], privacy: bool, exclude_paths: list[str]
+) -> None:
+    with _db_write_lock:
+        store = SQLiteVectorStore(db_path, dimension=0)
+        try:
+            raw = store.get_meta("source_paths")
+            previous = json.loads(raw) if raw else []
+            store.set_meta(
+                "source_paths",
+                json.dumps(_merge_source_manifest(previous, paths, privacy, exclude_paths)),
+            )
+        finally:
+            store.close()
 
 
 @app.post("/settings")
 async def update_settings(payload: SettingsPayload) -> dict:
     """Persist updated settings and return the full settings dict."""
     current = load_settings()
-    if payload.hotkey is not None:
-        current["hotkey"] = payload.hotkey
-    if payload.hotkey_enabled is not None:
-        current["hotkey_enabled"] = payload.hotkey_enabled
-    if payload.rag_enabled is not None:
-        current["rag_enabled"] = payload.rag_enabled
-    if payload.rag_model is not None:
-        current["rag_model"] = payload.rag_model
+    before = {key: current.get(key) for key in _EMBEDDER_RESET_KEYS + _LLM_RESET_KEYS}
+    for field in (
+        "hotkey",
+        "hotkey_enabled",
+        "rag_enabled",
+        "rag_model",
+        "embedding_backend",
+        "embedding_model",
+        "ollama_url",
+        "ollama_api_key",
+        "llm_backend",
+        "llm_model",
+    ):
+        value = getattr(payload, field)
+        if value is not None:
+            current[field] = value
     _save_settings(current)
-    return current
+
+    after = {key: current.get(key) for key in _EMBEDDER_RESET_KEYS + _LLM_RESET_KEYS}
+    if any(before[k] != after[k] for k in _EMBEDDER_RESET_KEYS):
+        _reset_embedder()
+    llm_changed = any(before[k] != after[k] for k in _LLM_RESET_KEYS)
+    if llm_changed:
+        global _rag_llm
+        _rag_llm = None
+        if current.get("rag_enabled"):
+            _schedule_rag_load()
+    return _public_settings(current)
 
 
 def _compute_embed_batch_size() -> int:
@@ -630,8 +978,12 @@ def _run_index_job(
     resolved_db: Path,
     job: dict | None = None,
     exclude_paths: frozenset[str] | None = None,
+    privacy: bool = False,
+    *,
+    lock_db: bool = True,
 ) -> dict[str, Any]:
     embedder = _get_embedder()
+    dimension = embedder.dimension
 
     def _progress(processed: int, total: int, current_file: str) -> None:
         if job is not None:
@@ -639,19 +991,21 @@ def _run_index_job(
             job["total"] = total
             job["current_file"] = current_file
 
-    store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
-    # No fixed embed_batch_size — Indexer adapts per-file based on available RAM
-    indexer = Indexer(
-        embedder,
-        store,
-        chunk_chars=config.chunk_chars,
-        overlap=config.overlap,
-        progress_callback=_progress,
-    )
-    try:
-        stats = indexer.index(paths, exclude_paths=exclude_paths)
-    finally:
-        store.close()
+    with _db_write_lock if lock_db else nullcontext():
+        store = SQLiteVectorStore(resolved_db, dimension=dimension)
+        # No fixed embed_batch_size — Indexer adapts per-file based on available RAM
+        indexer = Indexer(
+            embedder,
+            store,
+            chunk_chars=config.chunk_chars,
+            overlap=config.overlap,
+            progress_callback=_progress,
+            privacy=privacy,
+        )
+        try:
+            stats = indexer.index(paths, exclude_paths=exclude_paths)
+        finally:
+            store.close()
 
     return {
         "inserted": stats.inserted,
@@ -727,6 +1081,18 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     if not payload.paths:
         raise HTTPException(status_code=400, detail="No path provided")
 
+    embedder = _get_embedder()
+    if (
+        payload.privacy
+        and isinstance(embedder, OllamaEmbedder)
+        and not is_local_url(embedder.base_url)
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="100% privacy mode requires a local embedding model — "
+            "the configured Ollama server is remote",
+        )
+
     config_defaults = AppConfig()
     config = AppConfig(
         db_path=Path(payload.db) if payload.db is not None else config_defaults.db_path,
@@ -738,6 +1104,14 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     _ensure_db_parent(resolved_db)
 
     resolved_paths = _validate_paths(payload.paths)
+
+    await asyncio.to_thread(
+        _save_source_manifest,
+        resolved_db,
+        resolved_paths,
+        payload.privacy,
+        payload.exclude_paths,
+    )
 
     job_id = str(uuid.uuid4())
     job: dict[str, Any] = {
@@ -758,7 +1132,7 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     async def _run() -> None:
         try:
             result = await asyncio.to_thread(
-                _run_index_job, resolved_paths, config, resolved_db, job, exclude
+                _run_index_job, resolved_paths, config, resolved_db, job, exclude, payload.privacy
             )
             job["status"] = "complete"
             job["stats"] = result

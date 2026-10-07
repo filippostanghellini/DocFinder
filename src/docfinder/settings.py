@@ -36,6 +36,12 @@ def _default_hotkey() -> str:
 
 _DEFAULTS: dict = {
     "hotkey_enabled": True,
+    "embedding_backend": "local",  # "local" | "ollama"
+    "embedding_model": "",  # empty = AppConfig().model_name
+    "ollama_url": "",
+    "ollama_api_key": "",
+    "llm_backend": "local",  # "local" | "ollama"
+    "llm_model": "",
 }
 
 

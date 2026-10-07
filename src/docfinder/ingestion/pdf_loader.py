@@ -731,23 +731,17 @@ def _walk_ppt_records(data: bytes, offset: int, end: int, texts: list[str]) -> N
             break
 
         if rec_type == _PPT_TEXT_CHARS_ATOM:
-            try:
-                raw = data[data_start:data_end].decode("utf-16-le", errors="replace")
-                clean = "".join(c if c.isprintable() or c in "\n\r\t" else " " for c in raw)
-                clean = re.sub(r"\s+", " ", clean).strip()
-                if clean:
-                    texts.append(clean)
-            except Exception:
-                pass
+            raw = data[data_start:data_end].decode("utf-16-le", errors="replace")
+            clean = "".join(c if c.isprintable() or c in "\n\r\t" else " " for c in raw)
+            clean = re.sub(r"\s+", " ", clean).strip()
+            if clean:
+                texts.append(clean)
         elif rec_type == _PPT_TEXT_BYTES_ATOM:
-            try:
-                raw = data[data_start:data_end].decode("utf-8", errors="replace")
-                clean = "".join(c if c.isprintable() or c in "\n\r\t" else " " for c in raw)
-                clean = re.sub(r"\s+", " ", clean).strip()
-                if clean:
-                    texts.append(clean)
-            except Exception:
-                pass
+            raw = data[data_start:data_end].decode("utf-8", errors="replace")
+            clean = "".join(c if c.isprintable() or c in "\n\r\t" else " " for c in raw)
+            clean = re.sub(r"\s+", " ", clean).strip()
+            if clean:
+                texts.append(clean)
 
         if (data[offset] & 0x0F) == 0x0F:
             _walk_ppt_records(data, data_start, data_end, texts)
