@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -575,7 +576,22 @@ class TestIndexEndpoint:
                 "processed_files": [],
             }
 
-            response = client.post("/index", json={"paths": [str(test_dir)]})
+            with patch("docfinder.web.app._preload_embedder"):
+                with TestClient(app) as test_client:
+                    response = test_client.post(
+                        "/index", json={"paths": [str(test_dir)], "db": str(tmp_path / "test.db")}
+                    )
+                    if response.status_code == 200:
+                        job_id = response.json()["job_id"]
+                        deadline = time.monotonic() + 5
+                        while time.monotonic() < deadline:
+                            job = test_client.get(f"/index/status/{job_id}").json()
+                            if job["status"] != "running":
+                                assert job["status"] == "complete", job
+                                break
+                            time.sleep(0.01)
+                        else:
+                            raise AssertionError(f"Index job {job_id} did not finish")
             assert response.status_code == 200
             assert response.json()["status"] == "ok"
         finally:

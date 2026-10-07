@@ -481,7 +481,8 @@ async def rag_chat(payload: RAGPayload) -> dict:
     try:
         # Look up document_id
         row = store.connection.execute(
-            "SELECT id, privacy FROM documents WHERE path = ?", (payload.document_path,)
+            "SELECT id, privacy FROM documents WHERE REPLACE(path, '\\', '/') = ?",
+            (payload.document_path.replace("\\", "/"),),
         ).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="Document not found in index")

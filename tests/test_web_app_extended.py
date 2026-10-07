@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -16,6 +17,24 @@ from docfinder.ollama import OllamaError
 from docfinder.web.app import app
 
 client = TestClient(app)
+
+
+def _post_index_and_wait(payload: dict):
+    with patch("docfinder.web.app._preload_embedder"):
+        with TestClient(app) as test_client:
+            response = test_client.post("/index", json=payload)
+            if response.status_code == 200:
+                job_id = response.json()["job_id"]
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline:
+                    job = test_client.get(f"/index/status/{job_id}").json()
+                    if job["status"] != "running":
+                        assert job["status"] == "complete", job
+                        break
+                    time.sleep(0.01)
+                else:
+                    raise AssertionError(f"Index job {job_id} did not finish")
+            return response
 
 
 class TestSettingsEndpoints:
@@ -599,8 +618,12 @@ class TestPrivacyMode:
                         "failed": 0,
                         "processed_files": [],
                     }
-                    response = client.post(
-                        "/index", json={"paths": [str(tmp_path)], "privacy": True}
+                    response = _post_index_and_wait(
+                        {
+                            "paths": [str(tmp_path)],
+                            "privacy": True,
+                            "db": str(tmp_path / "index.db"),
+                        }
                     )
         assert response.status_code == 200
         assert mock_run.call_args[0][5] is True  # privacy flag reaches the job
@@ -620,8 +643,12 @@ class TestPrivacyMode:
                         "failed": 0,
                         "processed_files": [],
                     }
-                    response = client.post(
-                        "/index", json={"paths": [str(tmp_path)], "privacy": True}
+                    response = _post_index_and_wait(
+                        {
+                            "paths": [str(tmp_path)],
+                            "privacy": True,
+                            "db": str(tmp_path / "index.db"),
+                        }
                     )
         assert response.status_code == 200
 
@@ -631,7 +658,7 @@ class TestPrivacyMode:
         db_path = tmp_path / "test.db"
         store = SQLiteVectorStore(db_path, dimension=384)
         doc = DocumentMetadata(
-            path=Path("/tmp/private.pdf"),
+            path=Path(r"C:\Users\tester\private.pdf"),
             title="P",
             sha256="x",
             mtime=1.0,
@@ -656,7 +683,7 @@ class TestPrivacyMode:
                     "/rag/chat",
                     json={
                         "question": "test?",
-                        "document_path": "/tmp/private.pdf",
+                        "document_path": "C:/Users/tester/private.pdf",
                         "chunk_index": 0,
                         "db": str(db_path),
                     },
@@ -672,7 +699,7 @@ class TestPrivacyMode:
         db_path = tmp_path / "test.db"
         store = SQLiteVectorStore(db_path, dimension=384)
         doc = DocumentMetadata(
-            path=Path("/tmp/private.pdf"),
+            path=Path(r"C:\Users\tester\private.pdf"),
             title="P",
             sha256="x",
             mtime=1.0,
@@ -699,7 +726,7 @@ class TestPrivacyMode:
                         "/rag/chat",
                         json={
                             "question": "test?",
-                            "document_path": "/tmp/private.pdf",
+                            "document_path": "C:/Users/tester/private.pdf",
                             "chunk_index": 0,
                             "db": str(db_path),
                         },
@@ -772,14 +799,13 @@ class TestPrivacyMode:
             with patch("docfinder.web.app._get_embedder", return_value=MagicMock(dimension=3)):
                 with patch("docfinder.web.app._validate_paths", return_value=[path]):
                     with patch("docfinder.web.app._run_index_job", return_value={"failed": 0}):
-                        response = client.post(
-                            "/index",
-                            json={
+                        response = _post_index_and_wait(
+                            {
                                 "paths": [str(path)],
                                 "db": str(db_path),
                                 "exclude_paths": [str(excluded)],
                                 "privacy": privacy,
-                            },
+                            }
                         )
             assert response.status_code == 200
 
