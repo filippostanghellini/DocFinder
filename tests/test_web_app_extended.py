@@ -210,12 +210,13 @@ class TestOllamaModelsEndpoint:
 
     @patch("docfinder.web.app.list_ollama_models")
     def test_unreachable_never_raises(self, mock_list: MagicMock) -> None:
-        mock_list.side_effect = OllamaError("Ollama server unreachable at http://x: boom")
+        mock_list.side_effect = OllamaError("internal detail: socket stack trace")
         response = client.post("/api/ollama/models", json={"url": "http://x", "api_key": ""})
         assert response.status_code == 200
         data = response.json()
         assert data["connected"] is False
-        assert "unreachable" in data["error"]
+        assert data["error"] == "Could not connect to Ollama server"
+        assert "socket stack trace" not in response.text
 
     def test_no_url_configured(self) -> None:
         response = client.post("/api/ollama/models", json={})

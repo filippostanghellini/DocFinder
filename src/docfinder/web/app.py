@@ -722,8 +722,8 @@ async def ollama_models(payload: OllamaModelsPayload) -> dict:
     try:
         models = await asyncio.to_thread(list_ollama_models, base_url, api_key=key, timeout=5)
         return {"connected": True, "models": models, "error": None}
-    except OllamaError as exc:
-        return {"connected": False, "models": [], "error": str(exc)}
+    except OllamaError:
+        return {"connected": False, "models": [], "error": "Could not connect to Ollama server"}
 
 
 @app.post("/index/reindex")
@@ -870,6 +870,7 @@ def _rebuild_index(resolved_db: Path, job: dict) -> dict[str, Any]:
                 try:
                     Path(f"{staging_db}{suffix}").unlink()
                 except FileNotFoundError:
+                    # Staging cleanup is best effort when a file was never created.
                     pass
 
 
