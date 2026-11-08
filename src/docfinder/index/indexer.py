@@ -181,7 +181,7 @@ class Indexer:
     ) -> IndexStats:
         """Index documents with parallel parsing when beneficial."""
         if self.store.ensure_embedding_model(_embedding_identity(self.embedder)):
-            LOGGER.warning("Embedding model changed — the existing index was cleared")
+            LOGGER.warning("Embedding model changed - the existing index was cleared")
 
         doc_files = find_documents(paths, exclude_paths, modalities=self.modalities)
         if not doc_files:

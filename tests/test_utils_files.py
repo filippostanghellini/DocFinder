@@ -161,3 +161,27 @@ class TestComputeSha256:
         hash2 = compute_sha256(file2)
 
         assert hash1 != hash2
+
+
+class TestSmartExclusions:
+    """Test smart path exclusions during directory scanning."""
+
+    def test_iter_document_paths_skips_ignored_dirs_and_secrets(self, tmp_path: Path) -> None:
+        from docfinder.utils.files import iter_document_paths
+
+        (tmp_path / "keep.py").write_text("def hello(): pass\n")
+        (tmp_path / "package-lock.json").write_text("{}")
+        (tmp_path / "app.min.js").write_text("var a=1;")
+        (tmp_path / "secret.pem").write_text("PRIVATE")
+        (tmp_path / "doc.pdf.icloud").write_text("cloud")
+
+        nm = tmp_path / "node_modules" / "pkg"
+        nm.mkdir(parents=True)
+        (nm / "index.js").write_text("export default 1;")
+
+        venv = tmp_path / "venv" / "lib"
+        venv.mkdir(parents=True)
+        (venv / "mod.py").write_text("x = 1")
+
+        found = list(iter_document_paths([tmp_path]))
+        assert [p.name for p in found] == ["keep.py"]

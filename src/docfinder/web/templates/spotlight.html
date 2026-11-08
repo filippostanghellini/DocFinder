@@ -213,7 +213,7 @@
     <div id="results"></div>
 
     <div class="hint-bar">
-      <span><kbd>&uarr;&darr;</kbd> navigate &middot; <kbd>&crarr;</kbd> open &middot; <kbd>Esc</kbd> close</span>
+      <span><kbd>&uarr;&darr;</kbd> navigate &middot; <kbd>&crarr;</kbd> open &middot; <kbd>&#8984;&crarr;</kbd> reveal &middot; <kbd>Esc</kbd> close</span>
       <span>DocFinder</span>
     </div>
   </div>
@@ -245,6 +245,14 @@
       return parts.slice(-3).join('/');
     }
 
+    function formatSpotBadge(meta) {
+      if (!meta || typeof meta !== 'object') return '';
+      if (meta.timestamp) return `⏱ ${escHtml(meta.timestamp)}`;
+      if (meta.line_start) return `L${meta.line_start}`;
+      if (meta.page) return `p.${meta.page}`;
+      return '';
+    }
+
     function renderResults(items) {
       currentResults = items;
       activeIndex    = -1;
@@ -254,21 +262,26 @@
         return;
       }
 
-      results.innerHTML = items.map((r, i) => `
+      results.innerHTML = items.map((r, i) => {
+        const badge = formatSpotBadge(r.metadata);
+        return `
         <div class="result-item" data-index="${i}" data-path="${escHtml(r.path)}">
           <div class="result-title">${escHtml(r.title || fileExt(r.path).toUpperCase() + ' document')}</div>
           <div class="result-snippet">${escHtml(r.text)}</div>
           <div class="result-meta">
             <span class="result-type">${escHtml(fileExt(r.path) || 'doc')}</span>
+            ${badge ? `<span class="result-type" style="color:#a5b4fc;">${badge}</span>` : ''}
             <span class="result-path" title="${escHtml(r.path)}">${escHtml(shortPath(r.path))}</span>
             <span class="result-score">${Math.round(r.score * 100)}%</span>
           </div>
         </div>
-      `).join('');
+      `;
+      }).join('');
 
       results.querySelectorAll('.result-item').forEach(el => {
-        el.addEventListener('click',      () => openResult(el.dataset.path));
-        el.addEventListener('mouseenter', () => setActive(parseInt(el.dataset.index)));
+        const idx = parseInt(el.dataset.index);
+        el.addEventListener('click',      (ev) => openResult(currentResults[idx], ev.metaKey || ev.ctrlKey));
+        el.addEventListener('mouseenter', () => setActive(idx));
       });
     }
 
@@ -279,12 +292,22 @@
       });
     }
 
-    async function openResult(path) {
+    async function openResult(itemOrPath, reveal = false) {
+      const isObj = itemOrPath && typeof itemOrPath === 'object';
+      const path  = isObj ? itemOrPath.path : itemOrPath;
+      const meta  = (isObj && itemOrPath.metadata) || {};
+      const payload = {
+        path,
+        reveal: Boolean(reveal),
+        page: meta.page || null,
+        line: meta.line_start || null,
+        start_sec: meta.start_sec !== undefined ? meta.start_sec : null,
+      };
       try {
         await fetch(`${apiBase}/open`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path }),
+          body: JSON.stringify(payload),
         });
       } catch (_) {}
       hideSpotlight();
@@ -338,7 +361,7 @@
       clearTimeout(debounceTimer);
       const q = input.value.trim();
       if (q.length < 2) { results.innerHTML = ''; currentResults = []; return; }
-      debounceTimer = setTimeout(() => doSearch(input.value), 500);
+      debounceTimer = setTimeout(() => doSearch(input.value), 250);
     });
 
     // Keyboard navigation
@@ -357,7 +380,7 @@
           ?.scrollIntoView({ block: 'nearest' });
       } else if (e.key === 'Enter') {
         if (activeIndex >= 0 && currentResults[activeIndex]) {
-          openResult(currentResults[activeIndex].path);
+          openResult(currentResults[activeIndex], e.metaKey || e.ctrlKey);
         }
       }
     });

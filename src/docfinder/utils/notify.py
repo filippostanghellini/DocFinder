@@ -48,7 +48,7 @@ def _notify_linux(title: str, message: str) -> None:
 
 def _notify_windows(title: str, message: str) -> None:
     """Use PowerShell toast notification on Windows 10+."""
-    # BalloonTipIcon via .NET — works without extra packages
+    # BalloonTipIcon via .NET - works without extra packages
     ps_script = (
         "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, "
         "ContentType = WindowsRuntime] > $null; "

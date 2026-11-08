@@ -18,6 +18,7 @@ from typing import Any, Callable, List
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from docfinder import __version__ as DOCFINDER_VERSION
 from docfinder.config import AppConfig
 from docfinder.embedding.encoder import (
     MODALITY_SPECS,
@@ -39,6 +40,7 @@ from docfinder.ollama import (
 )
 from docfinder.settings import load_settings, normalize_modalities
 from docfinder.settings import save_settings as _save_settings
+from docfinder.web import updater
 from docfinder.web.frontend import router as frontend_router
 
 LOGGER = logging.getLogger(__name__)
@@ -83,7 +85,7 @@ def _preload_embedder() -> None:
     try:
         _get_embedder()
     except Exception:
-        LOGGER.exception("Embedding model preload failed — will retry on first use")
+        LOGGER.exception("Embedding model preload failed - will retry on first use")
 
 
 def _reset_embedder() -> None:
@@ -162,7 +164,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="DocFinder Web", version="2.3.0", lifespan=lifespan)
+app = FastAPI(title="DocFinder Web", version=DOCFINDER_VERSION, lifespan=lifespan)
 app.include_router(frontend_router)
 
 
@@ -175,6 +177,10 @@ class SearchPayload(BaseModel):
 
 class OpenRequest(BaseModel):
     path: Path
+    reveal: bool = False
+    page: int | None = None
+    line: int | None = None
+    start_sec: float | None = None
 
 
 class DeleteDocumentRequest(BaseModel):
@@ -271,7 +277,7 @@ async def search_documents(payload: SearchPayload) -> dict[str, List[SearchResul
     try:
         results = searcher.search(query, top_k=top_k, folders=folders if folders else None)
     except ValueError as exc:
-        # e.g. index built with a different embedding model — tell the user
+        # e.g. index built with a different embedding model - tell the user
         # instead of leaking a raw 500.
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     finally:
@@ -506,7 +512,7 @@ async def rag_chat(payload: RAGPayload) -> dict:
         ):
             raise HTTPException(
                 status_code=403,
-                detail="This document was indexed in 100% privacy mode — "
+                detail="This document was indexed in 100% privacy mode - "
                 "chat requires a local or localhost LLM",
             )
 
@@ -580,6 +586,31 @@ async def rag_chat(payload: RAGPayload) -> dict:
     return {"answer": answer, "context_chunks_used": len(context_chunks)}
 
 
+def _open_pdf_at_page(path: Path, page: int) -> bool:
+    """Best-effort open a PDF at ``page`` (macOS Preview). Returns True on success."""
+    if sys.platform != "darwin":
+        return False
+    try:
+        subprocess.Popen(["/usr/bin/open", "-a", "Preview", str(path)])
+        script = (
+            'tell application "System Events"\n'
+            "    delay 0.6\n"
+            '    keystroke "g" using {command down, option down}\n'
+            "    delay 0.4\n"
+            f'    keystroke "{page}"\n'
+            "    delay 0.2\n"
+            "    keystroke return\n"
+            "end tell\n"
+        )
+        subprocess.run(
+            ["/usr/bin/osascript"], input=script, capture_output=True, text=True, timeout=10
+        )
+        return True
+    except Exception as exc:  # pragma: no cover - defensive
+        LOGGER.debug("Could not open PDF at page %s: %s", page, exc)
+        return False
+
+
 @app.post("/open")
 async def open_document(payload: OpenRequest) -> dict[str, str]:
     path = payload.path.expanduser()
@@ -587,6 +618,36 @@ async def open_document(payload: OpenRequest) -> dict[str, str]:
         raise HTTPException(status_code=404, detail=f"File not found: {path}")
 
     try:
+        if payload.reveal:
+            if os.name == "posix":
+                if sys.platform == "darwin":
+                    subprocess.Popen(["open", "-R", str(path)])
+                else:
+                    subprocess.Popen(["xdg-open", str(path.parent)])
+            else:
+                normalized_path = os.path.normpath(str(path))
+                if not Path(normalized_path).is_absolute():
+                    normalized_path = os.path.abspath(normalized_path)
+                subprocess.Popen(["explorer", f"/select,{normalized_path}"])
+            return {"status": "ok"}
+
+        if payload.line is not None and payload.line > 0:
+            import shutil
+
+            for editor_bin, flag in (("code", "-g"), ("cursor", "-g"), ("zed", None)):
+                resolved_bin = shutil.which(editor_bin)
+                if resolved_bin:
+                    target = f"{path}:{payload.line}"
+                    cmd = [resolved_bin, flag, target] if flag else [resolved_bin, target]
+                    subprocess.Popen(cmd)
+                    return {"status": "ok"}
+
+        # Best-effort: open PDFs at the requested page (macOS Preview via
+        # AppleScript). Falls through to a normal open on other platforms.
+        if payload.page is not None and payload.page > 0 and payload.line is None:
+            if _open_pdf_at_page(path, payload.page):
+                return {"status": "ok"}
+
         if os.name == "posix":  # macOS/Linux
             opener = "open" if sys.platform == "darwin" else "xdg-open"
             subprocess.Popen([opener, str(path)])
@@ -1002,7 +1063,7 @@ def _run_index_job(
 
     with _db_write_lock if lock_db else nullcontext():
         store = SQLiteVectorStore(resolved_db, dimension=dimension)
-        # No fixed embed_batch_size — Indexer adapts per-file based on available RAM
+        # No fixed embed_batch_size - Indexer adapts per-file based on available RAM
         indexer = Indexer(
             embedder,
             store,
@@ -1109,7 +1170,7 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     ):
         raise HTTPException(
             status_code=400,
-            detail="100% privacy mode requires a local embedding model — "
+            detail="100% privacy mode requires a local embedding model - "
             "the configured Ollama server is remote",
         )
 
@@ -1181,7 +1242,31 @@ async def get_system_info() -> dict[str, Any]:
     """Return RAM + runtime backend and indexing strategy details."""
     memory = await asyncio.to_thread(_get_memory_info)
     runtime = await asyncio.to_thread(_get_runtime_info)
-    return {**memory, **runtime}
+    return {**memory, **runtime, "version": DOCFINDER_VERSION}
+
+
+@app.post("/system/update/check")
+async def check_for_update() -> dict[str, Any]:
+    """Check GitHub releases for a newer DocFinder version."""
+    try:
+        return await asyncio.to_thread(updater.check_for_update)
+    except updater.UpdateCheckError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@app.post("/system/update/install")
+async def install_update() -> dict[str, Any]:
+    """Download and install the latest release in the background."""
+    try:
+        return await asyncio.to_thread(updater.start_install)
+    except updater.UpdateCheckError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+@app.get("/system/update/status")
+async def update_status() -> dict[str, Any]:
+    """Poll update progress (downloading / installing / restarting / error)."""
+    return updater.status()
 
 
 class ScanPayload(BaseModel):

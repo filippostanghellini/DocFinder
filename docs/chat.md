@@ -20,7 +20,7 @@ LLM (local)
 Grounded Answer
 ```
 
-1. You reference a specific chunk of a document (`document_path` + `chunk_index` — the UI fills these for you)
+1. You reference a specific chunk of a document (`document_path` + `chunk_index` - the UI fills these for you)
 2. DocFinder builds the context from that chunk's page, or from a window of ±10 surrounding chunks as fallback
 3. The context plus your question are sent to a local LLM
 4. The LLM generates an answer grounded in that context only
@@ -41,7 +41,7 @@ The RAG engine (`src/docfinder/rag/engine.py`) constructs prompts with strict gr
 
 > "Use ONLY the information from the context below to answer. If the context does not contain enough information, say so clearly."
 
-This ensures the AI doesn't hallucinate — answers are always based on your actual documents.
+This ensures the AI doesn't hallucinate - answers are always based on your actual documents.
 
 ## Requirements
 
@@ -53,7 +53,7 @@ pip install -e ".[rag]"
 
 This installs `llama-cpp-python`, which provides local LLM inference.
 
-> Note: `make setup` installs the `dev`, `web` and `gui` extras but **not** `rag` — install it explicitly to enable AI chat.
+> Note: `make setup` installs the `dev`, `web` and `gui` extras but **not** `rag` - install it explicitly to enable AI chat.
 
 ## Usage
 
@@ -71,11 +71,11 @@ The chat LLM does not have to be the built-in Qwen3.5 GGUF model. In **Settings 
 Ollama** you can switch the Chat LLM backend to **Ollama** and pick any chat model installed on
 an Ollama server:
 
-1. Enter the server URL (e.g. `http://127.0.0.1:11434`) — an API key is optional, for remote
+1. Enter the server URL (e.g. `http://127.0.0.1:11434`) - an API key is optional, for remote
    Ollama providers
 2. Click **Test connection** to list the models installed on that server
 3. Set **Chat LLM backend** to *Ollama* and pick a chat model
-4. Save — the model applies immediately, no reindex needed and nothing to download
+4. Save - the model applies immediately, no reindex needed and nothing to download
    (the model is served by Ollama)
 
 The server can run on your machine or on a VPS/remote Ollama provider, which is useful when your

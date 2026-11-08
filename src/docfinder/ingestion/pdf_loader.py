@@ -56,7 +56,7 @@ def _extract_page_text(page) -> str:
         tables = None
 
     if not tables or not tables.tables:
-        # No tables — fast path, same as before
+        # No tables - fast path, same as before
         return page.get_text() or ""
 
     # Collect table bounding boxes and their Markdown representations
@@ -244,7 +244,7 @@ def _import_docx_document():
         return Document
     except ImportError:
         LOGGER.warning(
-            "python-docx not installed — cannot index .docx files. "
+            "python-docx not installed - cannot index .docx files. "
             "Install with: pip install python-docx"
         )
         return None
@@ -307,7 +307,7 @@ def _import_odf():
         return load, P, teletype.extractText
     except ImportError:
         LOGGER.warning(
-            "odfpy not installed — cannot index ODF files (.odt/.odp/.odg). "
+            "odfpy not installed - cannot index ODF files (.odt/.odp/.odg). "
             "Install with: pip install odfpy"
         )
         return None, None, None
@@ -363,7 +363,7 @@ def _import_pptx():
         return Presentation
     except ImportError:
         LOGGER.warning(
-            "python-pptx not installed — cannot index .pptx files. "
+            "python-pptx not installed - cannot index .pptx files. "
             "Install with: pip install python-pptx"
         )
         return None
@@ -397,7 +397,7 @@ def iter_text_parts_pptx(path: Path) -> Iterator[str]:
 
 
 def iter_text_parts_pptx_paged(path: Path) -> Iterator[tuple[int, str]]:
-    """Yield ``(slide_number, text)`` — one page per slide."""
+    """Yield ``(slide_number, text)`` - one page per slide."""
     Presentation = _import_pptx()
     if Presentation is None:
         return
@@ -424,7 +424,7 @@ def _import_beautifulsoup4():
         return BeautifulSoup
     except ImportError:
         LOGGER.warning(
-            "beautifulsoup4 not installed — cannot index .html/.epub files. "
+            "beautifulsoup4 not installed - cannot index .html/.epub files. "
             "Install with: pip install beautifulsoup4"
         )
         return None
@@ -553,7 +553,7 @@ def iter_text_parts_epub(path: Path) -> Iterator[str]:
 
 
 def iter_text_parts_epub_paged(path: Path) -> Iterator[tuple[int, str]]:
-    """Yield ``(chapter_number, text)`` — one page per spine item."""
+    """Yield ``(chapter_number, text)`` - one page per spine item."""
     BeautifulSoup = _import_beautifulsoup4()
     if BeautifulSoup is None:
         return
@@ -576,7 +576,7 @@ def _import_olefile():
         return olefile
     except ImportError:
         LOGGER.warning(
-            "olefile not installed — cannot index .doc/.ppt files. "
+            "olefile not installed - cannot index .doc/.ppt files. "
             "Install with: pip install olefile"
         )
         return None
@@ -1145,12 +1145,209 @@ def render_pdf_page_image(path: Path, page_num: int, dpi: int = 150):
         doc.close()
 
 
+_AUDIO_WINDOW_SEC = 30.0
+_AUDIO_STRIDE_SEC = 25.0
+_AUDIO_SAMPLE_RATE = 16000
+
+
+def _format_timestamp(seconds: float) -> str:
+    """Format seconds as M:SS or H:MM:SS."""
+    total = max(0, int(round(seconds)))
+    hours, rem = divmod(total, 3600)
+    mins, secs = divmod(rem, 60)
+    if hours:
+        return f"{hours}:{mins:02d}:{secs:02d}"
+    return f"{mins}:{secs:02d}"
+
+
+def _probe_audio_duration_sec(path: Path) -> float | None:
+    """Return duration in seconds for a .wav file (via stdlib wave) or media file (via ffprobe)."""
+    suffix = path.suffix.lower()
+    if suffix == ".wav":
+        try:
+            import wave
+
+            with wave.open(str(path), "rb") as wf:
+                frames = wf.getnframes()
+                rate = wf.getframerate()
+                if rate > 0 and frames > 0:
+                    return float(frames) / float(rate)
+        except Exception:
+            pass
+
+    import shutil
+    import subprocess
+
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe:
+        return None
+    try:
+        proc = subprocess.run(
+            [
+                ffprobe,
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            dur = float(proc.stdout.strip())
+            if dur > 0:
+                return dur
+    except Exception:
+        pass
+    return None
+
+
+def _load_audio_window_array(path: Path, start_sec: float = 0.0, duration_sec: float = 30.0):
+    """Decode an audio segment into a 16kHz mono float32 numpy array, or None on fallback."""
+    import numpy as np
+
+    suffix = path.suffix.lower()
+    if suffix == ".wav":
+        try:
+            import wave
+
+            with wave.open(str(path), "rb") as wf:
+                rate = wf.getframerate()
+                n_channels = max(1, wf.getnchannels())
+                sampwidth = wf.getsampwidth()
+                start_frame = min(wf.getnframes(), max(0, int(start_sec * rate)))
+                read_frames = int(duration_sec * rate)
+                wf.setpos(start_frame)
+                raw = wf.readframes(read_frames)
+                if raw and sampwidth in (1, 2, 4):
+                    dtype_map = {1: np.uint8, 2: np.int16, 4: np.int32}
+                    scale_map = {1: 128.0, 2: 32768.0, 4: 2147483648.0}
+                    samples = np.frombuffer(raw, dtype=dtype_map[sampwidth]).astype("float32")
+                    if sampwidth == 1:
+                        samples = (samples - 128.0) / 128.0
+                    else:
+                        samples = samples / scale_map[sampwidth]
+                    if n_channels > 1:
+                        samples = samples.reshape(-1, n_channels).mean(axis=1)
+                    if samples.size > 0:
+                        return samples
+        except Exception:
+            pass
+
+    import shutil
+    import subprocess
+
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return None
+    try:
+        proc = subprocess.run(
+            [
+                ffmpeg,
+                "-nostdin",
+                "-v",
+                "error",
+                "-ss",
+                f"{max(0.0, start_sec):.2f}",
+                "-t",
+                f"{duration_sec:.2f}",
+                "-i",
+                str(path),
+                "-f",
+                "f32le",
+                "-acodec",
+                "pcm_f32le",
+                "-ac",
+                "1",
+                "-ar",
+                str(_AUDIO_SAMPLE_RATE),
+                "pipe:1",
+            ],
+            capture_output=True,
+            timeout=20,
+            check=False,
+        )
+        if proc.returncode == 0 and proc.stdout:
+            samples = np.frombuffer(proc.stdout, dtype="float32")
+            if samples.size > 0:
+                return samples.copy()
+    except Exception:
+        pass
+    return None
+
+
+def _build_code_chunks(
+    path: Path,
+    *,
+    title: str,
+    max_chars: int = 1200,
+    overlap: int = 200,
+) -> Iterator[ChunkRecord]:
+    """Build line-tracked chunks for a source code file."""
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace")
+    except Exception as exc:
+        LOGGER.error("Failed to read %s: %s", path, exc)
+        return
+
+    lines = content.splitlines(keepends=True)
+    if not lines or not content.strip():
+        return
+
+    idx = 0
+    start_line_idx = 0
+    total_lines = len(lines)
+
+    while start_line_idx < total_lines:
+        char_count = 0
+        end_line_idx = start_line_idx
+        while end_line_idx < total_lines and (
+            char_count + len(lines[end_line_idx]) <= max_chars or end_line_idx == start_line_idx
+        ):
+            char_count += len(lines[end_line_idx])
+            end_line_idx += 1
+
+        chunk_text = "".join(lines[start_line_idx:end_line_idx]).strip()
+        if chunk_text:
+            line_start = start_line_idx + 1
+            line_end = end_line_idx
+            yield ChunkRecord(
+                document_path=path,
+                index=idx,
+                text=chunk_text,
+                metadata={
+                    "title": title,
+                    "page": idx + 1,
+                    "modality": "code",
+                    "line_start": line_start,
+                    "line_end": line_end,
+                },
+            )
+            idx += 1
+
+        if end_line_idx >= total_lines:
+            break
+
+        # Step back by overlap characters for the next chunk
+        overlap_chars = 0
+        next_start = end_line_idx
+        while next_start > start_line_idx + 1 and overlap_chars < overlap:
+            next_start -= 1
+            overlap_chars += len(lines[next_start])
+        start_line_idx = max(start_line_idx + 1, next_start)
+
+
 def prepare_chunk_embedding_input(path: Path, chunk: dict) -> object:
     """Prepare the input object passed to ``EmbeddingModel.embed()`` for a chunk.
 
     For text/code chunks, returns the plain text string.
-    For visual/audio chunks, returns the PIL.Image or multimodal dict supported
-    by EmbeddingGemma 2, falling back cleanly to the descriptive text on error.
+    For visual/audio chunks, returns the PIL.Image, audio waveform, or multimodal
+    dict supported by EmbeddingGemma 2, falling back cleanly to text on error.
     """
     meta = chunk.get("metadata") or {}
     modality = meta.get("modality", "text")
@@ -1165,6 +1362,14 @@ def prepare_chunk_embedding_input(path: Path, chunk: dict) -> object:
         if modality == "pdf_page_image":
             page_num = int(meta.get("page", 1))
             return render_pdf_page_image(path, page_num)
+        if modality in ("audio", "video") and "start_sec" in meta:
+            start_sec = float(meta.get("start_sec", 0.0))
+            end_sec = float(meta.get("end_sec", start_sec + _AUDIO_WINDOW_SEC))
+            samples = _load_audio_window_array(
+                path, start_sec=start_sec, duration_sec=max(1.0, end_sec - start_sec)
+            )
+            if samples is not None:
+                return samples
     except Exception as exc:
         LOGGER.debug("Multimodal load fallback to text for %s: %s", path, exc)
 
@@ -1205,16 +1410,54 @@ def build_chunks(
         if "audio" not in active_mods:
             return
         media_kind = "video" if suffix in {".mp4", ".mov", ".mkv", ".webm"} else "audio"
+        duration = _probe_audio_duration_sec(path)
+        if duration is not None and duration > _AUDIO_WINDOW_SEC:
+            idx = 0
+            start_sec = 0.0
+            while start_sec < duration:
+                end_sec = min(duration, start_sec + _AUDIO_WINDOW_SEC)
+                ts_label = _format_timestamp(start_sec)
+                end_label = _format_timestamp(end_sec)
+                yield ChunkRecord(
+                    document_path=path,
+                    index=idx,
+                    text=f"[{media_kind.capitalize()}: {path.name} @ {ts_label}–{end_label}]",
+                    metadata={
+                        "title": title,
+                        "page": idx + 1,
+                        "modality": media_kind,
+                        "start_sec": round(start_sec, 1),
+                        "end_sec": round(end_sec, 1),
+                        "timestamp": ts_label,
+                    },
+                )
+                idx += 1
+                if end_sec >= duration:
+                    break
+                start_sec += _AUDIO_STRIDE_SEC
+            return
+
+        meta_media: Dict[str, object] = {
+            "title": title,
+            "page": 1,
+            "modality": media_kind,
+        }
+        if duration is not None:
+            meta_media["start_sec"] = 0.0
+            meta_media["end_sec"] = round(duration, 1)
+            meta_media["timestamp"] = "0:00"
         yield ChunkRecord(
             document_path=path,
             index=0,
             text=f"[{media_kind.capitalize()}: {path.name}]",
-            metadata={"title": title, "page": 1, "modality": media_kind},
+            metadata=meta_media,
         )
         return
 
-    is_code = suffix in CODE_EXTENSIONS
-    chunk_modality = "code" if is_code else "text"
+    if suffix in CODE_EXTENSIONS:
+        yield from _build_code_chunks(path, title=title, max_chars=max_chars, overlap=overlap)
+        return
+
     pages = list(_iter_paged_text(path))
     text_page_nums = {page_num for page_num, _ in pages}
 
@@ -1223,8 +1466,6 @@ def build_chunks(
         iter(pages), max_chars=max_chars, overlap=overlap
     ):
         meta: Dict[str, object] = {"title": title, "page": page_num}
-        if is_code:
-            meta["modality"] = chunk_modality
         yield ChunkRecord(
             document_path=path,
             index=idx,
@@ -1239,7 +1480,7 @@ def build_chunks(
             yield ChunkRecord(
                 document_path=path,
                 index=idx,
-                text=f"[Scanned PDF page {scanned_page} — {title}]",
+                text=f"[Scanned PDF page {scanned_page} - {title}]",
                 metadata={
                     "title": title,
                     "page": scanned_page,

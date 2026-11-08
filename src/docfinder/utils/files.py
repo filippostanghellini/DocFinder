@@ -96,6 +96,75 @@ AUDIO_VIDEO_EXTENSIONS: frozenset[str] = frozenset(
 
 SUPPORTED_EXTENSIONS: frozenset[str] = TEXT_EXTENSIONS | IMAGE_EXTENSIONS | AUDIO_VIDEO_EXTENSIONS
 
+IGNORED_DIR_NAMES: frozenset[str] = frozenset(
+    {
+        "node_modules",
+        "__pycache__",
+        "venv",
+        "env",
+        "virtualenv",
+        "site-packages",
+        "target",
+        "build",
+        "dist",
+        "out",
+        "coverage",
+        "vendor",
+        "Pods",
+        "DerivedData",
+    }
+)
+
+IGNORED_FILE_NAMES: frozenset[str] = frozenset(
+    {
+        "package-lock.json",
+        "yarn.lock",
+        "pnpm-lock.yaml",
+        "poetry.lock",
+        "cargo.lock",
+        "composer.lock",
+        "gemfile.lock",
+        "id_rsa",
+        "id_ed25519",
+        "id_ecdsa",
+        "id_dsa",
+    }
+)
+
+IGNORED_FILE_SUFFIXES: tuple[str, ...] = (
+    ".min.js",
+    ".min.css",
+    ".bundle.js",
+    ".map",
+    ".icloud",
+    ".pem",
+    ".key",
+    ".p12",
+    ".pfx",
+)
+
+
+def is_ignored_path(path: Path, root: Path | None = None) -> bool:
+    """Return True if ``path`` belongs to a vendored, cloud-placeholder, or secret location."""
+    name = path.name
+    lower_name = name.lower()
+    if name.startswith("~$") or name.startswith("."):
+        return True
+    if lower_name in IGNORED_FILE_NAMES:
+        return True
+    if lower_name.endswith(IGNORED_FILE_SUFFIXES):
+        return True
+
+    if root is not None:
+        try:
+            rel_parts = path.relative_to(root).parts[:-1]
+        except ValueError:
+            rel_parts = ()
+        for part in rel_parts:
+            if part.startswith(".") or part in IGNORED_DIR_NAMES or part.endswith(".noindex"):
+                return True
+    return False
+
 
 def extensions_for_modalities(modalities: Sequence[str] | None = None) -> frozenset[str]:
     """Return the set of file extensions enabled by the active modalities.
@@ -127,12 +196,11 @@ def iter_document_paths(
                 for p in item.rglob("*")
                 if (
                     p.is_file()
-                    and not p.name.startswith("~$")
-                    and not any(part.startswith(".") for part in p.relative_to(item).parts)
+                    and not is_ignored_path(p, root=item)
                     and p.suffix.lower() in allowed
                 )
             )
-        elif item.is_file() and not item.name.startswith("~$") and item.suffix.lower() in allowed:
+        elif item.is_file() and not is_ignored_path(item) and item.suffix.lower() in allowed:
             yield item
 
 

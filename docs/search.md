@@ -1,80 +1,66 @@
-# Semantic Search
+# Semantic & Hybrid Search
 
-DocFinder uses **semantic search** — it finds documents by meaning, not just keyword matching.
+DocFinder combines **multimodal vector embeddings**, **exact-word & filename lexical boosting**, and **cross-encoder reranking** so you find files both by what they mean and by exact identifiers.
 
 ## How It Works
 
-### 1. Text Extraction & Chunking
+### 1. Structure-Aware Extraction & Chunking
 
-Documents are split into overlapping chunks (default 1200 characters with 200-character overlap). Each chunk preserves its page number and document origin for citation.
+Documents are split into overlapping chunks (default 1200 characters with 200-character overlap) while preserving structural provenance:
 
-### 2. Embedding
+- **PDFs & Office:** Page, slide, or worksheet numbers
+- **Source Code:** Exact `line_start` and `line_end` boundaries
+- **Audio & Video:** 30-second windows with `start_sec` and `timestamp` (`M:SS`)
 
-Each chunk is converted into a dense vector embedding using a SentenceTransformer model. The embedding captures the semantic meaning of the text.
+### 2. Modular Multimodal Embedding (EmbeddingGemma 2)
+
+Each chunk is encoded into a 768-dimensional vector using `google/embeddinggemma-2`:
+
+- **Asymmetric prefixes:** Document chunks are formatted with `title: {title} | text: {chunk}`, while queries use task-specific instructions (`task: search result | query: …` or `task: code retrieval | query: …` when prefixed with `code:`).
+- **Safe precision:** Automatically runs in `bfloat16` (Apple Silicon MPS / Ampere+ CUDA) or `float32`, avoiding `float16` overflow.
+- **Shared vector space:** Text (`270M`), Vision (`+170M`), and Audio (`+300M`) encoders map into the exact same 768-d space. Enabling Vision or Audio later never invalidates your existing index.
 
 ```python
 # Internally, DocFinder uses:
 model = SentenceTransformer("google/embeddinggemma-2")
-embedding = model.encode(chunk_text)
 ```
 
 !!! note "Custom embedding models via Ollama"
 
-    The embedding model is not fixed. In **Settings → Models & Ollama** you can connect to a
-    local or remote Ollama server and pick any embedding model it serves. Changing the embedding
-    model invalidates the existing index — DocFinder detects the mismatch and reindexes from
-    scratch (or use the **Re-index now** button right after saving).
+    In **Settings → Models & Ollama** you can connect to a local or remote Ollama server.
+    When using EmbeddingGemma 2 on Ollama, DocFinder automatically picks the tag matching your
+    enabled modalities (`embeddinggemma-2:270m`, `440m`, `570m`, or `740m`).
 
-    With a remote embedding server, the **query text** (not document content) is sent to the
-    server at search time. Documents indexed with the **100% privacy** checkbox are unaffected:
-    their content never leaves your machine, but note that searching still sends your typed
-    query to the remote embedder.
+### 3. Hybrid Retrieval: Cosine Similarity + Exact-Word Boost
 
-### 3. Storage
+Pure vector search captures meaning across 100+ languages, but no embedding holds an exact invoice number (`INV-2026-089`) or function name (`refreshAccessToken`) as reliably as string matching.
 
-Embeddings and their text are stored in a local SQLite database with WAL mode enabled. Cosine similarity is computed in pure NumPy — no vector database extensions required.
-
-### 4. Retrieval
-
-When you search, your query is embedded with the same model and compared against all stored embeddings using cosine similarity:
+At query time, `SQLiteVectorStore.search()` computes:
 
 ```
-score = cosine_similarity(query_embedding, doc_embedding)
+score = cosine_similarity(query_vec, chunk_vec) + lexical_boost(query_text, chunk, title, filename)
 ```
 
-The top-K results (default 10) are returned, ranked by similarity score.
+Exact substring matches and token hits in the chunk text, document title, or filename receive an automatic boost before top-K selection.
 
-### 5. Adaptive Indexing
+### 4. Cross-Encoder Reranking
 
-DocFinder automatically selects an indexing strategy based on your machine's resources:
+When searching from the Web UI or Spotlight, the bi-encoder fetches `max(top_k * 3, 30)` candidates and passes them to `cross-encoder/ms-marco-MiniLM-L-2-v2` for fine-grained re-scoring (automatically skipped when all candidates have very low similarity to save latency).
 
-- **Multi-core systems**: Parallel processing via multiprocessing pool (Linux and Windows; macOS currently uses a single worker)
-- **Lower-resource systems**: Single-process streaming
-- **Batch size**: Auto-tuned based on available memory
+## Paging & Location Model
 
-## Paging Model
-
-Different document formats have different natural page units:
-
-| Format | Page Unit |
-|--------|-----------|
-| PDF | Real page numbers |
-| PPTX | Slide numbers |
-| EPUB | Chapter numbers |
-| Markdown | Heading sections |
-| DOCX, ODF | Every 10 paragraphs |
-| TXT, HTML, DOC, PPT | Every ~3000 characters |
-
-## Reranking
-
-Search results are refined by a cross-encoder reranker: embedding-based retrieval narrows the candidates (3× top-K), then a more accurate model re-scores them. The reranker is enabled by default in the web UI.
+| Format | Location Badge | Open Behavior |
+|--------|----------------|---------------|
+| PDF | `Page N` | Opens PDF (`Show in Folder` reveals in Finder/Explorer) |
+| Source Code | `Lines A–B` | Opens directly at `file:line` in VS Code, Cursor, or Zed |
+| Audio / Video | `⏱ M:SS` | Shows matched 30s window timestamp |
+| PPTX / XLSX / EPUB | `Page N` | Slide, worksheet, or chapter number |
+| Markdown / DOCX / ODF | `Page N` | Heading section or 10-paragraph group |
 
 ## Configuration
 
-Key parameters you can adjust:
-
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `max_chars` | 1200 | Maximum characters per chunk |
-| `overlap` | 200 | Character overlap between chunks |
+| `max_chars` | 1200 | Maximum characters per text/code chunk |
+| `overlap` | 200 | Character overlap between consecutive chunks |
 | `top_k` | 10 | Number of search results to return |

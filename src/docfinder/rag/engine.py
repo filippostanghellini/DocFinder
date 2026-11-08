@@ -1,4 +1,4 @@
-"""RAG engine — coordinates semantic search with local LLM generation."""
+"""RAG engine - coordinates semantic search with local LLM generation."""
 
 from __future__ import annotations
 
@@ -130,7 +130,7 @@ class RAGEngine:
         seen: set[tuple[int, int]] = set()  # (document_id, chunk_index)
 
         for result in results:
-            # We need the document_id — look it up via the store
+            # We need the document_id - look it up via the store
             normalized_path = str(result.path).replace("\\", "/")
             row = self.store.connection.execute(
                 "SELECT id FROM documents WHERE REPLACE(path, '\\', '/') = ?", (normalized_path,)
