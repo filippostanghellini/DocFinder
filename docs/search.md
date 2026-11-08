@@ -51,11 +51,13 @@ When searching from the Web UI or Spotlight, the bi-encoder fetches `max(top_k *
 
 | Format | Location Badge | Open Behavior |
 |--------|----------------|---------------|
-| PDF | `Page N` | Opens PDF (`Show in Folder` reveals in Finder/Explorer) |
-| Source Code | `Lines A–B` | Opens directly at `file:line` in VS Code, Cursor, or Zed |
-| Audio / Video | `⏱ M:SS` | Shows matched 30s window timestamp |
-| PPTX / XLSX / EPUB | `Page N` | Slide, worksheet, or chapter number |
-| Markdown / DOCX / ODF | `Page N` | Heading section or 10-paragraph group |
+| PDF | `Page N` | Opens the file with the system default handler. The `Page N` badge is informational (the app does not jump to a specific page on open) |
+| Source Code | `Lines A-B` | Opens directly at `file:line` in VS Code, Cursor, or Zed when one is installed; otherwise opens with the system default handler |
+| Audio / Video | `M:SS` | Opens the file with the system default handler. The `M:SS` badge marks the matched 30-second window |
+| PPTX / XLSX / EPUB | `Page N` | Slide, worksheet, or chapter number shown as a badge; file opens with the system default handler |
+| Markdown / DOCX / ODF | `Page N` | Heading section or 10-paragraph group shown as a badge; file opens with the system default handler |
+
+Every result row also has a **Show in Folder** action (and `Cmd+Enter` / `Ctrl+Enter` in Spotlight) that reveals and selects the file in Finder, Explorer, or your file manager.
 
 ## Configuration
 

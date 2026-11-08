@@ -88,9 +88,10 @@
             <span class="df-ext">.py</span><span class="df-ext">.ts</span><span class="df-ext">.tsx</span>
             <span class="df-ext">.js</span><span class="df-ext">.jsx</span><span class="df-ext">.rs</span>
             <span class="df-ext">.go</span><span class="df-ext">.java</span><span class="df-ext">.c</span>
-            <span class="df-ext">.cpp</span><span class="df-ext">.cs</span><span class="df-ext">.swift</span>
-            <span class="df-ext">.kt</span><span class="df-ext">.rb</span><span class="df-ext">.php</span>
-            <span class="df-ext">.sh</span><span class="df-ext">.sql</span><span class="df-ext">.toml</span>
+            <span class="df-ext">.cpp</span><span class="df-ext">.h</span><span class="df-ext">.hpp</span>
+            <span class="df-ext">.cs</span><span class="df-ext">.swift</span><span class="df-ext">.kt</span>
+            <span class="df-ext">.rb</span><span class="df-ext">.php</span><span class="df-ext">.sh</span>
+            <span class="df-ext">.sql</span><span class="df-ext">.toml</span><span class="df-ext">.ini</span>
           </div>
         </div>
       </div>

@@ -54,9 +54,7 @@ The `chunk_text_stream_paged` function takes a stream of `(page_num, text)` tupl
 
 ### 4. Embedding (`embedding/encoder.py`)
 
-`EmbeddingModel` wraps SentenceTransformer with automatic backend detection:
-- Detection order: CUDA → MPS → ROCm → CPU (MPS is preferred on Apple Silicon)
-- Optional ONNX/OpenVINO backends via Optimum
+`EmbeddingModel` wraps SentenceTransformer with automatic backend detection (PyTorch MPS on Apple Silicon, CUDA/ROCm/CPU elsewhere). For the default `google/embeddinggemma-2` checkpoint the backend is forced to PyTorch with safe `bfloat16`/`float32` precision; ONNX/OpenVINO paths apply only to legacy non-Gemma checkpoints
 
 ### 5. Storage (`index/storage.py`)
 
