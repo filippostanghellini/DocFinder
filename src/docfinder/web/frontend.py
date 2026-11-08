@@ -17,9 +17,14 @@ def _load_template(name: str) -> str:
 
 @router.get("/", response_class=HTMLResponse)
 async def index() -> HTMLResponse:
-    return HTMLResponse(content=_load_template("index.html"))
+    response = HTMLResponse(content=_load_template("index.html"))
+    # HTML carries the header logo; never let any client cache it stale.
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
 
 
 @router.get("/spotlight", response_class=HTMLResponse)
 async def spotlight() -> HTMLResponse:
-    return HTMLResponse(content=_load_template("spotlight.html"))
+    response = HTMLResponse(content=_load_template("spotlight.html"))
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response

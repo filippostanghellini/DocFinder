@@ -106,8 +106,8 @@ def _get_icon_path() -> str | None:
     if getattr(sys, "frozen", False):
         base_path = Path(sys._MEIPASS)  # type: ignore[attr-defined]
     else:
-        # When running from source
-        base_path = Path(__file__).parent.parent.parent.parent
+        # When running from source: src/docfinder/gui.py → docfinder → src → repo root
+        base_path = Path(__file__).resolve().parent.parent.parent
 
     # Try different icon locations
     icon_candidates = [
@@ -348,6 +348,35 @@ class SpotlightPanel:
             self._panel.orderOut_(None)
         except Exception as exc:
             logger.warning("SpotlightPanel._do_hide() failed: %s", exc)
+
+
+def _apply_dock_icon(icon_path: str | None) -> None:
+    """Set the Dock tile of the current process to the DocFinder icon.
+
+    For unbundled (source) runs macOS refreshes the tile with the
+    interpreter's default icon when the app activates, so this is also
+    re-applied after the GUI event loop is up (see _on_webview_started).
+    """
+    if not icon_path:
+        return
+    try:
+        from AppKit import NSApplication, NSImage  # type: ignore[import-untyped]
+
+        ns_app = NSApplication.sharedApplication()
+        ns_image = NSImage.alloc().initWithContentsOfFile_(icon_path)
+        if ns_image:
+            ns_app.setApplicationIconImage_(ns_image)
+            try:
+                from AppKit import NSRunningApplication  # type: ignore[import-untyped]
+
+                NSRunningApplication.currentRunningApplication().setIcon_(ns_image)
+            except Exception:
+                pass
+            logger.debug("macOS dock icon set via AppKit")
+    except ImportError:
+        logger.debug("pyobjc not available — run: pip install 'docfinder[gui]'")
+    except Exception as exc:
+        logger.debug("Could not set macOS dock icon: %s", exc)
 
 
 def _parse_pynput_hotkey(hotkey_str: str) -> tuple[int, int] | None:
@@ -874,19 +903,8 @@ def main() -> None:
         # When frozen (PyInstaller), the bundle already carries the .icns icon.
         # When running from source, set the dock icon via AppKit so the user
         # doesn't see the generic Python icon.
-        if sys.platform == "darwin" and not getattr(sys, "frozen", False) and icon_path:
-            try:
-                from AppKit import NSApplication, NSImage  # type: ignore[import-untyped]
-
-                ns_app = NSApplication.sharedApplication()
-                ns_image = NSImage.alloc().initWithContentsOfFile_(icon_path)
-                if ns_image:
-                    ns_app.setApplicationIconImage_(ns_image)
-                    logger.debug("macOS dock icon set via AppKit")
-            except ImportError:
-                logger.debug("pyobjc not available — run: pip install 'docfinder[gui]'")
-            except Exception as exc:
-                logger.debug("Could not set macOS dock icon: %s", exc)
+        if sys.platform == "darwin" and not getattr(sys, "frozen", False):
+            _apply_dock_icon(icon_path)
 
         # ── Desktop API (folder picker + hotkey + spotlight) ─────────────────
         desktop_api = DesktopApi()
@@ -950,6 +968,16 @@ def main() -> None:
                 settings.get("hotkey", ""),
                 settings.get("hotkey_enabled", True),
             )
+            if sys.platform == "darwin" and not getattr(sys, "frozen", False):
+                # The first set runs before the Dock activates the app; the
+                # Dock refreshes the tile with the interpreter default upon
+                # activation, so re-apply once the event loop is running.
+                try:
+                    from PyObjCTools import AppHelper  # type: ignore[import-untyped]
+
+                    AppHelper.callAfter(lambda: _apply_dock_icon(icon_path))
+                except Exception as exc:
+                    logger.warning("Could not schedule dock icon reapply: %s", exc)
             if spotlight_panel is not None:
                 try:
                     from PyObjCTools import AppHelper  # type: ignore[import-untyped]
