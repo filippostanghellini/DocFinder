@@ -85,9 +85,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev,web]"
-          # Reinstall CPU-only torch last so the CUDA wheel pulled by
-          # sentence-transformers cannot shadow it (breaks transformers import).
-          pip install torch --index-url https://download.pytorch.org/whl/cpu --force-reinstall --no-deps
+          # Reinstall matched CPU-only torch + torchvision last so a
+          # mismatched CUDA build cannot shadow them (breaks transformers import).
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu --force-reinstall --no-deps
 
       - name: Install dependencies (non-Linux)
         if: runner.os != 'Linux'
