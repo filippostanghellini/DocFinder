@@ -14,6 +14,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "pymupdf>=1.24.0",
+    "torch>=2.0.0",
     "sentence-transformers>=6.1.0",
     "torchvision>=0.20.0",  # required by google/embeddinggemma-2 processor (image/video inputs)
     "onnxruntime>=1.17.0",
