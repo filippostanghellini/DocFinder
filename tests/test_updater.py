@@ -62,6 +62,7 @@ def test_pick_asset_darwin(monkeypatch):
 
 def test_check_for_update_available(monkeypatch):
     monkeypatch.setattr(docfinder, "__version__", "2.4.0")
+    monkeypatch.setattr("sys.platform", "darwin")
     payload = {
         "tag_name": "v2.5.0",
         "html_url": "https://github.com/filippostanghellini/DocFinder/releases/tag/v2.5.0",
