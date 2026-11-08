@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <img src="images/demo.gif" alt="DocFinder Demo" width="700">
+  <img src="images/demov2.gif" alt="DocFinder Demo" width="700">
 </p>                                                                        
 
 ## Features

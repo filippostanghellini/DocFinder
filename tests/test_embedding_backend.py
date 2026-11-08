@@ -184,12 +184,14 @@ class TestEmbeddingConfig:
     def test_default_config(self) -> None:
         """Should create config with default values."""
         config = EmbeddingConfig()
-        assert config.model_name == "BAAI/bge-m3"
+        assert config.model_name == "google/embeddinggemma-2"
         assert config.batch_size == 32
         assert config.normalize is True
         assert config.backend is None
         assert config.onnx_model_file is None
         assert config.device is None
+        assert config.modalities == ("text",)
+        assert config.truncate_dim is None
 
     def test_custom_config(self) -> None:
         """Should create config with custom values."""
@@ -299,3 +301,115 @@ class TestEmbeddingModel:
 
         # Results should be the same regardless of batch size
         np.testing.assert_array_almost_equal(emb_small, emb_large, decimal=5)
+
+
+class TestEmbeddingGemma2Features:
+    """Tests for EmbeddingGemma 2 modular loading, precision, prefixes, and legacy cleanup."""
+
+    def test_selective_modality_config_kwargs(self) -> None:
+        from docfinder.embedding.encoder import build_modality_config_kwargs
+
+        assert build_modality_config_kwargs("google/embeddinggemma-2", ("text",)) == {
+            "vision_config": None,
+            "audio_config": None,
+        }
+        assert build_modality_config_kwargs("google/embeddinggemma-2", ("text", "image")) == {
+            "audio_config": None,
+        }
+        assert (
+            build_modality_config_kwargs("google/embeddinggemma-2", ("text", "image", "audio"))
+            is None
+        )
+        assert build_modality_config_kwargs(TEST_MODEL, ("text",)) is None
+
+    def test_safe_torch_dtype_never_float16(self) -> None:
+        import torch
+
+        from docfinder.embedding.encoder import _preferred_torch_dtype
+
+        for dev in ("cpu", "mps", "cuda"):
+            dtype = _preferred_torch_dtype(dev)
+            assert dtype in (torch.bfloat16, torch.float32)
+            assert dtype != torch.float16
+
+    def test_task_instruction_prefixes(self) -> None:
+        from docfinder.embedding.encoder import format_document_text, format_query_text
+
+        q = format_query_text("invoice 2026", task="search", model_name="google/embeddinggemma-2")
+        assert q == "task: search result | query: invoice 2026"
+        # Idempotent
+        assert format_query_text(q, model_name="google/embeddinggemma-2") == q
+
+        d = format_document_text(
+            "Total EUR 120", title="Invoice", model_name="google/embeddinggemma-2"
+        )
+        assert d == "title: Invoice | text: Total EUR 120"
+        assert format_document_text(d, model_name="google/embeddinggemma-2") == d
+
+    def test_ollama_tags_for_modalities(self) -> None:
+        from docfinder.embedding.encoder import ollama_tag_for_modalities
+
+        assert ollama_tag_for_modalities(["text"]) == "embeddinggemma-2:270m"
+        assert ollama_tag_for_modalities(["text", "image"]) == "embeddinggemma-2:440m"
+        assert ollama_tag_for_modalities(["text", "audio"]) == "embeddinggemma-2:570m"
+        assert ollama_tag_for_modalities(["text", "image", "audio"]) == "embeddinggemma-2:740m"
+
+    def test_cleanup_legacy_models(self, tmp_path) -> None:
+        from docfinder.embedding.encoder import cleanup_legacy_models
+
+        legacy_dir = tmp_path / "models--BAAI--bge-m3"
+        legacy_dir.mkdir()
+        (legacy_dir / "weights.bin").write_bytes(b"123")
+
+        removed = cleanup_legacy_models(cache_dir=tmp_path)
+        assert "BAAI/bge-m3" in removed
+        assert not legacy_dir.exists()
+
+    def test_detect_missing_modalities_and_new_formats(self, tmp_path) -> None:
+        from docfinder.ingestion.pdf_loader import build_chunks
+        from docfinder.utils.files import detect_missing_modalities, iter_document_paths
+
+        csv_f = tmp_path / "table.csv"
+        csv_f.write_text("name,amount\nAlice,42\n", encoding="utf-8")
+        eml_f = tmp_path / "note.eml"
+        eml_f.write_text("Subject: Budget\nFrom: a@b.com\n\nHello team\n", encoding="utf-8")
+        img_f = tmp_path / "scan.png"
+        img_f.write_bytes(b"fake")
+        aud_f = tmp_path / "memo.mp3"
+        aud_f.write_bytes(b"fake")
+
+        # Default first launch: only text+code files are yielded
+        text_only_docs = list(iter_document_paths([tmp_path], modalities=["text"]))
+        assert csv_f in text_only_docs
+        assert eml_f in text_only_docs
+        assert img_f not in text_only_docs
+        assert aud_f not in text_only_docs
+
+        # Missing modalities detector flags both image and audio
+        all_docs = list(iter_document_paths([tmp_path]))
+        missing = detect_missing_modalities(all_docs, ["text"])
+        assert "image" in missing and missing["image"]["count"] == 1
+        assert "audio" in missing and missing["audio"]["count"] == 1
+
+        # CSV and EML chunking
+        csv_chunks = list(build_chunks(csv_f))
+        assert len(csv_chunks) == 1 and "Alice" in csv_chunks[0].text
+        eml_chunks = list(build_chunks(eml_f))
+        assert len(eml_chunks) == 1 and "Budget" in eml_chunks[0].text
+        img_chunks = list(build_chunks(img_f, modalities=["text", "image"]))
+        assert len(img_chunks) == 1 and img_chunks[0].metadata["modality"] == "image"
+
+    def test_hybrid_reranker_preserves_multimodal_score(self) -> None:
+        from docfinder.index.reranker import Reranker
+
+        reranker = Reranker()
+        reranker._model = MagicMock()
+        reranker._model.predict.return_value = [0.0]  # sigmoid(0.0) = 0.5
+
+        candidates = [
+            {"text": "regular text", "score": 0.4, "metadata": {"modality": "text"}},
+            {"text": "[Image: scan.png]", "score": 0.92, "metadata": {"modality": "image"}},
+        ]
+        ranked = reranker.rerank("invoice", candidates, top_k=2)
+        assert ranked[0]["metadata"]["modality"] == "image"
+        assert abs(ranked[0]["score"] - 0.92) < 1e-6

@@ -14,7 +14,7 @@ Each chunk is converted into a dense vector embedding using a SentenceTransforme
 
 ```python
 # Internally, DocFinder uses:
-model = SentenceTransformer("BAAI/bge-m3")
+model = SentenceTransformer("google/embeddinggemma-2")
 embedding = model.encode(chunk_text)
 ```
 

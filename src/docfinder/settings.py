@@ -38,21 +38,40 @@ _DEFAULTS: dict = {
     "hotkey_enabled": True,
     "embedding_backend": "local",  # "local" | "ollama"
     "embedding_model": "",  # empty = AppConfig().model_name
+    "embedding_modalities": ["text"],  # ["text"] (270M), + "image" (+170M), + "audio" (+300M)
     "ollama_url": "",
     "ollama_api_key": "",
     "llm_backend": "local",  # "local" | "ollama"
     "llm_model": "",
 }
 
+VALID_MODALITIES: tuple[str, ...] = ("text", "image", "audio")
+
+
+def normalize_modalities(modalities: list[str] | tuple[str, ...] | None) -> list[str]:
+    """Return a canonical list of active embedding modalities (always starts with 'text')."""
+    selected = set(modalities or ["text"])
+    ordered = ["text"]
+    for mod in VALID_MODALITIES[1:]:
+        if mod in selected:
+            ordered.append(mod)
+    return ordered
+
 
 def load_settings() -> dict:
-    defaults = {**_DEFAULTS, "hotkey": _default_hotkey()}
+    defaults = {
+        **_DEFAULTS,
+        "embedding_modalities": list(_DEFAULTS["embedding_modalities"]),
+        "hotkey": _default_hotkey(),
+    }
     path = get_settings_path()
     if not path.exists():
         return defaults
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        return {**defaults, **data}
+        merged = {**defaults, **data}
+        merged["embedding_modalities"] = normalize_modalities(merged.get("embedding_modalities"))
+        return merged
     except Exception as exc:
         logger.warning("Failed to read settings from %s: %s", path, exc)
         return defaults

@@ -40,7 +40,7 @@ pip install torch --index-url https://download.pytorch.org/whl/cpu
 
 **Core pipeline:**
 1. `ingestion/pdf_loader.py` — multi-format: PDF (PyMuPDF, tables→Markdown), TXT, MD, DOCX/DOC, ODT/ODP/ODG, PPTX/PPT, HTML, EPUB; `build_chunks(path, max_chars=1200, overlap=200)`; paged chunking per format
-2. `embedding/encoder.py` — `EmbeddingModel` wraps SentenceTransformer, default `BAAI/bge-m3` (1024-dim); device auto-detect CUDA → MPS → ROCm → CPU; optional ONNX backend (OpenVINO only in type hints, no implementation)
+2. `embedding/encoder.py` — `EmbeddingModel` wraps SentenceTransformer, default `google/embeddinggemma-2` (768-dim multimodal: text/code 270M, +vision 170M, +audio 300M); device auto-detect CUDA → MPS → ROCm → CPU; safe bfloat16/float32 precision
 3. `index/indexer.py` — `Indexer(embedder, store, *, chunk_chars, overlap, embed_batch_size, progress_callback: (processed, total, current_file))`; parallel parsing via ProcessPoolExecutor when ≥4 docs (macOS always 1 worker); adaptive embed batch by RAM (4–64); IndexStats
 4. `index/storage.py` — `SQLiteVectorStore`; WAL; `meta` table stores embedding model; `ensure_embedding_model()` wipes the index when model changed; numpy cosine (`embeddings @ query`); dimension mismatch raises ValueError
 5. `index/search.py` — `Searcher.search(query, *, top_k=10, folders=None)` → SearchResult; `index/reranker.py` `Reranker` (cross-encoder ms-marco-MiniLM-L-2-v2) always used by web `/search`

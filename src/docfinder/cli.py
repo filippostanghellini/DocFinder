@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 from typing import List, Optional
 
@@ -15,7 +16,8 @@ from docfinder.embedding.encoder import EmbeddingConfig, EmbeddingModel
 from docfinder.index.indexer import Indexer
 from docfinder.index.search import Searcher
 from docfinder.index.storage import SQLiteVectorStore
-from docfinder.utils.files import iter_document_paths
+from docfinder.settings import load_settings, normalize_modalities, save_settings
+from docfinder.utils.files import detect_missing_modalities, iter_document_paths
 
 console = Console()
 app = typer.Typer(help="DocFinder - local semantic search for your documents")
@@ -37,11 +39,16 @@ def index(
     ),
     db: Path = typer.Option(None, "--db", help="SQLite database path"),
     model: str = typer.Option(AppConfig().model_name, help="Sentence-transformer model name"),
+    modalities: Optional[str] = typer.Option(
+        None,
+        "--modalities",
+        help="Comma-separated EmbeddingGemma 2 modalities: text, image, audio",
+    ),
     chunk_chars: int = typer.Option(AppConfig().chunk_chars, help="Chunk size in characters"),
     overlap: int = typer.Option(AppConfig().overlap, help="Chunk overlap"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose logging"),
 ) -> None:
-    """Index one or more paths containing documents (PDF, DOCX, MD, TXT)."""
+    """Index one or more paths containing documents, code, images, or audio/video."""
     _setup_logging(verbose)
     config = AppConfig(
         db_path=db if db is not None else AppConfig().db_path,
@@ -53,12 +60,50 @@ def index(
     resolved_db = config.resolve_db_path(Path.cwd())
     _ensure_db_parent(resolved_db)
 
-    embedder = EmbeddingModel(EmbeddingConfig(model_name=config.model_name))
+    settings = load_settings()
+    if modalities is not None:
+        active_mods = normalize_modalities([m.strip() for m in modalities.split(",") if m.strip()])
+    else:
+        active_mods = normalize_modalities(settings.get("embedding_modalities"))
+
+    all_paths = list(iter_document_paths(inputs))
+    if not all_paths:
+        embedder = EmbeddingModel(
+            EmbeddingConfig(model_name=config.model_name, modalities=tuple(active_mods))
+        )
+        store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
+        console.print(f"Indexing into [bold]{resolved_db}[/bold]...")
+        console.print("[yellow]No supported documents found.[/yellow]")
+        store.close()
+        return
+
+    missing = detect_missing_modalities(all_paths, active_mods)
+    if missing and modalities is None and sys.stdin is not None and sys.stdin.isatty():
+        for mod_key, info in missing.items():
+            examples = ", ".join(info["examples"][:3])
+            prompt_msg = (
+                f"Found {info['count']} complex file(s) ({examples}) requiring "
+                f"{info['label']} (~{info['ram_mb']} MB RAM). Enable and download this module?"
+            )
+            if typer.confirm(prompt_msg, default=True):
+                active_mods = normalize_modalities(active_mods + [mod_key])
+                settings["embedding_modalities"] = active_mods
+                save_settings(settings)
+
+    doc_paths = list(iter_document_paths(inputs, modalities=active_mods))
+    embedder = EmbeddingModel(
+        EmbeddingConfig(model_name=config.model_name, modalities=tuple(active_mods))
+    )
     store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
-    indexer = Indexer(embedder, store, chunk_chars=config.chunk_chars, overlap=config.overlap)
+    indexer = Indexer(
+        embedder,
+        store,
+        chunk_chars=config.chunk_chars,
+        overlap=config.overlap,
+        modalities=active_mods,
+    )
 
     console.print(f"Indexing into [bold]{resolved_db}[/bold]...")
-    doc_paths = list(iter_document_paths(inputs))
     if not doc_paths:
         console.print("[yellow]No supported documents found.[/yellow]")
         store.close()

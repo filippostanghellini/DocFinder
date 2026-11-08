@@ -1658,8 +1658,42 @@
 
           <p style="font-size:0.82rem; color:var(--text-2); margin-bottom:0.65rem; line-height:1.5;">
             Choose which models DocFinder uses for embeddings, search results and AI chat.
-            Connect to a local or remote Ollama server to pick any model it serves.
+            By default, DocFinder uses <strong>Google EmbeddingGemma 2</strong> with modular encoders so you only load what you need.
           </p>
+
+          <div style="margin-bottom:0.9rem; padding:0.75rem 0.85rem; background:var(--bg-2); border:1px solid var(--border); border-radius:var(--radius-sm);">
+            <div style="font-size:0.84rem; font-weight:600; color:var(--text-0); margin-bottom:0.25rem;">
+              EmbeddingGemma 2 Modules &mdash; What to download &amp; enable
+            </div>
+            <p style="font-size:0.78rem; color:var(--text-2); margin:0 0 0.6rem; line-height:1.45;">
+              At first launch only <strong>Text &amp; Code (270M)</strong> is active for maximum speed and low RAM.
+              Enable extra modules below whenever you want to search inside scanned PDFs, images, or audio/video files
+              (all modules share the same 768-dim vector space &mdash; enabling a module does not wipe your existing index).
+            </p>
+            <div style="display:flex; flex-direction:column; gap:0.5rem;">
+              <label style="display:flex; align-items:flex-start; gap:0.55rem; font-size:0.8rem; opacity:0.9;">
+                <input type="checkbox" id="modality-text" checked disabled style="margin-top:0.2rem;" />
+                <span>
+                  <strong>Text, Office &amp; Code (270M &middot; ~250 MB RAM &middot; Always on)</strong><br/>
+                  <span style="color:var(--text-2); font-size:0.76rem;">Digital PDFs, Word, Excel (.xlsx/.csv), PowerPoint, OpenDocument, Markdown, HTML, EPUB, emails (.eml/.mbox), and source code.</span>
+                </span>
+              </label>
+              <label style="display:flex; align-items:flex-start; gap:0.55rem; font-size:0.8rem; cursor:pointer;">
+                <input type="checkbox" id="modality-image" style="margin-top:0.2rem;" />
+                <span>
+                  <strong>Scanned PDFs &amp; Images (+Vision &middot; +170M &middot; ~190 MB RAM)</strong><br/>
+                  <span style="color:var(--text-2); font-size:0.76rem;">Searches inside scanned PDF pages (invoices, receipts, contracts without selectable text), screenshots, diagrams, and images (.png, .jpg, .webp, .tiff) without external OCR.</span>
+                </span>
+              </label>
+              <label style="display:flex; align-items:flex-start; gap:0.55rem; font-size:0.8rem; cursor:pointer;">
+                <input type="checkbox" id="modality-audio" style="margin-top:0.2rem;" />
+                <span>
+                  <strong>Audio &amp; Video Recordings (+Audio &middot; +300M &middot; ~310 MB RAM)</strong><br/>
+                  <span style="color:var(--text-2); font-size:0.76rem;">Searches voice notes, call recordings, podcasts (.wav, .mp3, .m4a, .flac, .ogg) and video files (.mp4, .mov, .mkv).</span>
+                </span>
+              </label>
+            </div>
+          </div>
 
           <div class="setting-row">
             <div class="setting-info">
@@ -1789,6 +1823,15 @@
       <div class="modal">
         <h3 class="modal-title">Before you index</h3>
         <ul id="index-warn-list" class="warn-list"></ul>
+        <div id="warn-modalities" style="display:none; margin-top:0.65rem; padding:0.65rem 0.75rem; background:var(--bg-2); border:1px solid var(--border); border-radius:var(--radius-sm);">
+          <p style="font-size:0.8rem; font-weight:600; margin:0 0 0.35rem; color:var(--text-0);">
+            Complex files detected &mdash; download/enable extra EmbeddingGemma 2 modules?
+          </p>
+          <p style="font-size:0.75rem; color:var(--text-2); margin:0 0 0.5rem; line-height:1.4;">
+            Check the modules you want to enable now so these files are indexed too (or uncheck to index only Text &amp; Code):
+          </p>
+          <div id="warn-modality-list" style="display:flex; flex-direction:column; gap:0.45rem;"></div>
+        </div>
         <div id="warn-exclusions" style="display:none; margin-top:0.65rem;">
           <p style="font-size:0.78rem; font-weight:600; margin-bottom:0.35rem; color:var(--text-0);">
             Large files &mdash; uncheck to skip during indexing:
@@ -2067,15 +2110,35 @@
       // ── Index warning modal ───────────────────────────────────────────────
       const indexWarnModal   = document.getElementById('index-warn-modal');
       const indexWarnList    = document.getElementById('index-warn-list');
+      const warnModalities   = document.getElementById('warn-modalities');
+      const warnModalityList = document.getElementById('warn-modality-list');
       const warnExclusions   = document.getElementById('warn-exclusions');
       const warnFileList     = document.getElementById('warn-file-list');
       const cancelIndexWarn  = document.getElementById('cancel-index-warn');
       const confirmIndexWarn = document.getElementById('confirm-index-warn');
 
-      // Returns { proceed: bool, excludePaths: string[] }
-      function showIndexWarning(warnings, largeFiles = []) {
+      // Returns { proceed: bool, excludePaths: string[], enableModalities: string[] }
+      function showIndexWarning(warnings, largeFiles = [], missingModalities = {}) {
         return new Promise(resolve => {
           indexWarnList.innerHTML = warnings.map(w => `<li>${escHtml(w)}</li>`).join('');
+
+          const missingEntries = Object.values(missingModalities || {});
+          if (missingEntries.length > 0) {
+            warnModalityList.innerHTML = missingEntries.map(m => {
+              const ex = (m.examples || []).map(escHtml).join(', ');
+              return `<label style="display:flex; align-items:flex-start; gap:0.5rem; font-size:0.78rem; cursor:pointer;">
+                <input type="checkbox" class="missing-modality-cb" data-modality="${escHtml(m.modality)}" checked style="margin-top:0.2rem;" />
+                <span>
+                  <strong>${escHtml(m.label)}</strong> &mdash; ${m.count} file${m.count !== 1 ? 's' : ''} found (${ex})<br/>
+                  <span style="color:var(--text-2); font-size:0.74rem;">${escHtml(m.description)} (~${m.ram_mb} MB RAM)</span>
+                </span>
+              </label>`;
+            }).join('');
+            warnModalities.style.display = 'block';
+          } else {
+            warnModalityList.innerHTML = '';
+            warnModalities.style.display = 'none';
+          }
 
           if (largeFiles.length > 0) {
             warnFileList.innerHTML = largeFiles.map(f => {
@@ -2099,10 +2162,14 @@
             warnFileList.querySelectorAll('.large-file-cb:not(:checked)').forEach(cb => {
               excludePaths.push(cb.dataset.path);
             });
+            const enableModalities = [];
+            warnModalityList.querySelectorAll('.missing-modality-cb:checked').forEach(cb => {
+              enableModalities.push(cb.dataset.modality);
+            });
             cleanup();
-            resolve({ proceed: true, excludePaths });
+            resolve({ proceed: true, excludePaths, enableModalities });
           };
-          const onCancel  = () => { cleanup(); resolve({ proceed: false, excludePaths: [] }); };
+          const onCancel  = () => { cleanup(); resolve({ proceed: false, excludePaths: [], enableModalities: [] }); };
           const onOverlay = e => { if (e.target === indexWarnModal) onCancel(); };
           const onKey     = e => { if (e.key === 'Escape') onCancel(); };
 
@@ -2121,7 +2188,7 @@
         });
       }
 
-      // Returns { warnings: string[], largeFiles: object[] }
+      // Returns { warnings: string[], largeFiles: object[], missingModalities: object }
       async function buildIndexWarnings(targetPath) {
         const LARGE_FILE_MB  = 100;
         const MANY_FILES     = 50;
@@ -2138,11 +2205,12 @@
           if (res.ok) scanData = await res.json();
         } catch (_) {}
 
-        const warnings    = [];
-        const largeFiles  = [];
+        const warnings          = [];
+        const largeFiles        = [];
+        const missingModalities = (scanData && scanData.missing_modalities) ? scanData.missing_modalities : {};
 
         if (scanData) {
-          if (scanData.file_count === 0) {
+          if (scanData.file_count === 0 && Object.keys(missingModalities).length === 0) {
             warnings.push('No supported files were found in the selected folder.');
           } else if (scanData.file_count > MANY_FILES) {
             warnings.push(
@@ -2163,7 +2231,7 @@
             `Low available RAM (${systemInfo.available_mb} MB free) \u2014 indexing may be slow or unstable.`
           );
         }
-        return { warnings, largeFiles };
+        return { warnings, largeFiles, missingModalities };
       }
 
       // ── Indexing with progress polling ───────────────────────────────────
@@ -2267,12 +2335,14 @@
         folderPreview.style.display = 'none';
 
         // Scan + warn before starting
-        const { warnings, largeFiles } = await buildIndexWarnings(targetPath);
+        const { warnings, largeFiles, missingModalities } = await buildIndexWarnings(targetPath);
         let excludePaths = [];
-        if (warnings.length > 0 || largeFiles.length > 0) {
-          const result = await showIndexWarning(warnings, largeFiles);
+        let enableModalities = [];
+        if (warnings.length > 0 || largeFiles.length > 0 || Object.keys(missingModalities).length > 0) {
+          const result = await showIndexWarning(warnings, largeFiles, missingModalities);
           if (!result.proceed) return;
           excludePaths = result.excludePaths;
+          enableModalities = result.enableModalities || [];
         }
 
         indexBtn.disabled = true;
@@ -2287,8 +2357,12 @@
               paths: [targetPath],
               exclude_paths: excludePaths,
               privacy: document.getElementById('index-privacy').checked,
+              enable_modalities: enableModalities.length > 0 ? enableModalities : undefined,
             }),
           });
+          if (enableModalities.length > 0) {
+            loadOllamaSettings();
+          }
           const startData = await startRes.json();
           if (!startRes.ok) throw new Error(startData.detail || 'Failed to start indexing');
 
@@ -2745,11 +2819,24 @@
         updateChatButtonsVisibility();
         if (ragEnabled) {
           ragModelsSection.style.display = '';
-          loadRagModels();
+          await loadRagModels();
+          startRagPollIfBusy();
         } else {
           ragModelsSection.style.display = 'none';
+          stopRagPoll();
         }
       });
+
+      // Loads triggered after a render (auto-load of a downloaded model) leave the UI
+      // stuck on "Model ready" unless we re-check the status and start polling.
+      function startRagPollIfBusy() {
+        fetch(`${apiBase}/rag/download/status`)
+          .then(r => r.json())
+          .then(s => {
+            if (s.status === 'downloading' || s.status === 'loading') startRagPoll();
+          })
+          .catch(() => {});
+      }
 
       async function loadRagModels() {
         try {
@@ -2791,13 +2878,34 @@
               ${badges}
             `;
 
-            if (canRun && !isDownloading) {
+            // Selection stays possible even while another model downloads/loads:
+            // picking a card only saves the preference; a Download click during a
+            // running job is answered with already_running and re-offered after it.
+            if (canRun) {
               div.addEventListener('click', () => selectRagModel(m.name));
             }
             ragModelsList.appendChild(div);
 
             if (isSelected && canRun) ragSelectedModel = m.name;
           });
+
+          // Fallback: a saved model that is stale or cannot run on this machine
+          // must not leave the section without a selection — fall back to the
+          // recommended tier so the suggestion is always visible.
+          const selectedStillValid = ragModelsData.some(
+            x => x.name === ragSelectedModel && data.total_ram_mb >= x.ram_min_mb
+          );
+          if (!selectedStillValid) {
+            const rec = ragModelsData.find(
+              x => x.recommended && data.total_ram_mb >= x.ram_min_mb
+            );
+            if (rec) {
+              ragSelectedModel = rec.name;
+              ragModelsList.querySelectorAll('.model-card').forEach(c => {
+                c.classList.toggle('selected', c.dataset.model === rec.name);
+              });
+            }
+          }
 
           // If download is in progress, show progress bar and start polling
           if (isDownloading) {
@@ -2838,6 +2946,7 @@
             if (s.status !== 'ready' && s.status !== 'loading') {
               fetch(`${apiBase}/rag/download`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
             }
+            startRagPollIfBusy();
           });
         } else {
           ragStatusMsg.style.background = 'var(--primary-light)';
@@ -3011,13 +3120,20 @@
       embeddingModelSelect.addEventListener('change', updateOllamaRows);
       llmBackendSelect.addEventListener('change', updateOllamaRows);
 
+      const modalityImageCb = document.getElementById('modality-image');
+      const modalityAudioCb = document.getElementById('modality-audio');
+
       document.getElementById('save-ollama-btn').addEventListener('click', async () => {
         const embOllama = embeddingBackendSelect.value === 'ollama';
+        const selectedModalities = ['text'];
+        if (modalityImageCb && modalityImageCb.checked) selectedModalities.push('image');
+        if (modalityAudioCb && modalityAudioCb.checked) selectedModalities.push('audio');
         const payload = {
           ollama_url: ollamaUrlInput.value.trim(),
           ollama_api_key: clearOllamaApiKey.checked ? '' : (ollamaApiKeyInput.value || null),
           embedding_backend: embeddingBackendSelect.value,
           embedding_model: embOllama ? embeddingModelSelect.value : '',
+          embedding_modalities: selectedModalities,
           llm_backend: llmBackendSelect.value,
           llm_model: llmBackendSelect.value === 'ollama' ? llmModelSelect.value : '',
         };
@@ -3101,6 +3217,9 @@
           llmBackendSelect.value = settings.llm_backend === 'ollama' ? 'ollama' : 'local';
           savedEmbeddingBackend = embeddingBackendSelect.value;
           savedEmbeddingModel = settings.embedding_model || '';
+          const activeMods = Array.isArray(settings.embedding_modalities) ? settings.embedding_modalities : ['text'];
+          if (modalityImageCb) modalityImageCb.checked = activeMods.includes('image');
+          if (modalityAudioCb) modalityAudioCb.checked = activeMods.includes('audio');
           updateOllamaRows();
           if (ollamaUrlInput.value.trim()) {
             ollamaTestBtn.click();
