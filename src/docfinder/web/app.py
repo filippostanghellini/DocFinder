@@ -593,17 +593,24 @@ def _open_pdf_at_page(path: Path, page: int) -> bool:
     try:
         subprocess.Popen(["/usr/bin/open", "-a", "Preview", str(path)])
         script = (
-            'tell application "System Events"\n'
-            "    delay 0.6\n"
-            '    keystroke "g" using {command down, option down}\n'
-            "    delay 0.4\n"
-            f'    keystroke "{page}"\n'
-            "    delay 0.2\n"
-            "    keystroke return\n"
-            "end tell\n"
+            "on run argv\n"
+            "    set pageNum to item 1 of argv\n"
+            '    tell application "System Events"\n'
+            "        delay 0.6\n"
+            '        keystroke "g" using {command down, option down}\n'
+            "        delay 0.4\n"
+            "        keystroke pageNum\n"
+            "        delay 0.2\n"
+            "        keystroke return\n"
+            "    end tell\n"
+            "end run\n"
         )
         subprocess.run(
-            ["/usr/bin/osascript"], input=script, capture_output=True, text=True, timeout=10
+            ["/usr/bin/osascript", "-", str(int(page))],
+            input=script,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         return True
     except Exception as exc:  # pragma: no cover - defensive
@@ -634,12 +641,19 @@ async def open_document(payload: OpenRequest) -> dict[str, str]:
         if payload.line is not None and payload.line > 0:
             import shutil
 
+            # Coerce to int to break taint flow from the request payload.
+            try:
+                line_no = int(payload.line)
+            except (TypeError, ValueError):
+                line_no = 0
+            if line_no <= 0:
+                line_no = None
             for editor_bin, flag in (("code", "-g"), ("cursor", "-g"), ("zed", None)):
                 resolved_bin = shutil.which(editor_bin)
-                if resolved_bin:
-                    target = f"{path}:{payload.line}"
+                if resolved_bin and line_no is not None:
+                    target = f"{path}:{line_no}"
                     cmd = [resolved_bin, flag, target] if flag else [resolved_bin, target]
-                    subprocess.Popen(cmd)
+                    subprocess.Popen(cmd)  # lgtm[py/command-line-injection]
                     return {"status": "ok"}
 
         # Best-effort: open PDFs at the requested page (macOS Preview via

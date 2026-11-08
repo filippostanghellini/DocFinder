@@ -15,7 +15,6 @@ Defaults to Logo.png in the project root. Requires Pillow + PyMuPDF + numpy
 
 from __future__ import annotations
 
-import io
 import sys
 from pathlib import Path
 
@@ -74,7 +73,6 @@ def build_bg() -> np.ndarray:
         (0.80 * SIZE, 0.80 * SIZE, 0.55 * SIZE, 234, 122, 242),  # violet glow
     ):
         d2 = (xx - cx) ** 2 + (yy - cy) ** 2
-        glow = np.int8(0)
         glow = np.clip(35.0 * (1.0 - np.sqrt(d2) / rad), 0, 90)
         r += glow * cr / 255.0
         g += glow * cg / 255.0

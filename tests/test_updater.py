@@ -40,7 +40,8 @@ def test_version_key_padding():
     assert updater._version_key((2, 4)) > updater._version_key((2, 3, 9))
 
 
-def test_pick_asset_darwin():
+def test_pick_asset_darwin(monkeypatch):
+    monkeypatch.setattr("sys.platform", "darwin")
     assets = [
         {
             "name": "DocFinder-Linux-x86_64.AppImage",
