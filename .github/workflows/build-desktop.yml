@@ -283,15 +283,24 @@ jobs:
             
             # Check log file
             $logFile = "$env:LOCALAPPDATA\DocFinder\logs\docfinder.log"
+            $fatalError = $false
             if (Test-Path $logFile) {
               Write-Host "=== Log file contents ==="
-              Get-Content $logFile
+              $logContent = Get-Content $logFile -Raw
+              Write-Host $logContent
+              if ($logContent -match "Fatal error during DocFinder startup") {
+                $fatalError = $true
+              }
             }
             
             # Terminate the app
             Write-Host "Terminating app..."
             Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
             Write-Host "App terminated successfully"
+            if ($fatalError) {
+              Write-Host "ERROR: Fatal startup error detected in log file!"
+              exit 1
+            }
           } else {
             Write-Host "ERROR: App crashed during smoke test!"
             $logFile = "$env:LOCALAPPDATA\DocFinder\logs\docfinder.log"
@@ -356,10 +365,11 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          # Install CPU-only PyTorch (smaller, no CUDA libraries)
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
           # Use system-provided PyGObject (no pip build needed)
           pip install '.[dev,gui]'
+          # Reinstall matched CPU-only torch + torchvision last so CUDA wheels
+          # pulled from PyPI cannot shadow them or bloat the AppImage.
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu --force-reinstall --no-deps
           pip cache purge
 
       - name: Download appimagetool
