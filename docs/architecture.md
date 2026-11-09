@@ -54,9 +54,7 @@ The `chunk_text_stream_paged` function takes a stream of `(page_num, text)` tupl
 
 ### 4. Embedding (`embedding/encoder.py`)
 
-`EmbeddingModel` wraps SentenceTransformer with automatic backend detection:
-- Detection order: CUDA → MPS → ROCm → CPU (MPS is preferred on Apple Silicon)
-- Optional ONNX/OpenVINO backends via Optimum
+`EmbeddingModel` wraps SentenceTransformer with automatic backend detection (PyTorch MPS on Apple Silicon, CUDA/ROCm/CPU elsewhere). For the default `google/embeddinggemma-2` checkpoint the backend is forced to PyTorch with safe `bfloat16`/`float32` precision; ONNX/OpenVINO paths apply only to legacy non-Gemma checkpoints
 
 ### 5. Storage (`index/storage.py`)
 
@@ -92,23 +90,23 @@ The GUI launches a thread running uvicorn hosting the FastAPI app, then wraps it
 The FastAPI app (`web/app.py`) provides:
 
 **Indexing**
-- `POST /index` — start indexing (returns `job_id`, async background processing)
-- `GET /index/status/{job_id}` — poll indexing progress
-- `POST /index/scan` — preview files before indexing
+- `POST /index` - start indexing (returns `job_id`, async background processing)
+- `GET /index/status/{job_id}` - poll indexing progress
+- `POST /index/scan` - preview files before indexing
 
 **Search**
-- `POST /search` — semantic search (returns 409 with guidance if the index was built with a different embedding model)
-- `GET /search/folders` — indexed directories for search-time filtering
+- `POST /search` - semantic search (returns 409 with guidance if the index was built with a different embedding model)
+- `GET /search/folders` - indexed directories for search-time filtering
 
 **Documents**
-- `GET /documents` — list indexed documents
-- `DELETE /documents/{doc_id}` · `POST /documents/delete` · `DELETE /documents/cleanup` — remove documents
-- `POST /open` — open a document with the system handler
+- `GET /documents` - list indexed documents
+- `DELETE /documents/{doc_id}` · `POST /documents/delete` · `DELETE /documents/cleanup` - remove documents
+- `POST /open` - open a document with the system handler
 
 **AI chat (RAG)**
-- `POST /rag/chat` — answer a question from a chunk's context window
-- `GET /rag/models` — available GGUF tiers
-- `POST /rag/download` + `GET /rag/download/status` — model download
+- `POST /rag/chat` - answer a question from a chunk's context window
+- `GET /rag/models` - available GGUF tiers
+- `POST /rag/download` + `GET /rag/download/status` - model download
 
 **Settings & system**
 - `GET` / `POST /settings` · `GET /system/info`

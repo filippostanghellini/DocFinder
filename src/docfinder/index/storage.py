@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
@@ -14,6 +15,84 @@ import numpy as np
 from docfinder.models import ChunkRecord, DocumentMetadata
 
 logger = logging.getLogger(__name__)
+
+_STOPWORDS: frozenset[str] = frozenset(
+    {
+        "the",
+        "and",
+        "for",
+        "with",
+        "that",
+        "this",
+        "from",
+        "have",
+        "what",
+        "where",
+        "when",
+        "which",
+        "how",
+        "about",
+        "into",
+        "une",
+        "des",
+        "les",
+        "dans",
+        "pour",
+        "con",
+        "del",
+        "della",
+        "delle",
+        "degli",
+        "nel",
+        "nella",
+        "che",
+        "non",
+        "una",
+        "uno",
+        "per",
+        "come",
+        "dove",
+    }
+)
+
+
+def compute_lexical_boost(query_text: str, *, text: str, title: str, path: str) -> float:
+    """Compute a small additive score boost for exact phrase, token, or filename matches.
+
+    Embeddings capture semantic similarity well, but exact invoice numbers, error
+    codes, identifiers, and filenames deserve a deterministic boost when present.
+    """
+    cleaned = (query_text or "").strip().lower()
+    if len(cleaned) < 2:
+        return 0.0
+
+    # Strip optional prefix like "code:" used for code-focused queries
+    if cleaned.startswith("code:"):
+        cleaned = cleaned[5:].strip()
+    if len(cleaned) < 2:
+        return 0.0
+
+    haystack_text = (text or "").lower()
+    haystack_title = f"{title or ''} {Path(path).name if path else ''}".lower()
+
+    boost = 0.0
+    if len(cleaned) >= 3 and cleaned in haystack_text:
+        boost += 0.12
+    if len(cleaned) >= 3 and cleaned in haystack_title:
+        boost += 0.08
+
+    tokens = [
+        tok
+        for tok in re.findall(r"[a-z0-9_.\-]+", cleaned)
+        if len(tok) >= 2 and tok not in _STOPWORDS
+    ]
+    if tokens:
+        text_hits = sum(1 for tok in tokens if tok in haystack_text)
+        title_hits = sum(1 for tok in tokens if tok in haystack_title)
+        boost += 0.10 * (text_hits / len(tokens))
+        boost += 0.06 * (title_hits / len(tokens))
+
+    return min(boost, 0.28)
 
 
 class SQLiteVectorStore:
@@ -161,10 +240,10 @@ class SQLiteVectorStore:
             return False
 
         # Either a known different model, or unknown provenance with existing
-        # vectors (a pre-meta database) — in both cases the index is not
+        # vectors (a pre-meta database) - in both cases the index is not
         # trustworthy for the current model.
         logger.warning(
-            "Index was built with '%s' but the current model is '%s' — "
+            "Index was built with '%s' but the current model is '%s' - "
             "clearing the index so everything is re-embedded",
             stored or "an unknown model",
             model_name,
@@ -286,6 +365,7 @@ class SQLiteVectorStore:
         *,
         top_k: int = 10,
         folders: Sequence[str] | None = None,
+        query_text: str | None = None,
     ) -> List[dict]:
         query = np.asarray(embedding, dtype="float32")
         sql = """
@@ -331,11 +411,28 @@ class SQLiteVectorStore:
             raise ValueError(
                 f"Index vectors have {stored_dim} dimensions but the current "
                 f"embedding model produces {query.size}. The index was built "
-                "with a different embedding model — re-index your documents."
+                "with a different embedding model - re-index your documents."
             )
 
         embeddings = np.vstack([np.frombuffer(row["embedding"], dtype="float32") for row in rows])
-        scores = embeddings @ query
+        scores = (embeddings @ query).astype("float64")
+
+        if query_text and query_text.strip():
+            q_str = query_text.strip()
+            boosts = np.fromiter(
+                (
+                    compute_lexical_boost(
+                        q_str,
+                        text=row["text"] or "",
+                        title=row["title"] or "",
+                        path=row["path"] or "",
+                    )
+                    for row in rows
+                ),
+                dtype="float64",
+                count=len(rows),
+            )
+            scores = scores + boosts
 
         if top_k < len(scores):
             top_indices = np.argpartition(scores, -top_k)[-top_k:]

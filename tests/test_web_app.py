@@ -217,7 +217,7 @@ class TestSearchEndpoint:
         mock_searcher = MagicMock()
         mock_searcher.search.side_effect = ValueError(
             "Index vectors have 768 dimensions but the current embedding model produces "
-            "1024. The index was built with a different embedding model — "
+            "1024. The index was built with a different embedding model - "
             "re-index your documents."
         )
         mock_searcher_class.return_value = mock_searcher
@@ -294,6 +294,31 @@ class TestOpenEndpoint:
                 response = client.post("/open", json={"path": str(test_file)})
                 assert response.status_code == 200
                 assert response.json()["status"] == "ok"
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX-only test")
+    @patch("subprocess.Popen")
+    def test_open_reveal_in_finder_darwin(self, mock_popen: MagicMock, tmp_path: Path) -> None:
+        """Reveals file in Finder with open -R on macOS."""
+        test_file = tmp_path / "test.pdf"
+        test_file.touch()
+
+        with patch("os.name", "posix"), patch("sys.platform", "darwin"):
+            response = client.post("/open", json={"path": str(test_file), "reveal": True})
+            assert response.status_code == 200
+            mock_popen.assert_called_once_with(["open", "-R", str(test_file)])
+
+    @patch("subprocess.Popen")
+    @patch("shutil.which", return_value="/usr/local/bin/code")
+    def test_open_code_at_line(
+        self, _mock_which: MagicMock, mock_popen: MagicMock, tmp_path: Path
+    ) -> None:
+        """Opens source file at specific line in editor when line is provided."""
+        code_file = tmp_path / "main.py"
+        code_file.write_text("print('hi')\n")
+
+        response = client.post("/open", json={"path": str(code_file), "line": 42})
+        assert response.status_code == 200
+        mock_popen.assert_called_once_with(["/usr/local/bin/code", "-g", f"{code_file}:42"])
 
     @pytest.mark.skipif(sys.platform != "win32", reason="Windows-only test")
     @patch("os.startfile")

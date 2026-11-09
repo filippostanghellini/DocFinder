@@ -6,6 +6,7 @@ edit_uri: edit/main/docs/
 
 theme:
   name: material
+  custom_dir: docs/overrides
   logo: assets/logo.png
   favicon: assets/logo.png
   font:
@@ -26,11 +27,8 @@ theme:
         icon: material/weather-night
         name: Switch to dark mode
   features:
-    - navigation.sections
-    - navigation.top
     - search.suggest
     - search.highlight
-    - content.action.edit
     - content.code.copy
 
 extra:
@@ -56,18 +54,22 @@ markdown_extensions:
 extra_css:
   - assets/extra.css
 
+extra_javascript:
+  - assets/landing.js
+
 plugins:
   - search
 
 nav:
-  - Home: index.md
+  - DocFinder: index.md
   - Installation: install.md
-  - Usage: usage.md
   - Supported Formats: formats.md
-  - Semantic Search: search.md
-  - AI Chat: chat.md
-  - Architecture: architecture.md
-  - Changelog: changelog.md
-  - License: license.md
+  - Docs:
+      - Overview & Usage: usage.md
+      - Semantic & Hybrid Search: search.md
+      - Local AI Chat (RAG): chat.md
+      - Architecture: architecture.md
+      - Changelog: changelog.md
+      - License: license.md
 
 copyright: Copyright &copy; 2024-2026 DocFinder Team

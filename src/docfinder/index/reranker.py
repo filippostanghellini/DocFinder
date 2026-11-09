@@ -1,7 +1,8 @@
-"""Cross-encoder reranker for improving search precision."""
+"""Cross-encoder reranker for improving search precision (with multimodal passthrough)."""
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 from typing import List
@@ -10,10 +11,27 @@ from docfinder.embedding.encoder import is_hf_offline
 
 logger = logging.getLogger(__name__)
 
+_NON_TEXT_MODALITIES = frozenset({"image", "pdf_page_image", "audio", "video"})
+
 
 def _sigmoid(x: float) -> float:
     """Convert a raw logit to a 0-1 probability."""
     return 1.0 / (1.0 + math.exp(-x))
+
+
+def _is_non_text_candidate(candidate: dict) -> bool:
+    """Return True if the candidate represents a visual/audio item without prose text."""
+    raw_meta = candidate.get("metadata")
+    if isinstance(raw_meta, str) and raw_meta:
+        try:
+            meta = json.loads(raw_meta)
+        except Exception:
+            meta = {}
+    elif isinstance(raw_meta, dict):
+        meta = raw_meta
+    else:
+        meta = {}
+    return meta.get("modality") in _NON_TEXT_MODALITIES
 
 
 class Reranker:
@@ -21,6 +39,9 @@ class Reranker:
 
     Cross-encoders evaluate (query, document) pairs jointly, capturing
     semantic relationships that bi-encoder cosine similarity misses.
+    Non-text multimodal items (images, scanned PDF pages, audio/video) preserve
+    their EmbeddingGemma 2 cosine similarity score so the text-only cross-encoder
+    does not penalize them.
     """
 
     DEFAULT_MODEL = "cross-encoder/ms-marco-MiniLM-L-2-v2"
@@ -37,28 +58,30 @@ class Reranker:
             logger.info("Loaded reranker model: %s", self.model_name)
 
     def rerank(self, query: str, results: List[dict], *, top_k: int = 10) -> List[dict]:
-        """Re-rank results using the cross-encoder.
-
-        Args:
-            query: The search query.
-            results: List of dicts with at least "text" and "score" keys.
-            top_k: Number of top results to return after reranking.
-
-        Returns:
-            Re-ranked and trimmed list of result dicts, with updated scores.
-        """
+        """Re-rank results using the cross-encoder while preserving multimodal scores."""
         if not results:
             return results
 
-        self._ensure_model()
+        text_indices: list[int] = []
+        pairs: list[tuple[str, str]] = []
+        for idx, r in enumerate(results):
+            if _is_non_text_candidate(r):
+                r["embedding_score"] = r["score"]
+                r["rerank_score"] = float(r["score"])
+                # Map cosine similarity [-1, 1] onto a comparable [0, 1] confidence scale
+                r["score"] = max(0.0, min(1.0, float(r["score"])))
+            else:
+                text_indices.append(idx)
+                pairs.append((query, r["text"]))
 
-        pairs = [(query, r["text"]) for r in results]
-        scores = self._model.predict(pairs)
-
-        for r, rerank_score in zip(results, scores):
-            r["embedding_score"] = r["score"]
-            r["rerank_score"] = float(rerank_score)
-            r["score"] = _sigmoid(float(rerank_score))
+        if pairs:
+            self._ensure_model()
+            scores = self._model.predict(pairs)
+            for idx, rerank_score in zip(text_indices, scores):
+                r = results[idx]
+                r["embedding_score"] = r["score"]
+                r["rerank_score"] = float(rerank_score)
+                r["score"] = _sigmoid(float(rerank_score))
 
         results.sort(key=lambda r: r["score"], reverse=True)
         return results[:top_k]

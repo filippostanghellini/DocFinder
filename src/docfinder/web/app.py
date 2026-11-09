@@ -18,11 +18,14 @@ from typing import Any, Callable, List
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from docfinder import __version__ as DOCFINDER_VERSION
 from docfinder.config import AppConfig
 from docfinder.embedding.encoder import (
+    MODALITY_SPECS,
     EmbeddingConfig,
     EmbeddingModel,
     get_runtime_environment_info,
+    ollama_tag_for_modalities,
 )
 from docfinder.index.indexer import Indexer
 from docfinder.index.reranker import Reranker
@@ -35,8 +38,9 @@ from docfinder.ollama import (
     is_local_url,
     list_ollama_models,
 )
-from docfinder.settings import load_settings
+from docfinder.settings import load_settings, normalize_modalities
 from docfinder.settings import save_settings as _save_settings
+from docfinder.web import updater
 from docfinder.web.frontend import router as frontend_router
 
 LOGGER = logging.getLogger(__name__)
@@ -49,15 +53,17 @@ _embedder_lock = threading.Lock()
 def _build_embedder_from_settings() -> EmbeddingModel | OllamaEmbedder:
     """Build the embedder from persisted settings (Ollama or local SentenceTransformer)."""
     settings = load_settings()
+    modalities = tuple(normalize_modalities(settings.get("embedding_modalities")))
     if settings.get("embedding_backend") == "ollama" and settings.get("ollama_url"):
+        ollama_model = settings.get("embedding_model") or ollama_tag_for_modalities(modalities)
         return OllamaEmbedder(
             settings["ollama_url"],
-            settings.get("embedding_model") or "",
+            ollama_model,
             api_key=settings.get("ollama_api_key") or "",
         )
     config = AppConfig()
     model_name = settings.get("embedding_model") or config.model_name
-    return EmbeddingModel(EmbeddingConfig(model_name=model_name))
+    return EmbeddingModel(EmbeddingConfig(model_name=model_name, modalities=modalities))
 
 
 def _get_embedder() -> EmbeddingModel | OllamaEmbedder:
@@ -79,7 +85,7 @@ def _preload_embedder() -> None:
     try:
         _get_embedder()
     except Exception:
-        LOGGER.exception("Embedding model preload failed — will retry on first use")
+        LOGGER.exception("Embedding model preload failed - will retry on first use")
 
 
 def _reset_embedder() -> None:
@@ -158,7 +164,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="DocFinder Web", version="2.3.0", lifespan=lifespan)
+app = FastAPI(title="DocFinder Web", version=DOCFINDER_VERSION, lifespan=lifespan)
 app.include_router(frontend_router)
 
 
@@ -171,6 +177,10 @@ class SearchPayload(BaseModel):
 
 class OpenRequest(BaseModel):
     path: Path
+    reveal: bool = False
+    page: int | None = None
+    line: int | None = None
+    start_sec: float | None = None
 
 
 class DeleteDocumentRequest(BaseModel):
@@ -186,6 +196,7 @@ class IndexPayload(BaseModel):
     overlap: int | None = None
     exclude_paths: List[str] = []
     privacy: bool = False
+    enable_modalities: List[str] | None = None
 
 
 class RAGPayload(BaseModel):
@@ -202,6 +213,7 @@ class SettingsPayload(BaseModel):
     rag_model: str | None = None
     embedding_backend: str | None = None
     embedding_model: str | None = None
+    embedding_modalities: List[str] | None = None
     ollama_url: str | None = None
     ollama_api_key: str | None = None
     llm_backend: str | None = None
@@ -213,7 +225,13 @@ class OllamaModelsPayload(BaseModel):
     api_key: str | None = None
 
 
-_EMBEDDER_RESET_KEYS = ("embedding_backend", "embedding_model", "ollama_url", "ollama_api_key")
+_EMBEDDER_RESET_KEYS = (
+    "embedding_backend",
+    "embedding_model",
+    "embedding_modalities",
+    "ollama_url",
+    "ollama_api_key",
+)
 _LLM_RESET_KEYS = ("llm_backend", "llm_model", "rag_model", "ollama_url", "ollama_api_key")
 
 
@@ -259,7 +277,7 @@ async def search_documents(payload: SearchPayload) -> dict[str, List[SearchResul
     try:
         results = searcher.search(query, top_k=top_k, folders=folders if folders else None)
     except ValueError as exc:
-        # e.g. index built with a different embedding model — tell the user
+        # e.g. index built with a different embedding model - tell the user
         # instead of leaking a raw 500.
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     finally:
@@ -274,8 +292,7 @@ async def search_folders(db: Path | None = None) -> dict[str, Any]:
     if not resolved_db.exists():
         return {"folders": []}
 
-    embedder = _get_embedder()
-    store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
+    store = SQLiteVectorStore(resolved_db, dimension=0)
     try:
         folders = store.list_indexed_directories()
     finally:
@@ -495,7 +512,7 @@ async def rag_chat(payload: RAGPayload) -> dict:
         ):
             raise HTTPException(
                 status_code=403,
-                detail="This document was indexed in 100% privacy mode — "
+                detail="This document was indexed in 100% privacy mode - "
                 "chat requires a local or localhost LLM",
             )
 
@@ -569,6 +586,38 @@ async def rag_chat(payload: RAGPayload) -> dict:
     return {"answer": answer, "context_chunks_used": len(context_chunks)}
 
 
+def _open_pdf_at_page(path: Path, page: int) -> bool:
+    """Best-effort open a PDF at ``page`` (macOS Preview). Returns True on success."""
+    if sys.platform != "darwin":
+        return False
+    try:
+        subprocess.Popen(["/usr/bin/open", "-a", "Preview", str(path)])
+        script = (
+            "on run argv\n"
+            "    set pageNum to item 1 of argv\n"
+            '    tell application "System Events"\n'
+            "        delay 0.6\n"
+            '        keystroke "g" using {command down, option down}\n'
+            "        delay 0.4\n"
+            "        keystroke pageNum\n"
+            "        delay 0.2\n"
+            "        keystroke return\n"
+            "    end tell\n"
+            "end run\n"
+        )
+        subprocess.run(
+            ["/usr/bin/osascript", "-", str(int(page))],
+            input=script,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return True
+    except Exception as exc:  # pragma: no cover - defensive
+        LOGGER.debug("Could not open PDF at page %s: %s", page, exc)
+        return False
+
+
 @app.post("/open")
 async def open_document(payload: OpenRequest) -> dict[str, str]:
     path = payload.path.expanduser()
@@ -576,6 +625,43 @@ async def open_document(payload: OpenRequest) -> dict[str, str]:
         raise HTTPException(status_code=404, detail=f"File not found: {path}")
 
     try:
+        if payload.reveal:
+            if os.name == "posix":
+                if sys.platform == "darwin":
+                    subprocess.Popen(["open", "-R", str(path)])
+                else:
+                    subprocess.Popen(["xdg-open", str(path.parent)])
+            else:
+                normalized_path = os.path.normpath(str(path))
+                if not Path(normalized_path).is_absolute():
+                    normalized_path = os.path.abspath(normalized_path)
+                subprocess.Popen(["explorer", f"/select,{normalized_path}"])
+            return {"status": "ok"}
+
+        if payload.line is not None and payload.line > 0:
+            import shutil
+
+            # Coerce to int to break taint flow from the request payload.
+            try:
+                line_no = int(payload.line)
+            except (TypeError, ValueError):
+                line_no = 0
+            if line_no <= 0:
+                line_no = None
+            for editor_bin, flag in (("code", "-g"), ("cursor", "-g"), ("zed", None)):
+                resolved_bin = shutil.which(editor_bin)
+                if resolved_bin and line_no is not None:
+                    target = f"{path}:{line_no}"
+                    cmd = [resolved_bin, flag, target] if flag else [resolved_bin, target]
+                    subprocess.Popen(cmd)  # lgtm[py/command-line-injection]
+                    return {"status": "ok"}
+
+        # Best-effort: open PDFs at the requested page (macOS Preview via
+        # AppleScript). Falls through to a normal open on other platforms.
+        if payload.page is not None and payload.page > 0 and payload.line is None:
+            if _open_pdf_at_page(path, payload.page):
+                return {"status": "ok"}
+
         if os.name == "posix":  # macOS/Linux
             opener = "open" if sys.platform == "darwin" else "xdg-open"
             subprocess.Popen([opener, str(path)])
@@ -609,8 +695,7 @@ async def list_documents(db: Path | None = None) -> dict[str, Any]:
             "stats": {"document_count": 0, "chunk_count": 0, "total_size_bytes": 0},
         }
 
-    embedder = _get_embedder()
-    store = SQLiteVectorStore(resolved_db, dimension=embedder.dimension)
+    store = SQLiteVectorStore(resolved_db, dimension=0)
     try:
         documents = store.list_documents()
         stats = store.get_stats()
@@ -627,11 +712,10 @@ async def cleanup_missing_files(db: Path | None = None) -> dict[str, Any]:
     if not resolved_db.exists():
         raise HTTPException(status_code=404, detail="Database not found")
 
-    embedder = _get_embedder()
     removed_count = await asyncio.to_thread(
         _write_store,
         resolved_db,
-        embedder.dimension,
+        0,
         lambda store: store.remove_missing_files(),
     )
 
@@ -645,10 +729,7 @@ async def delete_all_documents(db: Path | None = None) -> dict[str, Any]:
     if not resolved_db.exists():
         raise HTTPException(status_code=404, detail="Database not found")
 
-    embedder = _get_embedder()
-    removed = await asyncio.to_thread(
-        _write_store, resolved_db, embedder.dimension, lambda store: store.clear_all()
-    )
+    removed = await asyncio.to_thread(_write_store, resolved_db, 0, lambda store: store.clear_all())
 
     return {"status": "ok", "removed": removed}
 
@@ -660,9 +741,8 @@ async def delete_document_by_id(doc_id: int, db: Path | None = None) -> dict[str
     if not resolved_db.exists():
         raise HTTPException(status_code=404, detail="Database not found")
 
-    embedder = _get_embedder()
     deleted = await asyncio.to_thread(
-        _write_store, resolved_db, embedder.dimension, lambda store: store.delete_document(doc_id)
+        _write_store, resolved_db, 0, lambda store: store.delete_document(doc_id)
     )
 
     if not deleted:
@@ -681,14 +761,12 @@ async def delete_document(payload: DeleteDocumentRequest, db: Path | None = None
     if not resolved_db.exists():
         raise HTTPException(status_code=404, detail="Database not found")
 
-    embedder = _get_embedder()
-
     def operation(store: SQLiteVectorStore) -> bool:
         if payload.doc_id is not None:
             return store.delete_document(payload.doc_id)
         return store.delete_document_by_path(payload.path)  # type: ignore[arg-type]
 
-    deleted = await asyncio.to_thread(_write_store, resolved_db, embedder.dimension, operation)
+    deleted = await asyncio.to_thread(_write_store, resolved_db, 0, operation)
 
     if not deleted:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -705,6 +783,8 @@ async def get_settings() -> dict:
 def _public_settings(settings: dict) -> dict:
     public = dict(settings)
     public["has_ollama_api_key"] = bool(public.pop("ollama_api_key", ""))
+    public["embedding_modalities"] = normalize_modalities(public.get("embedding_modalities"))
+    public["modality_specs"] = list(MODALITY_SPECS.values())
     return public
 
 
@@ -937,6 +1017,7 @@ async def update_settings(payload: SettingsPayload) -> dict:
         "rag_model",
         "embedding_backend",
         "embedding_model",
+        "embedding_modalities",
         "ollama_url",
         "ollama_api_key",
         "llm_backend",
@@ -944,6 +1025,8 @@ async def update_settings(payload: SettingsPayload) -> dict:
     ):
         value = getattr(payload, field)
         if value is not None:
+            if field == "embedding_modalities":
+                value = normalize_modalities(value)
             current[field] = value
     _save_settings(current)
 
@@ -984,6 +1067,7 @@ def _run_index_job(
 ) -> dict[str, Any]:
     embedder = _get_embedder()
     dimension = embedder.dimension
+    active_modalities = getattr(getattr(embedder, "config", None), "modalities", None)
 
     def _progress(processed: int, total: int, current_file: str) -> None:
         if job is not None:
@@ -993,7 +1077,7 @@ def _run_index_job(
 
     with _db_write_lock if lock_db else nullcontext():
         store = SQLiteVectorStore(resolved_db, dimension=dimension)
-        # No fixed embed_batch_size — Indexer adapts per-file based on available RAM
+        # No fixed embed_batch_size - Indexer adapts per-file based on available RAM
         indexer = Indexer(
             embedder,
             store,
@@ -1001,6 +1085,7 @@ def _run_index_job(
             overlap=config.overlap,
             progress_callback=_progress,
             privacy=privacy,
+            modalities=active_modalities if isinstance(active_modalities, (list, tuple)) else None,
         )
         try:
             stats = indexer.index(paths, exclude_paths=exclude_paths)
@@ -1081,6 +1166,16 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     if not payload.paths:
         raise HTTPException(status_code=400, detail="No path provided")
 
+    if payload.enable_modalities:
+        current = load_settings()
+        merged_mods = normalize_modalities(
+            list(current.get("embedding_modalities", ["text"])) + list(payload.enable_modalities)
+        )
+        if merged_mods != current.get("embedding_modalities"):
+            current["embedding_modalities"] = merged_mods
+            _save_settings(current)
+            _reset_embedder()
+
     embedder = _get_embedder()
     if (
         payload.privacy
@@ -1089,7 +1184,7 @@ async def index_documents(payload: IndexPayload) -> dict[str, Any]:
     ):
         raise HTTPException(
             status_code=400,
-            detail="100% privacy mode requires a local embedding model — "
+            detail="100% privacy mode requires a local embedding model - "
             "the configured Ollama server is remote",
         )
 
@@ -1161,7 +1256,31 @@ async def get_system_info() -> dict[str, Any]:
     """Return RAM + runtime backend and indexing strategy details."""
     memory = await asyncio.to_thread(_get_memory_info)
     runtime = await asyncio.to_thread(_get_runtime_info)
-    return {**memory, **runtime}
+    return {**memory, **runtime, "version": DOCFINDER_VERSION}
+
+
+@app.post("/system/update/check")
+async def check_for_update() -> dict[str, Any]:
+    """Check GitHub releases for a newer DocFinder version."""
+    try:
+        return await asyncio.to_thread(updater.check_for_update)
+    except updater.UpdateCheckError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@app.post("/system/update/install")
+async def install_update() -> dict[str, Any]:
+    """Download and install the latest release in the background."""
+    try:
+        return await asyncio.to_thread(updater.start_install)
+    except updater.UpdateCheckError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+@app.get("/system/update/status")
+async def update_status() -> dict[str, Any]:
+    """Poll update progress (downloading / installing / restarting / error)."""
+    return updater.status()
 
 
 class ScanPayload(BaseModel):
@@ -1170,7 +1289,7 @@ class ScanPayload(BaseModel):
 
 @app.post("/index/scan")
 async def scan_index_paths(payload: ScanPayload) -> dict[str, Any]:
-    """Scan paths for PDFs and return file stats without indexing."""
+    """Scan paths for supported files, report stats and any missing modality encoders."""
     if not payload.paths:
         raise HTTPException(status_code=400, detail="No path provided")
 
@@ -1179,9 +1298,14 @@ async def scan_index_paths(payload: ScanPayload) -> dict[str, Any]:
     _LARGE_FILE_BYTES = 100 * 1024 * 1024  # 100 MB
 
     def _scan() -> dict[str, Any]:
-        from docfinder.utils.files import iter_document_paths
+        from docfinder.utils.files import detect_missing_modalities, iter_document_paths
 
-        docs = list(iter_document_paths(resolved_paths))
+        settings = load_settings()
+        active_mods = normalize_modalities(settings.get("embedding_modalities"))
+        all_docs = list(iter_document_paths(resolved_paths))
+        docs = list(iter_document_paths(resolved_paths, modalities=active_mods))
+        missing_modalities = detect_missing_modalities(all_docs, active_mods)
+
         total_size = 0
         large_files: list[dict[str, Any]] = []
         by_type: dict[str, int] = {}
@@ -1197,9 +1321,12 @@ async def scan_index_paths(payload: ScanPayload) -> dict[str, Any]:
                 pass
         return {
             "file_count": len(docs),
+            "all_supported_count": len(all_docs),
             "total_size_bytes": total_size,
             "large_files": large_files,
             "by_type": by_type,
+            "active_modalities": active_mods,
+            "missing_modalities": missing_modalities,
         }
 
     return await asyncio.to_thread(_scan)

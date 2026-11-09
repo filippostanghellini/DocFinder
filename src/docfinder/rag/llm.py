@@ -55,7 +55,7 @@ MODEL_TIERS: List[ModelSpec] = [
         repo_id="unsloth/Qwen3.5-2B-GGUF",
         filename="Qwen3.5-2B-Q4_K_M.gguf",
         ctx_size=8192,
-        ram_min_mb=0,  # fallback — runs on anything
+        ram_min_mb=0,  # fallback - runs on anything
     ),
 ]
 
@@ -89,7 +89,7 @@ def _get_total_ram_mb() -> int:
             pass
 
     # Conservative fallback
-    logger.warning("Unable to detect system RAM — defaulting to 8 GB assumption")
+    logger.warning("Unable to detect system RAM - defaulting to 8 GB assumption")
     return 8_192
 
 

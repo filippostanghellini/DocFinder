@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "docfinder"
-version = "2.3.0"
+version = "2.4.0"
 license = "AGPL-3.0-or-later"
 description = "Local-first semantic search CLI for your documents (PDF, DOCX, Markdown, TXT)."
 authors = [
@@ -14,7 +14,9 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "pymupdf>=1.24.0",
-    "sentence-transformers>=2.6.0",
+    "torch>=2.0.0",
+    "sentence-transformers>=6.1.0",
+    "torchvision>=0.20.0",  # required by google/embeddinggemma-2 processor (image/video inputs)
     "onnxruntime>=1.17.0",
     "optimum>=2.0.0",
     # pin numpy to <3 to avoid runtime errors with precompiled C-extensions

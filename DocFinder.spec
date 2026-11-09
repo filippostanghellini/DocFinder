@@ -163,6 +163,7 @@ hiddenimports += collect_submodules("uvicorn")
 hiddenimports += collect_submodules("fastapi")
 hiddenimports += collect_submodules("starlette")
 hiddenimports += collect_submodules("torch")
+hiddenimports += collect_submodules("torchvision")
 
 # Linux: collect GTK/gi for pywebview
 if sys.platform.startswith("linux"):

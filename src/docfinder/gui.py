@@ -106,8 +106,8 @@ def _get_icon_path() -> str | None:
     if getattr(sys, "frozen", False):
         base_path = Path(sys._MEIPASS)  # type: ignore[attr-defined]
     else:
-        # When running from source
-        base_path = Path(__file__).parent.parent.parent.parent
+        # When running from source: src/docfinder/gui.py → docfinder → src → repo root
+        base_path = Path(__file__).resolve().parent.parent.parent
 
     # Try different icon locations
     icon_candidates = [
@@ -138,7 +138,7 @@ def _wait_for_server(host: str, port: int, timeout: float = 30.0) -> bool:
 class SpotlightPanel:
     """Native macOS NSPanel + WKWebView for Spotlight-style search.
 
-    Bypasses pywebview entirely for the floating search panel — pywebview 6.x
+    Bypasses pywebview entirely for the floating search panel - pywebview 6.x
     crashes on macOS 15 (Sequoia) when creating a second borderless window.
     This class creates the NSPanel and WKWebView directly via pyobjc/AppKit.
 
@@ -188,7 +188,7 @@ class SpotlightPanel:
         # ── NSPanel ───────────────────────────────────────────────────────────
         # NSWindowStyleMaskNonactivatingPanel (128): the panel becomes key and
         # receives keyboard events WITHOUT activating the parent application.
-        # This is how Spotlight/Alfred work — the previous active app stays
+        # This is how Spotlight/Alfred work - the previous active app stays
         # frontmost while the panel floats above and accepts typed input.
         panel = AppKit.NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
             rect,
@@ -248,7 +248,7 @@ class SpotlightPanel:
     def _do_show(self) -> None:
         """Raise the panel.  Must run on the Cocoa main thread.
 
-        The app is **not** activated — keyboard input is handled by the
+        The app is **not** activated - keyboard input is handled by the
         CGEventTap which intercepts all keystrokes while the panel is
         visible and injects them into the WKWebView via JavaScript.
         This gives true Spotlight / Alfred behaviour: the previously-active
@@ -350,6 +350,35 @@ class SpotlightPanel:
             logger.warning("SpotlightPanel._do_hide() failed: %s", exc)
 
 
+def _apply_dock_icon(icon_path: str | None) -> None:
+    """Set the Dock tile of the current process to the DocFinder icon.
+
+    For unbundled (source) runs macOS refreshes the tile with the
+    interpreter's default icon when the app activates, so this is also
+    re-applied after the GUI event loop is up (see _on_webview_started).
+    """
+    if not icon_path:
+        return
+    try:
+        from AppKit import NSApplication, NSImage  # type: ignore[import-untyped]
+
+        ns_app = NSApplication.sharedApplication()
+        ns_image = NSImage.alloc().initWithContentsOfFile_(icon_path)
+        if ns_image:
+            ns_app.setApplicationIconImage_(ns_image)
+            try:
+                from AppKit import NSRunningApplication  # type: ignore[import-untyped]
+
+                NSRunningApplication.currentRunningApplication().setIcon_(ns_image)
+            except Exception:
+                pass
+            logger.debug("macOS dock icon set via AppKit")
+    except ImportError:
+        logger.debug("pyobjc not available - run: pip install 'docfinder[gui]'")
+    except Exception as exc:
+        logger.debug("Could not set macOS dock icon: %s", exc)
+
+
 def _parse_pynput_hotkey(hotkey_str: str) -> tuple[int, int] | None:
     """Parse a pynput-style hotkey string into (modifier_flags, keycode).
 
@@ -408,7 +437,7 @@ def _parse_pynput_hotkey(hotkey_str: str) -> tuple[int, int] | None:
         "f12": 111,
     }
 
-    # macOS Option+key produces dead-key characters — map them back to base keys.
+    # macOS Option+key produces dead-key characters - map them back to base keys.
     # e.g. Option+D → ∂, Option+S → ß, Option+F → ƒ, etc.
     _DEADKEY_MAP: dict[str, str] = {
         "å": "a",
@@ -572,7 +601,7 @@ class GlobalHotkeyManager:
         _SHIFT_FLAG = 1 << 17
 
         def _tap_callback(proxy: object, event_type: int, event: object, refcon: object) -> object:
-            """CGEventTap callback — runs on the tap thread's CFRunLoop.
+            """CGEventTap callback - runs on the tap thread's CFRunLoop.
 
             When the spotlight panel is NOT visible, only the hotkey is
             intercepted.  When it IS visible, **all** keystrokes are captured,
@@ -592,7 +621,7 @@ class GlobalHotkeyManager:
                         try:
                             from PyObjCTools import AppHelper  # type: ignore[import-untyped]
 
-                            AppHelper.callAfter(self._on_activate)
+                            AppHelper.callAfter(self._on_activate, from_tap=True)
                         except Exception:
                             self._on_activate()
                         return None
@@ -629,7 +658,7 @@ class GlobalHotkeyManager:
         tap = Quartz.CGEventTapCreate(
             Quartz.kCGSessionEventTap,
             Quartz.kCGHeadInsertEventTap,
-            Quartz.kCGEventTapOptionDefault,  # Active tap — can suppress events
+            Quartz.kCGEventTapOptionDefault,  # Active tap - can suppress events
             Quartz.CGEventMaskBit(Quartz.kCGEventKeyDown),
             _tap_callback,
             None,
@@ -637,7 +666,7 @@ class GlobalHotkeyManager:
 
         if tap is None:
             logger.warning(
-                "CGEventTapCreate returned None — Accessibility permission may be required. "
+                "CGEventTapCreate returned None - Accessibility permission may be required. "
                 "Grant access in System Settings → Privacy & Security → Accessibility."
             )
             self._start_pynput(hotkey)
@@ -671,24 +700,44 @@ class GlobalHotkeyManager:
             self._listener.start()
             logger.info("Global hotkey registered via pynput: %s", hotkey)
         except ImportError:
-            logger.warning("pynput is not installed — global hotkey unavailable")
+            logger.warning("pynput is not installed - global hotkey unavailable")
         except Exception as exc:
             logger.warning("Could not register global hotkey '%s': %s", hotkey, exc)
 
-    def _on_activate(self) -> None:
+    def _on_activate(self, *, from_tap: bool = False) -> None:
         """Toggle the spotlight panel or activate the main window overlay."""
-        logger.debug("Global hotkey fired")
+        logger.debug("Global hotkey fired (from_tap=%s)", from_tap)
 
         if self.spotlight_panel is not None:
 
             def _toggle_panel() -> None:
-                if not self._native_hotkey_active and sys.platform == "darwin":
+                active = False
+                if sys.platform == "darwin":
                     try:
                         import AppKit  # type: ignore[import-untyped]
 
-                        AppKit.NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
-                    except Exception as exc:
-                        logger.debug("AppKit activate failed for hotkey fallback: %s", exc)
+                        active = bool(
+                            AppKit.NSRunningApplication.currentRunningApplication().isActive()
+                        )
+                    except Exception:
+                        active = False
+
+                # When DocFinder is already frontmost, show the in-app overlay.
+                if active:
+                    if from_tap:
+                        # The CGEventTap suppressed the keystroke, so the webview
+                        # never saw it — inject the overlay via JS.
+                        if self.spotlight_panel.is_visible():
+                            self.spotlight_panel._do_hide()
+                        try:
+                            if self.main_window:
+                                self.main_window.evaluate_js("showSpotlightOverlay();")
+                        except Exception as exc:
+                            logger.debug("Failed to show in-app spotlight overlay: %s", exc)
+                    # pynput fallback: the webview handles the keystroke itself.
+                    return
+
+                # DocFinder in the background — use the floating NSPanel.
                 if self.spotlight_panel.is_visible():
                     self.spotlight_panel._do_hide()
                 else:
@@ -701,7 +750,7 @@ class GlobalHotkeyManager:
             except Exception:
                 _toggle_panel()
         else:
-            # Fallback: activate main window + show CSS overlay
+            # Fallback: activate main window + show CSS overlay (non-macOS / no panel)
             if sys.platform == "darwin":
                 try:
                     import AppKit  # type: ignore[import-untyped]
@@ -777,9 +826,15 @@ class DesktopApi:
             return None
 
     def show_spotlight(self) -> None:
-        """Show the spotlight panel (callable from in-app JS)."""
+        """Show the spotlight overlay/panel (callable from in-app JS)."""
+        try:
+            if self.window is not None:
+                self.window.evaluate_js("showSpotlightOverlay();")
+                return
+        except Exception as exc:
+            logger.debug("evaluate_js showSpotlightOverlay failed: %s", exc)
         if self._hotkey_manager:
-            self._hotkey_manager._on_activate()
+            self._hotkey_manager._on_activate(from_tap=False)
 
     def hide_spotlight(self) -> None:
         """Hide the spotlight panel (pywebview fallback for non-macOS or older builds)."""
@@ -874,19 +929,8 @@ def main() -> None:
         # When frozen (PyInstaller), the bundle already carries the .icns icon.
         # When running from source, set the dock icon via AppKit so the user
         # doesn't see the generic Python icon.
-        if sys.platform == "darwin" and not getattr(sys, "frozen", False) and icon_path:
-            try:
-                from AppKit import NSApplication, NSImage  # type: ignore[import-untyped]
-
-                ns_app = NSApplication.sharedApplication()
-                ns_image = NSImage.alloc().initWithContentsOfFile_(icon_path)
-                if ns_image:
-                    ns_app.setApplicationIconImage_(ns_image)
-                    logger.debug("macOS dock icon set via AppKit")
-            except ImportError:
-                logger.debug("pyobjc not available — run: pip install 'docfinder[gui]'")
-            except Exception as exc:
-                logger.debug("Could not set macOS dock icon: %s", exc)
+        if sys.platform == "darwin" and not getattr(sys, "frozen", False):
+            _apply_dock_icon(icon_path)
 
         # ── Desktop API (folder picker + hotkey + spotlight) ─────────────────
         desktop_api = DesktopApi()
@@ -905,7 +949,7 @@ def main() -> None:
             "js_api": desktop_api,
         }
 
-        # Add icon on Windows — guard against older pywebview builds that
+        # Add icon on Windows - guard against older pywebview builds that
         # don't expose the `icon` parameter (would raise TypeError otherwise)
         if icon_path and sys.platform == "win32":
             import inspect
@@ -950,6 +994,16 @@ def main() -> None:
                 settings.get("hotkey", ""),
                 settings.get("hotkey_enabled", True),
             )
+            if sys.platform == "darwin" and not getattr(sys, "frozen", False):
+                # The first set runs before the Dock activates the app; the
+                # Dock refreshes the tile with the interpreter default upon
+                # activation, so re-apply once the event loop is running.
+                try:
+                    from PyObjCTools import AppHelper  # type: ignore[import-untyped]
+
+                    AppHelper.callAfter(lambda: _apply_dock_icon(icon_path))
+                except Exception as exc:
+                    logger.warning("Could not schedule dock icon reapply: %s", exc)
             if spotlight_panel is not None:
                 try:
                     from PyObjCTools import AppHelper  # type: ignore[import-untyped]

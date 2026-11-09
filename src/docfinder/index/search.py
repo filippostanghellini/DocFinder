@@ -45,8 +45,29 @@ class Searcher:
         # When reranking, fetch more candidates for the cross-encoder to evaluate
         fetch_k = max(top_k * 3, 30) if self.reranker is not None else top_k
 
-        embedding = self.embedder.embed_query(query)
-        rows = self.store.search(embedding, top_k=fetch_k, folders=folders)
+        is_code_query = query.strip().lower().startswith("code:")
+        embed_input = query.strip()[5:].strip() if is_code_query else query
+        if not embed_input:
+            embed_input = query
+
+        try:
+            embedding = (
+                self.embedder.embed_query(embed_input, task="code")
+                if is_code_query
+                else self.embedder.embed_query(embed_input)
+            )
+        except TypeError:
+            embedding = self.embedder.embed_query(embed_input)
+
+        try:
+            rows = self.store.search(
+                embedding,
+                top_k=fetch_k,
+                folders=folders,
+                query_text=embed_input,
+            )
+        except TypeError:
+            rows = self.store.search(embedding, top_k=fetch_k, folders=folders)
 
         if self.reranker is not None and rows:
             # Build dicts for the reranker

@@ -389,8 +389,8 @@ class TestTableExtraction:
         mock_page = MagicMock()
         mock_page.find_tables.return_value = mock_tables_result
         mock_page.get_text.return_value = [
-            (0, 10, 500, 50, "Text block.", 0, 0),  # text block — kept
-            (0, 60, 500, 100, "image data", 1, 1),  # image block — skipped
+            (0, 10, 500, 50, "Text block.", 0, 0),  # text block - kept
+            (0, 60, 500, 100, "image data", 1, 1),  # image block - skipped
         ]
 
         text = _extract_page_text(mock_page)
@@ -501,7 +501,7 @@ class TestIterTextPartsTxt:
 
 
 class TestIterTextPartsTxtPaged:
-    """Test plain text virtual paging — error path."""
+    """Test plain text virtual paging - error path."""
 
     def test_read_error(self, tmp_path: Path) -> None:
         from docfinder.ingestion.pdf_loader import iter_text_parts_txt_paged
@@ -587,7 +587,7 @@ class TestIterTextPartsMd:
 
 
 class TestIterTextPartsMdPaged:
-    """Test Markdown paged extraction — error path."""
+    """Test Markdown paged extraction - error path."""
 
     def test_read_error(self, tmp_path: Path) -> None:
         from docfinder.ingestion.pdf_loader import iter_text_parts_md_paged
@@ -617,7 +617,7 @@ class TestIterTextPartsDocx:
         f = tmp_path / "test.docx"
         doc = docx.Document()
         doc.add_paragraph("First paragraph")
-        doc.add_paragraph("")  # empty — should be skipped
+        doc.add_paragraph("")  # empty - should be skipped
         doc.add_paragraph("Second paragraph")
         doc.save(str(f))
 
@@ -638,7 +638,7 @@ class TestIterTextPartsDocx:
 
 
 class TestIterTextPartsDocxPaged:
-    """Test Word document paged extraction — error and edge cases."""
+    """Test Word document paged extraction - error and edge cases."""
 
     def test_read_error(self, tmp_path: Path) -> None:
         from docfinder.ingestion.pdf_loader import iter_text_parts_docx_paged
@@ -1128,7 +1128,7 @@ class TestIterTextPartsPptx:
 
 
 class TestIterTextPartsPptxPaged:
-    """Test PPTX paged extraction — one page per slide."""
+    """Test PPTX paged extraction - one page per slide."""
 
     def test_one_page_per_slide(self, tmp_path: Path) -> None:
         pptx = pytest.importorskip("pptx")
@@ -1317,7 +1317,7 @@ class TestIterTextPartsEpub:
 
 
 class TestIterTextPartsEpubPaged:
-    """Test EPUB paged extraction — one page per chapter."""
+    """Test EPUB paged extraction - one page per chapter."""
 
     def test_one_page_per_chapter(self, tmp_path: Path) -> None:
         pytest.importorskip("bs4")
@@ -1641,3 +1641,49 @@ class TestIterTextPartsPptPaged:
         pages = list(iter_text_parts_ppt_paged(tmp_path / "test.ppt"))
         assert len(pages) >= 1
         assert pages[0][0] == 1
+
+
+class TestCodeAndAudioChunking:
+    """Test line-tracked code chunking and 30s audio window segmentation."""
+
+    def test_code_chunks_record_line_numbers(self, tmp_path: Path) -> None:
+        code_file = tmp_path / "app.py"
+        lines = [f"def func_{i}():\n    return {i}\n" for i in range(40)]
+        code_file.write_text("".join(lines), encoding="utf-8")
+
+        chunks = list(build_chunks(code_file, max_chars=200, overlap=40))
+        assert len(chunks) >= 2
+        assert chunks[0].metadata["modality"] == "code"
+        assert chunks[0].metadata["line_start"] == 1
+        assert chunks[0].metadata["line_end"] >= 1
+        assert chunks[1].metadata["line_start"] > 1
+
+    def test_wav_audio_segmented_into_30s_windows(self, tmp_path: Path) -> None:
+        import wave
+
+        import numpy as np
+
+        from docfinder.ingestion.pdf_loader import prepare_chunk_embedding_input
+
+        wav_path = tmp_path / "meeting.wav"
+        rate = 8000
+        # 65 seconds of silence/tone -> should yield 3 overlapping windows (0-30, 25-55, 50-65)
+        samples = np.zeros(rate * 65, dtype=np.int16)
+        with wave.open(str(wav_path), "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(rate)
+            wf.writeframes(samples.tobytes())
+
+        chunks = list(build_chunks(wav_path, modalities=["text", "audio"]))
+        assert len(chunks) == 3
+        assert chunks[0].metadata["timestamp"] == "0:00"
+        assert chunks[1].metadata["timestamp"] == "0:25"
+        assert chunks[2].metadata["timestamp"] == "0:50"
+
+        arr = prepare_chunk_embedding_input(
+            wav_path,
+            {"text": chunks[0].text, "metadata": chunks[0].metadata},
+        )
+        assert isinstance(arr, np.ndarray)
+        assert arr.size == rate * 30

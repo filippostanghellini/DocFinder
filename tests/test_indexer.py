@@ -136,14 +136,14 @@ class TestIndexer:
     @patch("docfinder.index.indexer.iter_document_paths", return_value=[])
     def test_index_checks_embedding_model_before_scan(self, mock_iter, indexer, tmp_path):
         """Embedding-model guard runs first, and a wipe does not abort indexing."""
-        indexer.embedder.config.model_name = "BAAI/bge-m3"
+        indexer.embedder.config.model_name = "google/embeddinggemma-2"
         indexer.embedder.config.backend = None
         indexer.store.ensure_embedding_model.return_value = True
 
         stats = indexer.index([tmp_path])
 
         indexer.store.ensure_embedding_model.assert_called_once_with(
-            '{"backend":"local","model_name":"BAAI/bge-m3"}'
+            '{"backend":"local","model_name":"google/embeddinggemma-2"}'
         )
         mock_iter.assert_called_once()
         assert stats is not None

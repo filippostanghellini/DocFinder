@@ -56,7 +56,7 @@ def _extract_page_text(page) -> str:
         tables = None
 
     if not tables or not tables.tables:
-        # No tables — fast path, same as before
+        # No tables - fast path, same as before
         return page.get_text() or ""
 
     # Collect table bounding boxes and their Markdown representations
@@ -244,7 +244,7 @@ def _import_docx_document():
         return Document
     except ImportError:
         LOGGER.warning(
-            "python-docx not installed — cannot index .docx files. "
+            "python-docx not installed - cannot index .docx files. "
             "Install with: pip install python-docx"
         )
         return None
@@ -307,7 +307,7 @@ def _import_odf():
         return load, P, teletype.extractText
     except ImportError:
         LOGGER.warning(
-            "odfpy not installed — cannot index ODF files (.odt/.odp/.odg). "
+            "odfpy not installed - cannot index ODF files (.odt/.odp/.odg). "
             "Install with: pip install odfpy"
         )
         return None, None, None
@@ -363,7 +363,7 @@ def _import_pptx():
         return Presentation
     except ImportError:
         LOGGER.warning(
-            "python-pptx not installed — cannot index .pptx files. "
+            "python-pptx not installed - cannot index .pptx files. "
             "Install with: pip install python-pptx"
         )
         return None
@@ -397,7 +397,7 @@ def iter_text_parts_pptx(path: Path) -> Iterator[str]:
 
 
 def iter_text_parts_pptx_paged(path: Path) -> Iterator[tuple[int, str]]:
-    """Yield ``(slide_number, text)`` — one page per slide."""
+    """Yield ``(slide_number, text)`` - one page per slide."""
     Presentation = _import_pptx()
     if Presentation is None:
         return
@@ -424,7 +424,7 @@ def _import_beautifulsoup4():
         return BeautifulSoup
     except ImportError:
         LOGGER.warning(
-            "beautifulsoup4 not installed — cannot index .html/.epub files. "
+            "beautifulsoup4 not installed - cannot index .html/.epub files. "
             "Install with: pip install beautifulsoup4"
         )
         return None
@@ -553,7 +553,7 @@ def iter_text_parts_epub(path: Path) -> Iterator[str]:
 
 
 def iter_text_parts_epub_paged(path: Path) -> Iterator[tuple[int, str]]:
-    """Yield ``(chapter_number, text)`` — one page per spine item."""
+    """Yield ``(chapter_number, text)`` - one page per spine item."""
     BeautifulSoup = _import_beautifulsoup4()
     if BeautifulSoup is None:
         return
@@ -576,7 +576,7 @@ def _import_olefile():
         return olefile
     except ImportError:
         LOGGER.warning(
-            "olefile not installed — cannot index .doc/.ppt files. "
+            "olefile not installed - cannot index .doc/.ppt files. "
             "Install with: pip install olefile"
         )
         return None
@@ -800,20 +800,219 @@ def iter_text_parts_ppt_paged(path: Path) -> Iterator[tuple[int, str]]:
         start = end
 
 
+# ── CSV / TSV / XLSX / Structured text / Email / RTF / Code ──────────────────
+
+_CSV_ROWS_PER_PAGE = 40
+
+
+def iter_text_parts_csv_paged(path: Path) -> Iterator[tuple[int, str]]:
+    """Yield ``(virtual_page, markdown_table)`` from a .csv or .tsv file."""
+    import csv
+
+    delimiter = "\t" if path.suffix.lower() == ".tsv" else ","
+    try:
+        raw = path.read_text(encoding="utf-8", errors="replace")
+    except Exception as exc:
+        LOGGER.error("Failed to read %s: %s", path, exc)
+        return
+
+    reader = csv.reader(raw.splitlines(), delimiter=delimiter)
+    rows = [row for row in reader if any(cell.strip() for cell in row)]
+    if not rows:
+        return
+
+    header = [c.strip().replace("\n", " ") for c in rows[0]]
+    body = rows[1:] or [rows[0]]
+    page = 1
+    for i in range(0, len(body), _CSV_ROWS_PER_PAGE):
+        batch = body[i : i + _CSV_ROWS_PER_PAGE]
+        lines = [
+            "| " + " | ".join(header) + " |",
+            "| " + " | ".join("---" for _ in header) + " |",
+        ]
+        for row in batch:
+            padded = (row + [""] * len(header))[: len(header)]
+            cells = [c.strip().replace("\n", " ") for c in padded]
+            lines.append("| " + " | ".join(cells) + " |")
+        yield page, "\n".join(lines) + "\n"
+        page += 1
+
+
+def iter_text_parts_csv(path: Path) -> Iterator[str]:
+    for _, text in iter_text_parts_csv_paged(path):
+        yield text
+
+
+def iter_text_parts_xlsx_paged(path: Path) -> Iterator[tuple[int, str]]:
+    """Extract worksheet text from a .xlsx workbook using Python's stdlib zipfile + XML."""
+    import zipfile
+    from xml.etree import ElementTree
+
+    ns = {"s": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+    try:
+        with zipfile.ZipFile(path) as zf:
+            shared: list[str] = []
+            if "xl/sharedStrings.xml" in zf.namelist():
+                ss_root = ElementTree.fromstring(zf.read("xl/sharedStrings.xml"))
+                for si in ss_root.findall("s:si", ns):
+                    texts = [t.text or "" for t in si.findall(".//s:t", ns)]
+                    shared.append("".join(texts))
+
+            sheet_files = sorted(
+                name
+                for name in zf.namelist()
+                if name.startswith("xl/worksheets/sheet") and name.endswith(".xml")
+            )
+            page = 1
+            for sheet_name in sheet_files:
+                root = ElementTree.fromstring(zf.read(sheet_name))
+                rows_text: list[str] = []
+                for row_el in root.findall(".//s:sheetData/s:row", ns):
+                    cells: list[str] = []
+                    for c_el in row_el.findall("s:c", ns):
+                        c_type = c_el.get("t", "")
+                        v_el = c_el.find("s:v", ns)
+                        is_el = c_el.find("s:is", ns)
+                        val = ""
+                        if c_type == "s" and v_el is not None and v_el.text:
+                            idx = int(v_el.text)
+                            if 0 <= idx < len(shared):
+                                val = shared[idx]
+                        elif c_type == "inlineStr" and is_el is not None:
+                            val = "".join(t.text or "" for t in is_el.findall(".//s:t", ns))
+                        elif v_el is not None and v_el.text:
+                            val = v_el.text
+                        val = val.strip().replace("\n", " ")
+                        if val:
+                            cells.append(val)
+                    if cells:
+                        rows_text.append(" | ".join(cells))
+                if rows_text:
+                    yield page, "\n".join(rows_text) + "\n"
+                    page += 1
+    except Exception as exc:
+        LOGGER.error("Failed to read %s: %s", path, exc)
+
+
+def iter_text_parts_xlsx(path: Path) -> Iterator[str]:
+    for _, text in iter_text_parts_xlsx_paged(path):
+        yield text
+
+
+def _strip_rtf(raw: str) -> str:
+    """Convert basic RTF markup to plain text using stdlib regex."""
+    # Decode hex escapes \'xx
+    text = re.sub(
+        r"\\'([0-9a-fA-F]{2})",
+        lambda m: bytes.fromhex(m.group(1)).decode("cp1252", errors="replace"),
+        raw,
+    )
+    # Remove RTF destination groups like {\fonttbl...}, {\colortbl...}, {\stylesheet...}
+    text = re.sub(r"\{\\\*\\[a-z]+[^}]*\}", "", text)
+    text = re.sub(r"\{\\(?:fonttbl|colortbl|stylesheet|info)[^}]*\}", "", text)
+    text = re.sub(r"\\(?:par|line|row)\b", "\n", text)
+    text = re.sub(r"\\tab\b", "\t", text)
+    text = re.sub(r"\\[a-zA-Z]+-?\d* ?", "", text)
+    text = text.replace("{", "").replace("}", "")
+    return normalize_whitespace([text])
+
+
+def iter_text_parts_rtf_paged(path: Path) -> Iterator[tuple[int, str]]:
+    try:
+        raw = path.read_text(encoding="utf-8", errors="replace")
+    except Exception as exc:
+        LOGGER.error("Failed to read %s: %s", path, exc)
+        return
+    cleaned = _strip_rtf(raw)
+    if not cleaned:
+        return
+    page = 1
+    for start in range(0, len(cleaned), _DOC_VIRTUAL_PAGE_CHARS):
+        chunk = cleaned[start : start + _DOC_VIRTUAL_PAGE_CHARS].strip()
+        if chunk:
+            yield page, chunk + "\n"
+            page += 1
+
+
+def iter_text_parts_rtf(path: Path) -> Iterator[str]:
+    for _, text in iter_text_parts_rtf_paged(path):
+        yield text
+
+
+def _extract_email_message_text(msg) -> str:
+    """Format an email.message.Message into searchable header + body text."""
+    headers = []
+    for key in ("Subject", "From", "To", "Date"):
+        val = msg.get(key)
+        if val:
+            headers.append(f"{key}: {val}")
+    body_parts: list[str] = []
+    if msg.is_multipart():
+        for part in msg.walk():
+            ctype = part.get_content_type()
+            disp = str(part.get("Content-Disposition") or "")
+            if "attachment" in disp:
+                continue
+            if ctype == "text/plain":
+                payload = part.get_payload(decode=True)
+                if payload:
+                    body_parts.append(payload.decode("utf-8", errors="replace"))
+    else:
+        payload = msg.get_payload(decode=True)
+        if payload:
+            body_parts.append(payload.decode("utf-8", errors="replace"))
+    combined = "\n".join(headers + [""] + body_parts).strip()
+    return combined
+
+
+def iter_text_parts_email_paged(path: Path) -> Iterator[tuple[int, str]]:
+    """Yield ``(message_number, text)`` from .eml or .mbox files."""
+    import email
+    import mailbox
+
+    suffix = path.suffix.lower()
+    try:
+        if suffix == ".eml":
+            msg = email.message_from_bytes(path.read_bytes())
+            text = _extract_email_message_text(msg)
+            if text:
+                yield 1, text + "\n"
+        elif suffix == ".mbox":
+            box = mailbox.mbox(str(path))
+            try:
+                for idx, msg in enumerate(box, 1):
+                    text = _extract_email_message_text(msg)
+                    if text:
+                        yield idx, text + "\n"
+            finally:
+                box.close()
+    except Exception as exc:
+        LOGGER.error("Failed to read %s: %s", path, exc)
+
+
+def iter_text_parts_email(path: Path) -> Iterator[str]:
+    for _, text in iter_text_parts_email_paged(path):
+        yield text
+
+
 # ── Dispatcher ────────────────────────────────────────────────────────────────
 
 
 def _iter_text_by_suffix(path: Path) -> Iterator[str]:
+    from docfinder.utils.files import CODE_EXTENSIONS
+
     suffix = path.suffix.lower()
     if suffix == ".pdf":
         yield from iter_text_parts(path)
-    elif suffix == ".txt":
+    elif suffix in (".txt", ".rst", ".tex", ".log", ".json", ".yaml", ".yml", ".xml") or (
+        suffix in CODE_EXTENSIONS
+    ):
         yield from iter_text_parts_txt(path)
     elif suffix == ".md":
         yield from iter_text_parts_md(path)
     elif suffix == ".docx":
         yield from iter_text_parts_docx(path)
-    elif suffix in (".odt", ".odp", ".odg"):
+    elif suffix in (".odt", ".odp", ".odg", ".ods"):
         yield from iter_text_parts_odf(path)
     elif suffix == ".pptx":
         yield from iter_text_parts_pptx(path)
@@ -825,6 +1024,14 @@ def _iter_text_by_suffix(path: Path) -> Iterator[str]:
         yield from iter_text_parts_doc(path)
     elif suffix == ".ppt":
         yield from iter_text_parts_ppt(path)
+    elif suffix in (".csv", ".tsv"):
+        yield from iter_text_parts_csv(path)
+    elif suffix == ".xlsx":
+        yield from iter_text_parts_xlsx(path)
+    elif suffix == ".rtf":
+        yield from iter_text_parts_rtf(path)
+    elif suffix in (".eml", ".mbox"):
+        yield from iter_text_parts_email(path)
     else:
         LOGGER.warning("Unsupported file type: %s", path.suffix)
 
@@ -864,15 +1071,9 @@ def iter_text_parts_paged(path: Path) -> Iterator[tuple[int, str]]:
 
 
 def _iter_paged_text(path: Path) -> Iterator[tuple[int, str]]:
-    """Yield ``(page_number, text)`` for any supported format.
+    """Yield ``(page_number, text)`` for any supported text/document format."""
+    from docfinder.utils.files import CODE_EXTENSIONS
 
-    * PDF  → real page numbers (1-based)
-    * Markdown → section numbers (split on headings)
-    * DOCX / ODF → virtual pages (every 10 paragraphs)
-    * PPTX → slide numbers
-    * EPUB → chapter numbers
-    * Plain text / HTML / DOC / PPT → virtual pages (~3000 characters)
-    """
     suffix = path.suffix.lower()
     if suffix == ".pdf":
         yield from iter_text_parts_paged(path)
@@ -880,9 +1081,11 @@ def _iter_paged_text(path: Path) -> Iterator[tuple[int, str]]:
         yield from iter_text_parts_md_paged(path)
     elif suffix == ".docx":
         yield from iter_text_parts_docx_paged(path)
-    elif suffix == ".txt":
+    elif suffix in (".txt", ".rst", ".tex", ".log", ".json", ".yaml", ".yml", ".xml") or (
+        suffix in CODE_EXTENSIONS
+    ):
         yield from iter_text_parts_txt_paged(path)
-    elif suffix in (".odt", ".odp", ".odg"):
+    elif suffix in (".odt", ".odp", ".odg", ".ods"):
         yield from iter_text_parts_odf_paged(path)
     elif suffix == ".pptx":
         yield from iter_text_parts_pptx_paged(path)
@@ -894,23 +1097,394 @@ def _iter_paged_text(path: Path) -> Iterator[tuple[int, str]]:
         yield from iter_text_parts_doc_paged(path)
     elif suffix == ".ppt":
         yield from iter_text_parts_ppt_paged(path)
+    elif suffix in (".csv", ".tsv"):
+        yield from iter_text_parts_csv_paged(path)
+    elif suffix == ".xlsx":
+        yield from iter_text_parts_xlsx_paged(path)
+    elif suffix == ".rtf":
+        yield from iter_text_parts_rtf_paged(path)
+    elif suffix in (".eml", ".mbox"):
+        yield from iter_text_parts_email_paged(path)
     else:
         LOGGER.warning("Unsupported file type: %s", path.suffix)
 
 
-def build_chunks(path: Path, *, max_chars: int = 1200, overlap: int = 200) -> Iterable[ChunkRecord]:
-    """Produce overlapping chunk records for any supported document type."""
+def _find_scanned_pdf_pages(path: Path, text_pages: set[int]) -> list[int]:
+    """Return 1-based page numbers in a PDF that have no extracted text but contain images."""
+    scanned: list[int] = []
+    try:
+        doc = fitz.open(path)
+    except Exception:
+        return scanned
+    try:
+        for index in range(len(doc)):
+            page_num = index + 1
+            if page_num in text_pages:
+                continue
+            try:
+                page = doc[index]
+                if page.get_images():
+                    scanned.append(page_num)
+            except Exception:
+                pass
+    finally:
+        doc.close()
+    return scanned
+
+
+def render_pdf_page_image(path: Path, page_num: int, dpi: int = 150):
+    """Render a 1-based PDF page into a PIL RGB Image using PyMuPDF."""
+    from PIL import Image
+
+    doc = fitz.open(path)
+    try:
+        page = doc[page_num - 1]
+        pix = page.get_pixmap(dpi=dpi, alpha=False)
+        return Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+    finally:
+        doc.close()
+
+
+_AUDIO_WINDOW_SEC = 30.0
+_AUDIO_STRIDE_SEC = 25.0
+_AUDIO_SAMPLE_RATE = 16000
+
+
+def _format_timestamp(seconds: float) -> str:
+    """Format seconds as M:SS or H:MM:SS."""
+    total = max(0, int(round(seconds)))
+    hours, rem = divmod(total, 3600)
+    mins, secs = divmod(rem, 60)
+    if hours:
+        return f"{hours}:{mins:02d}:{secs:02d}"
+    return f"{mins}:{secs:02d}"
+
+
+def _probe_audio_duration_sec(path: Path) -> float | None:
+    """Return duration in seconds for a .wav file (via stdlib wave) or media file (via ffprobe)."""
+    suffix = path.suffix.lower()
+    if suffix == ".wav":
+        try:
+            import wave
+
+            with wave.open(str(path), "rb") as wf:
+                frames = wf.getnframes()
+                rate = wf.getframerate()
+                if rate > 0 and frames > 0:
+                    return float(frames) / float(rate)
+        except Exception:
+            pass
+
+    import shutil
+    import subprocess
+
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe:
+        return None
+    try:
+        proc = subprocess.run(
+            [
+                ffprobe,
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            dur = float(proc.stdout.strip())
+            if dur > 0:
+                return dur
+    except Exception:
+        pass
+    return None
+
+
+def _load_audio_window_array(path: Path, start_sec: float = 0.0, duration_sec: float = 30.0):
+    """Decode an audio segment into a 16kHz mono float32 numpy array, or None on fallback."""
+    import numpy as np
+
+    suffix = path.suffix.lower()
+    if suffix == ".wav":
+        try:
+            import wave
+
+            with wave.open(str(path), "rb") as wf:
+                rate = wf.getframerate()
+                n_channels = max(1, wf.getnchannels())
+                sampwidth = wf.getsampwidth()
+                start_frame = min(wf.getnframes(), max(0, int(start_sec * rate)))
+                read_frames = int(duration_sec * rate)
+                wf.setpos(start_frame)
+                raw = wf.readframes(read_frames)
+                if raw and sampwidth in (1, 2, 4):
+                    dtype_map = {1: np.uint8, 2: np.int16, 4: np.int32}
+                    scale_map = {1: 128.0, 2: 32768.0, 4: 2147483648.0}
+                    samples = np.frombuffer(raw, dtype=dtype_map[sampwidth]).astype("float32")
+                    if sampwidth == 1:
+                        samples = (samples - 128.0) / 128.0
+                    else:
+                        samples = samples / scale_map[sampwidth]
+                    if n_channels > 1:
+                        samples = samples.reshape(-1, n_channels).mean(axis=1)
+                    if samples.size > 0:
+                        return samples
+        except Exception:
+            pass
+
+    import shutil
+    import subprocess
+
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return None
+    try:
+        proc = subprocess.run(
+            [
+                ffmpeg,
+                "-nostdin",
+                "-v",
+                "error",
+                "-ss",
+                f"{max(0.0, start_sec):.2f}",
+                "-t",
+                f"{duration_sec:.2f}",
+                "-i",
+                str(path),
+                "-f",
+                "f32le",
+                "-acodec",
+                "pcm_f32le",
+                "-ac",
+                "1",
+                "-ar",
+                str(_AUDIO_SAMPLE_RATE),
+                "pipe:1",
+            ],
+            capture_output=True,
+            timeout=20,
+            check=False,
+        )
+        if proc.returncode == 0 and proc.stdout:
+            samples = np.frombuffer(proc.stdout, dtype="float32")
+            if samples.size > 0:
+                return samples.copy()
+    except Exception:
+        pass
+    return None
+
+
+def _build_code_chunks(
+    path: Path,
+    *,
+    title: str,
+    max_chars: int = 1200,
+    overlap: int = 200,
+) -> Iterator[ChunkRecord]:
+    """Build line-tracked chunks for a source code file."""
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace")
+    except Exception as exc:
+        LOGGER.error("Failed to read %s: %s", path, exc)
+        return
+
+    lines = content.splitlines(keepends=True)
+    if not lines or not content.strip():
+        return
+
+    idx = 0
+    start_line_idx = 0
+    total_lines = len(lines)
+
+    while start_line_idx < total_lines:
+        char_count = 0
+        end_line_idx = start_line_idx
+        while end_line_idx < total_lines and (
+            char_count + len(lines[end_line_idx]) <= max_chars or end_line_idx == start_line_idx
+        ):
+            char_count += len(lines[end_line_idx])
+            end_line_idx += 1
+
+        chunk_text = "".join(lines[start_line_idx:end_line_idx]).strip()
+        if chunk_text:
+            line_start = start_line_idx + 1
+            line_end = end_line_idx
+            yield ChunkRecord(
+                document_path=path,
+                index=idx,
+                text=chunk_text,
+                metadata={
+                    "title": title,
+                    "page": idx + 1,
+                    "modality": "code",
+                    "line_start": line_start,
+                    "line_end": line_end,
+                },
+            )
+            idx += 1
+
+        if end_line_idx >= total_lines:
+            break
+
+        # Step back by overlap characters for the next chunk
+        overlap_chars = 0
+        next_start = end_line_idx
+        while next_start > start_line_idx + 1 and overlap_chars < overlap:
+            next_start -= 1
+            overlap_chars += len(lines[next_start])
+        start_line_idx = max(start_line_idx + 1, next_start)
+
+
+def prepare_chunk_embedding_input(path: Path, chunk: dict) -> object:
+    """Prepare the input object passed to ``EmbeddingModel.embed()`` for a chunk.
+
+    For text/code chunks, returns the plain text string.
+    For visual/audio chunks, returns the PIL.Image, audio waveform, or multimodal
+    dict supported by EmbeddingGemma 2, falling back cleanly to text on error.
+    """
+    meta = chunk.get("metadata") or {}
+    modality = meta.get("modality", "text")
+    text = chunk.get("text", "")
+
+    try:
+        if modality == "image":
+            from PIL import Image
+
+            with Image.open(path) as img:
+                return img.convert("RGB")
+        if modality == "pdf_page_image":
+            page_num = int(meta.get("page", 1))
+            return render_pdf_page_image(path, page_num)
+        if modality in ("audio", "video") and "start_sec" in meta:
+            start_sec = float(meta.get("start_sec", 0.0))
+            end_sec = float(meta.get("end_sec", start_sec + _AUDIO_WINDOW_SEC))
+            samples = _load_audio_window_array(
+                path, start_sec=start_sec, duration_sec=max(1.0, end_sec - start_sec)
+            )
+            if samples is not None:
+                return samples
+    except Exception as exc:
+        LOGGER.debug("Multimodal load fallback to text for %s: %s", path, exc)
+
+    return text
+
+
+def build_chunks(
+    path: Path,
+    *,
+    max_chars: int = 1200,
+    overlap: int = 200,
+    modalities: Iterable[str] | None = None,
+) -> Iterable[ChunkRecord]:
+    """Produce overlapping chunk records for any supported document, image, or media type."""
+    from docfinder.utils.files import (
+        AUDIO_VIDEO_EXTENSIONS,
+        CODE_EXTENSIONS,
+        IMAGE_EXTENSIONS,
+    )
     from docfinder.utils.text import chunk_text_stream_paged
 
+    active_mods = set(modalities) if modalities is not None else {"text", "image", "audio"}
+    suffix = path.suffix.lower()
     title = _get_title(path)
-    pages = _iter_paged_text(path)
 
-    for idx, (chunk, page_num) in enumerate(
-        chunk_text_stream_paged(pages, max_chars=max_chars, overlap=overlap)
+    if suffix in IMAGE_EXTENSIONS:
+        if "image" not in active_mods:
+            return
+        yield ChunkRecord(
+            document_path=path,
+            index=0,
+            text=f"[Image: {path.name}]",
+            metadata={"title": title, "page": 1, "modality": "image"},
+        )
+        return
+
+    if suffix in AUDIO_VIDEO_EXTENSIONS:
+        if "audio" not in active_mods:
+            return
+        media_kind = "video" if suffix in {".mp4", ".mov", ".mkv", ".webm"} else "audio"
+        duration = _probe_audio_duration_sec(path)
+        if duration is not None and duration > _AUDIO_WINDOW_SEC:
+            idx = 0
+            start_sec = 0.0
+            while start_sec < duration:
+                end_sec = min(duration, start_sec + _AUDIO_WINDOW_SEC)
+                ts_label = _format_timestamp(start_sec)
+                end_label = _format_timestamp(end_sec)
+                yield ChunkRecord(
+                    document_path=path,
+                    index=idx,
+                    text=f"[{media_kind.capitalize()}: {path.name} @ {ts_label}–{end_label}]",
+                    metadata={
+                        "title": title,
+                        "page": idx + 1,
+                        "modality": media_kind,
+                        "start_sec": round(start_sec, 1),
+                        "end_sec": round(end_sec, 1),
+                        "timestamp": ts_label,
+                    },
+                )
+                idx += 1
+                if end_sec >= duration:
+                    break
+                start_sec += _AUDIO_STRIDE_SEC
+            return
+
+        meta_media: Dict[str, object] = {
+            "title": title,
+            "page": 1,
+            "modality": media_kind,
+        }
+        if duration is not None:
+            meta_media["start_sec"] = 0.0
+            meta_media["end_sec"] = round(duration, 1)
+            meta_media["timestamp"] = "0:00"
+        yield ChunkRecord(
+            document_path=path,
+            index=0,
+            text=f"[{media_kind.capitalize()}: {path.name}]",
+            metadata=meta_media,
+        )
+        return
+
+    if suffix in CODE_EXTENSIONS:
+        yield from _build_code_chunks(path, title=title, max_chars=max_chars, overlap=overlap)
+        return
+
+    pages = list(_iter_paged_text(path))
+    text_page_nums = {page_num for page_num, _ in pages}
+
+    idx = 0
+    for chunk, page_num in chunk_text_stream_paged(
+        iter(pages), max_chars=max_chars, overlap=overlap
     ):
+        meta: Dict[str, object] = {"title": title, "page": page_num}
         yield ChunkRecord(
             document_path=path,
             index=idx,
             text=chunk,
-            metadata={"title": title, "page": page_num},
+            metadata=meta,
         )
+        idx += 1
+
+    # For PDFs with scanned/image-only pages when the Vision module is enabled
+    if suffix == ".pdf" and "image" in active_mods:
+        for scanned_page in _find_scanned_pdf_pages(path, text_page_nums):
+            yield ChunkRecord(
+                document_path=path,
+                index=idx,
+                text=f"[Scanned PDF page {scanned_page} - {title}]",
+                metadata={
+                    "title": title,
+                    "page": scanned_page,
+                    "modality": "pdf_page_image",
+                },
+            )
+            idx += 1

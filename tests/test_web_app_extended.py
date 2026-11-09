@@ -571,7 +571,7 @@ class TestSearchIndexCompat:
             mock_searcher_class.return_value.search.side_effect = ValueError(
                 "Index vectors have 768 dimensions but the current embedding model "
                 "produces 384. The index was built with a different embedding model "
-                "— re-index your documents."
+                "- re-index your documents."
             )
             response = client.post("/search", json={"query": "test", "db": str(db_path)})
         assert response.status_code == 409

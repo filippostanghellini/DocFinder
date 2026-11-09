@@ -400,6 +400,32 @@ class TestSearch:
         assert result["title"] == "Test Doc"
         assert result["text"] == "Sample text"
 
+    def test_search_exact_word_lexical_boost_reorders_ties(self, temp_db):
+        """Exact invoice/identifier match boosts score over identical vector similarity."""
+        same_vec = np.ones((1, 384), dtype="float32") / np.sqrt(384)
+        for idx, (name, text) in enumerate(
+            [
+                ("generic.pdf", "General payment terms and conditions."),
+                ("invoice_2026.pdf", "Payment reference code INV-2026-9941 due in 30 days."),
+            ]
+        ):
+            doc = DocumentMetadata(
+                path=Path(f"/tmp/{name}"),
+                title=name,
+                sha256=f"h{idx}",
+                mtime=1234567890.0,
+                size=500,
+            )
+            chunks = [ChunkRecord(document_path=doc.path, index=0, text=text, metadata={"page": 1})]
+            temp_db.upsert_document(doc, chunks, same_vec)
+
+        query_vec = same_vec[0]
+        results = temp_db.search(query_vec, top_k=2, query_text="INV-2026-9941")
+
+        assert len(results) == 2
+        assert results[0]["path"].endswith("invoice_2026.pdf")
+        assert results[0]["score"] > results[1]["score"]
+
     def test_search_scores_descending(self, temp_db):
         """Test that search results are sorted by score descending."""
         # Insert multiple documents

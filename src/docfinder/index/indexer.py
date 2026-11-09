@@ -14,12 +14,26 @@ from typing import Callable, Sequence
 
 from docfinder.embedding.encoder import EmbeddingModel
 from docfinder.index.storage import SQLiteVectorStore
-from docfinder.ingestion.pdf_loader import build_chunks
+from docfinder.ingestion.pdf_loader import build_chunks, prepare_chunk_embedding_input
 from docfinder.models import ChunkRecord, DocumentMetadata
 from docfinder.utils.files import compute_sha256, iter_document_paths
 from docfinder.utils.memory import get_memory_info
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _prepare_batch_inputs(path: Path, batch: Sequence[ChunkRecord]) -> list[object]:
+    """Return embedding inputs for a batch of ChunkRecords (strings or PIL Images)."""
+    inputs: list[object] = []
+    for c in batch:
+        modality = (c.metadata or {}).get("modality", "text")
+        if modality in {"image", "pdf_page_image"}:
+            inputs.append(
+                prepare_chunk_embedding_input(path, {"text": c.text, "metadata": c.metadata})
+            )
+        else:
+            inputs.append(c.text)
+    return inputs
 
 
 def _embedding_identity(embedder) -> str:
@@ -34,9 +48,14 @@ def _embedding_identity(embedder) -> str:
 def find_documents(
     paths: Sequence[Path],
     exclude: frozenset[str] | None = None,
+    *,
+    modalities: Sequence[str] | None = None,
 ) -> list[Path]:
     """Find all supported documents under the given paths, honouring exclusions."""
-    docs = list(iter_document_paths(paths))
+    if modalities is None:
+        docs = list(iter_document_paths(paths))
+    else:
+        docs = list(iter_document_paths(paths, modalities=modalities))
     if exclude:
         docs = [p for p in docs if str(p) not in exclude]
     return docs
@@ -142,6 +161,7 @@ class Indexer:
         embed_batch_size: int | None = None,
         progress_callback: Callable[[int, int, str], None] | None = None,
         privacy: bool = False,
+        modalities: Sequence[str] | None = None,
     ) -> None:
         self.embedder = embedder
         self.store = store
@@ -150,6 +170,7 @@ class Indexer:
         self.embed_batch_size = embed_batch_size
         self.progress_callback = progress_callback
         self.privacy = privacy
+        self.modalities = tuple(modalities) if modalities is not None else None
         self.last_num_workers: int = 1
 
     def index(
@@ -160,9 +181,9 @@ class Indexer:
     ) -> IndexStats:
         """Index documents with parallel parsing when beneficial."""
         if self.store.ensure_embedding_model(_embedding_identity(self.embedder)):
-            LOGGER.warning("Embedding model changed — the existing index was cleared")
+            LOGGER.warning("Embedding model changed - the existing index was cleared")
 
-        doc_files = find_documents(paths, exclude_paths)
+        doc_files = find_documents(paths, exclude_paths, modalities=self.modalities)
         if not doc_files:
             LOGGER.warning("No supported documents found")
             return IndexStats()
@@ -384,7 +405,7 @@ class Indexer:
                     len(chunks),
                 )
                 embeddings = self.embedder.embed(
-                    [c.text for c in batch],
+                    _prepare_batch_inputs(path, batch),
                     batch_size=self.embed_batch_size,
                 )
                 self.store.insert_chunks(doc_id, batch, embeddings)
@@ -424,7 +445,17 @@ class Indexer:
         """Index a single document file."""
         import itertools
 
-        chunk_gen = build_chunks(path, max_chars=self.chunk_chars, overlap=self.overlap)
+        if self.modalities is None:
+            chunk_gen = iter(build_chunks(path, max_chars=self.chunk_chars, overlap=self.overlap))
+        else:
+            chunk_gen = iter(
+                build_chunks(
+                    path,
+                    max_chars=self.chunk_chars,
+                    overlap=self.overlap,
+                    modalities=self.modalities,
+                )
+            )
 
         try:
             first_chunk = next(chunk_gen)
@@ -454,7 +485,7 @@ class Indexer:
                 current_batch.append(chunk)
                 if len(current_batch) >= batch_size:
                     embeddings = self.embedder.embed(
-                        [c.text for c in current_batch],
+                        _prepare_batch_inputs(path, current_batch),
                         batch_size=self.embed_batch_size,
                     )
                     self.store.insert_chunks(doc_id, current_batch, embeddings)
@@ -462,7 +493,7 @@ class Indexer:
 
             if current_batch:
                 embeddings = self.embedder.embed(
-                    [c.text for c in current_batch],
+                    _prepare_batch_inputs(path, current_batch),
                     batch_size=self.embed_batch_size,
                 )
                 self.store.insert_chunks(doc_id, current_batch, embeddings)

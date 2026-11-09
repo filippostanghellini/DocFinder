@@ -1,4 +1,4 @@
-"""Tests for the RAG module — context window retrieval and engine assembly."""
+"""Tests for the RAG module - context window retrieval and engine assembly."""
 
 from __future__ import annotations
 
@@ -158,7 +158,7 @@ class TestGetContextByPage:
         result = store_with_chunks.get_context_by_page(doc_id, center_page=3, max_chars=500)
 
         total_chars = sum(len(c["text"]) for c in result)
-        # Should be limited — at most center page
+        # Should be limited - at most center page
         assert total_chars < 3000
 
     def test_ordered_by_chunk_index(self, store_with_chunks):

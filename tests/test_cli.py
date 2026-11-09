@@ -56,7 +56,7 @@ class TestIndexCommand:
         """Shows warning when no supported documents are found.
 
         EmbeddingModel is patched so the test never loads the real (2 GB+)
-        bge-m3 model — the empty-directory path doesn't need it.
+        bge-m3 model - the empty-directory path doesn't need it.
         """
         empty_dir = tmp_path / "empty"
         empty_dir.mkdir()

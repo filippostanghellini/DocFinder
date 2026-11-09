@@ -562,7 +562,8 @@
         padding: 0.35rem 0.5rem;
       }
 
-      .btn-ghost:hover:not(:disabled) { color: var(--danger); background: var(--danger-light); }
+      .btn-ghost:hover:not(:disabled) { color: var(--text-0); background: var(--bg-3); }
+      .btn-ghost.delete-doc-btn:hover:not(:disabled) { color: var(--danger); background: var(--danger-light); }
 
       .btn-sm { padding: 0.35rem 0.65rem; font-size: 0.75rem; }
 
@@ -1382,10 +1383,15 @@
         <div class="logo">
           <div class="logo-mark">
             <svg width="16" height="16" viewBox="0 0 100 100" fill="none">
-              <path d="M20 15L20 85L70 85L70 30L55 15Z" stroke="white" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M55 15L55 30L70 30" stroke="white" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-              <circle cx="64" cy="57" r="17" stroke="white" stroke-width="6" fill="none"/>
-              <line x1="76" y1="69" x2="88" y2="83" stroke="white" stroke-width="7" stroke-linecap="round"/>
+              <g transform="translate(0.5,1)">
+                <path d="M62 27V23c0-4.5-3.5-8-8-8H33c-3 0-5.5 1.2-7.5 3.2l-7.3 7.3c-2 2-3.2 4.5-3.2 7.5v42c0 4.5 3.5 8 8 8h31c4.5 0 8-3.5 8-8v-3" stroke="white" stroke-width="6.1" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M31 15.5V25c0 3.5-2.5 6-6 6h-9.5" stroke="white" stroke-width="5.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <line x1="25" y1="44" x2="36" y2="44" stroke="white" stroke-width="5.8" stroke-linecap="round"/>
+                <line x1="25" y1="54" x2="36" y2="54" stroke="white" stroke-width="5.8" stroke-linecap="round"/>
+                <line x1="25" y1="64" x2="33" y2="64" stroke="white" stroke-width="5.8" stroke-linecap="round"/>
+                <circle cx="60" cy="50" r="14.5" stroke="white" stroke-width="6.1"/>
+                <line x1="72.5" y1="62.5" x2="83" y2="73" stroke="white" stroke-width="8.6" stroke-linecap="round"/>
+              </g>
             </svg>
           </div>
           <h1>DocFinder</h1>
@@ -1494,7 +1500,7 @@
             Tips
           </h2>
           <ul class="tips-list">
-            <li>Use absolute paths — e.g. <code>/Users/name/Documents</code></li>
+            <li>Use absolute paths - e.g. <code>/Users/name/Documents</code></li>
             <li>Index entire folders: all Documents are discovered recursively</li>
             <li>Use the <strong>Browse</strong> button to open a native folder picker</li>
             <li>Unchanged files are skipped</li>
@@ -1556,6 +1562,42 @@
 
       <!-- ── Settings ─────────────────────────────────────────────────────── -->
       <div id="settings-section" class="section" role="tabpanel">
+
+        <!-- ── Updates ───────────────────────────────────────────────────── -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4 7l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              Updates
+            </h2>
+          </div>
+          <p style="font-size:0.82rem; color:var(--text-2); margin-bottom:0.65rem; line-height:1.5;">
+            Check GitHub Releases for a newer version of DocFinder and install it in place.
+          </p>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label" id="update-current-version">DocFinder</span>
+              <span class="setting-sub" id="update-status-sub">Click &ldquo;Check for updates&rdquo; to look for a new release.</span>
+            </div>
+            <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+              <button id="update-check-btn" class="btn btn-secondary btn-sm">Check for updates</button>
+              <button id="update-install-btn" class="btn btn-primary btn-sm" style="display:none;">Download &amp; install</button>
+            </div>
+          </div>
+
+          <div id="update-progress" style="display:none; margin-top:0.75rem;">
+            <div style="display:flex; justify-content:space-between; font-size:0.78rem; color:var(--text-2); margin-bottom:0.3rem;">
+              <span id="update-dl-label">Downloading update&hellip;</span>
+              <span id="update-dl-pct">0%</span>
+            </div>
+            <div style="background:var(--bg-3); border-radius:9999px; height:6px; overflow:hidden;">
+              <div id="update-dl-bar" style="background:var(--primary); height:100%; width:0%; transition:width 0.3s;"></div>
+            </div>
+          </div>
+
+          <div id="update-notes" style="margin-top:0.75rem; font-size:0.78rem; color:var(--text-2); line-height:1.4; white-space:pre-wrap;"></div>
+        </div>
 
         <!-- ── Shortcuts ────────────────────────────────────────────────── -->
         <div class="card">
@@ -1658,8 +1700,42 @@
 
           <p style="font-size:0.82rem; color:var(--text-2); margin-bottom:0.65rem; line-height:1.5;">
             Choose which models DocFinder uses for embeddings, search results and AI chat.
-            Connect to a local or remote Ollama server to pick any model it serves.
+            By default, DocFinder uses <strong>Google EmbeddingGemma 2</strong> with modular encoders so you only load what you need.
           </p>
+
+          <div style="margin-bottom:0.9rem; padding:0.75rem 0.85rem; background:var(--bg-2); border:1px solid var(--border); border-radius:var(--radius-sm);">
+            <div style="font-size:0.84rem; font-weight:600; color:var(--text-0); margin-bottom:0.25rem;">
+              EmbeddingGemma 2 Modules &mdash; What to download &amp; enable
+            </div>
+            <p style="font-size:0.78rem; color:var(--text-2); margin:0 0 0.6rem; line-height:1.45;">
+              At first launch only <strong>Text &amp; Code (270M)</strong> is active for maximum speed and low RAM.
+              Enable extra modules below whenever you want to search inside scanned PDFs, images, or audio/video files
+              (all modules share the same 768-dim vector space &mdash; enabling a module does not wipe your existing index).
+            </p>
+            <div style="display:flex; flex-direction:column; gap:0.5rem;">
+              <label style="display:flex; align-items:flex-start; gap:0.55rem; font-size:0.8rem; opacity:0.9;">
+                <input type="checkbox" id="modality-text" checked disabled style="margin-top:0.2rem;" />
+                <span>
+                  <strong>Text, Office &amp; Code (270M &middot; ~250 MB RAM &middot; Always on)</strong><br/>
+                  <span style="color:var(--text-2); font-size:0.76rem;">Digital PDFs, Word, Excel (.xlsx/.csv), PowerPoint, OpenDocument, Markdown, HTML, EPUB, emails (.eml/.mbox), and source code.</span>
+                </span>
+              </label>
+              <label style="display:flex; align-items:flex-start; gap:0.55rem; font-size:0.8rem; cursor:pointer;">
+                <input type="checkbox" id="modality-image" style="margin-top:0.2rem;" />
+                <span>
+                  <strong>Scanned PDFs &amp; Images (+Vision &middot; +170M &middot; ~190 MB RAM)</strong><br/>
+                  <span style="color:var(--text-2); font-size:0.76rem;">Searches inside scanned PDF pages (invoices, receipts, contracts without selectable text), screenshots, diagrams, and images (.png, .jpg, .webp, .tiff) without external OCR.</span>
+                </span>
+              </label>
+              <label style="display:flex; align-items:flex-start; gap:0.55rem; font-size:0.8rem; cursor:pointer;">
+                <input type="checkbox" id="modality-audio" style="margin-top:0.2rem;" />
+                <span>
+                  <strong>Audio &amp; Video Recordings (+Audio &middot; +300M &middot; ~310 MB RAM)</strong><br/>
+                  <span style="color:var(--text-2); font-size:0.76rem;">Searches voice notes, call recordings, podcasts (.wav, .mp3, .m4a, .flac, .ogg) and video files (.mp4, .mov, .mkv).</span>
+                </span>
+              </label>
+            </div>
+          </div>
 
           <div class="setting-row">
             <div class="setting-info">
@@ -1789,6 +1865,15 @@
       <div class="modal">
         <h3 class="modal-title">Before you index</h3>
         <ul id="index-warn-list" class="warn-list"></ul>
+        <div id="warn-modalities" style="display:none; margin-top:0.65rem; padding:0.65rem 0.75rem; background:var(--bg-2); border:1px solid var(--border); border-radius:var(--radius-sm);">
+          <p style="font-size:0.8rem; font-weight:600; margin:0 0 0.35rem; color:var(--text-0);">
+            Complex files detected &mdash; download/enable extra EmbeddingGemma 2 modules?
+          </p>
+          <p style="font-size:0.75rem; color:var(--text-2); margin:0 0 0.5rem; line-height:1.4;">
+            Check the modules you want to enable now so these files are indexed too (or uncheck to index only Text &amp; Code):
+          </p>
+          <div id="warn-modality-list" style="display:flex; flex-direction:column; gap:0.45rem;"></div>
+        </div>
         <div id="warn-exclusions" style="display:none; margin-top:0.65rem;">
           <p style="font-size:0.78rem; font-weight:600; margin-bottom:0.35rem; color:var(--text-0);">
             Large files &mdash; uncheck to skip during indexing:
@@ -1980,27 +2065,54 @@
         });
       });
 
+      function formatLocationBadge(meta) {
+        if (!meta || typeof meta !== 'object') return '';
+        if (meta.timestamp) return `⏱ ${escHtml(meta.timestamp)}`;
+        if (meta.line_start) {
+          return meta.line_end && meta.line_end !== meta.line_start
+            ? `Lines ${meta.line_start}–${meta.line_end}`
+            : `Line ${meta.line_start}`;
+        }
+        if (meta.page) return `Page ${meta.page}`;
+        return '';
+      }
+
       function renderResult(r) {
         const li = document.createElement('li');
         li.className = 'result-card';
         const safePath = r.path.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
         const title = r.title || r.path.split('/').pop();
         const pct   = Math.round(r.score * 100);
+        const meta  = r.metadata || {};
+        const locBadge = formatLocationBadge(meta);
+        const lineArg  = meta.line_start ? Number(meta.line_start) : 'null';
+        const pageArg  = meta.page ? Number(meta.page) : 'null';
+        const secArg   = meta.start_sec !== undefined ? Number(meta.start_sec) : 'null';
+        const openLabel = meta.timestamp
+          ? `Open at ${escHtml(meta.timestamp)}`
+          : (meta.line_start ? `Open at line ${meta.line_start}` : (meta.page && meta.page > 1 ? `Open (p. ${meta.page})` : 'Open'));
         li.innerHTML = `
           <div class="result-header">
             <h3 class="result-title">${escHtml(title)}</h3>
-            <span class="result-score">${pct}%</span>
+            <div style="display:flex;align-items:center;gap:0.45rem;">
+              ${locBadge ? `<span style="font-size:0.72rem;padding:0.12rem 0.45rem;border-radius:999px;background:rgba(129,140,248,0.12);color:var(--accent-light);font-weight:500;">${locBadge}</span>` : ''}
+              <span class="result-score">${pct}%</span>
+            </div>
           </div>
           <div class="result-path">${escHtml(r.path)}</div>
           <div class="result-snippet">${escHtml(r.text || '(no snippet available)')}</div>
           <div class="result-actions">
-            <button class="btn btn-primary btn-sm" onclick="openDocument('${safePath}')">
+            <button class="btn btn-primary btn-sm" onclick="openDocument('${safePath}', { page: ${pageArg}, line: ${lineArg}, start_sec: ${secArg} })">
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4h8l2 2v8H2V4z" stroke="white" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 2h4v4" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 7l5-5" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>
-              Open
+              ${openLabel}
             </button>
             <button class="btn btn-accent btn-sm chat-btn" data-path="${escHtml(r.path)}" data-chunk="${r.chunk_index}" data-title="${escHtml(title)}" style="display:${ragEnabled ? 'inline-flex' : 'none'}">
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 3h12v8H5l-3 3V3z" stroke="white" stroke-width="1.5" stroke-linejoin="round"/><path d="M5 6h6M5 8.5h4" stroke="white" stroke-width="1.3" stroke-linecap="round"/></svg>
               Chat
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="openDocument('${safePath}', { reveal: true })" title="Reveal in Finder / Explorer">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M1.5 3.5h4.5l1.5 1.5h7v7.5h-13v-9z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+              Show in Folder
             </button>
           </div>`;
         return li;
@@ -2055,11 +2167,12 @@
         }
       });
 
-      async function openDocument(path) {
+      async function openDocument(path, opts = {}) {
+        const payload = { path, ...opts };
         const res = await fetch(`${apiBase}/open`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path }),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) showToast((await res.json()).detail || 'Unable to open file', 'error');
       }
@@ -2067,15 +2180,35 @@
       // ── Index warning modal ───────────────────────────────────────────────
       const indexWarnModal   = document.getElementById('index-warn-modal');
       const indexWarnList    = document.getElementById('index-warn-list');
+      const warnModalities   = document.getElementById('warn-modalities');
+      const warnModalityList = document.getElementById('warn-modality-list');
       const warnExclusions   = document.getElementById('warn-exclusions');
       const warnFileList     = document.getElementById('warn-file-list');
       const cancelIndexWarn  = document.getElementById('cancel-index-warn');
       const confirmIndexWarn = document.getElementById('confirm-index-warn');
 
-      // Returns { proceed: bool, excludePaths: string[] }
-      function showIndexWarning(warnings, largeFiles = []) {
+      // Returns { proceed: bool, excludePaths: string[], enableModalities: string[] }
+      function showIndexWarning(warnings, largeFiles = [], missingModalities = {}) {
         return new Promise(resolve => {
           indexWarnList.innerHTML = warnings.map(w => `<li>${escHtml(w)}</li>`).join('');
+
+          const missingEntries = Object.values(missingModalities || {});
+          if (missingEntries.length > 0) {
+            warnModalityList.innerHTML = missingEntries.map(m => {
+              const ex = (m.examples || []).map(escHtml).join(', ');
+              return `<label style="display:flex; align-items:flex-start; gap:0.5rem; font-size:0.78rem; cursor:pointer;">
+                <input type="checkbox" class="missing-modality-cb" data-modality="${escHtml(m.modality)}" checked style="margin-top:0.2rem;" />
+                <span>
+                  <strong>${escHtml(m.label)}</strong> &mdash; ${m.count} file${m.count !== 1 ? 's' : ''} found (${ex})<br/>
+                  <span style="color:var(--text-2); font-size:0.74rem;">${escHtml(m.description)} (~${m.ram_mb} MB RAM)</span>
+                </span>
+              </label>`;
+            }).join('');
+            warnModalities.style.display = 'block';
+          } else {
+            warnModalityList.innerHTML = '';
+            warnModalities.style.display = 'none';
+          }
 
           if (largeFiles.length > 0) {
             warnFileList.innerHTML = largeFiles.map(f => {
@@ -2099,10 +2232,14 @@
             warnFileList.querySelectorAll('.large-file-cb:not(:checked)').forEach(cb => {
               excludePaths.push(cb.dataset.path);
             });
+            const enableModalities = [];
+            warnModalityList.querySelectorAll('.missing-modality-cb:checked').forEach(cb => {
+              enableModalities.push(cb.dataset.modality);
+            });
             cleanup();
-            resolve({ proceed: true, excludePaths });
+            resolve({ proceed: true, excludePaths, enableModalities });
           };
-          const onCancel  = () => { cleanup(); resolve({ proceed: false, excludePaths: [] }); };
+          const onCancel  = () => { cleanup(); resolve({ proceed: false, excludePaths: [], enableModalities: [] }); };
           const onOverlay = e => { if (e.target === indexWarnModal) onCancel(); };
           const onKey     = e => { if (e.key === 'Escape') onCancel(); };
 
@@ -2121,7 +2258,7 @@
         });
       }
 
-      // Returns { warnings: string[], largeFiles: object[] }
+      // Returns { warnings: string[], largeFiles: object[], missingModalities: object }
       async function buildIndexWarnings(targetPath) {
         const LARGE_FILE_MB  = 100;
         const MANY_FILES     = 50;
@@ -2138,11 +2275,12 @@
           if (res.ok) scanData = await res.json();
         } catch (_) {}
 
-        const warnings    = [];
-        const largeFiles  = [];
+        const warnings          = [];
+        const largeFiles        = [];
+        const missingModalities = (scanData && scanData.missing_modalities) ? scanData.missing_modalities : {};
 
         if (scanData) {
-          if (scanData.file_count === 0) {
+          if (scanData.file_count === 0 && Object.keys(missingModalities).length === 0) {
             warnings.push('No supported files were found in the selected folder.');
           } else if (scanData.file_count > MANY_FILES) {
             warnings.push(
@@ -2163,7 +2301,7 @@
             `Low available RAM (${systemInfo.available_mb} MB free) \u2014 indexing may be slow or unstable.`
           );
         }
-        return { warnings, largeFiles };
+        return { warnings, largeFiles, missingModalities };
       }
 
       // ── Indexing with progress polling ───────────────────────────────────
@@ -2267,12 +2405,14 @@
         folderPreview.style.display = 'none';
 
         // Scan + warn before starting
-        const { warnings, largeFiles } = await buildIndexWarnings(targetPath);
+        const { warnings, largeFiles, missingModalities } = await buildIndexWarnings(targetPath);
         let excludePaths = [];
-        if (warnings.length > 0 || largeFiles.length > 0) {
-          const result = await showIndexWarning(warnings, largeFiles);
+        let enableModalities = [];
+        if (warnings.length > 0 || largeFiles.length > 0 || Object.keys(missingModalities).length > 0) {
+          const result = await showIndexWarning(warnings, largeFiles, missingModalities);
           if (!result.proceed) return;
           excludePaths = result.excludePaths;
+          enableModalities = result.enableModalities || [];
         }
 
         indexBtn.disabled = true;
@@ -2287,8 +2427,12 @@
               paths: [targetPath],
               exclude_paths: excludePaths,
               privacy: document.getElementById('index-privacy').checked,
+              enable_modalities: enableModalities.length > 0 ? enableModalities : undefined,
             }),
           });
+          if (enableModalities.length > 0) {
+            loadOllamaSettings();
+          }
           const startData = await startRes.json();
           if (!startRes.ok) throw new Error(startData.detail || 'Failed to start indexing');
 
@@ -2613,7 +2757,7 @@
         if (e.altKey)   mods.push('<alt>');
         if (e.shiftKey) mods.push('<shift>');
 
-        // Use e.code to get the physical key — e.key gives composed characters
+        // Use e.code to get the physical key - e.key gives composed characters
         // on macOS (e.g. Option+D → '∂' instead of 'd').
         const code = e.code || '';
         const modifierOnly = ['ControlLeft','ControlRight','ShiftLeft','ShiftRight',
@@ -2644,7 +2788,102 @@
       let currentHotkeyPynput = '';
       let capturedPynput = '';
 
-      async function loadSettingsTab() {
+      // ── Updates card ─────────────────────────────────────────────────────
+       let updateInfo = null, updatePollTimer = null;
+
+       async function initUpdatesCard() {
+         try {
+           const s = await (await fetch(`${apiBase}/system/info`)).json();
+           document.getElementById('update-current-version').textContent = `DocFinder ${s.version || ''}`.trim();
+         } catch (_) {}
+         document.getElementById('update-progress').style.display = 'none';
+       }
+
+       document.getElementById('update-check-btn').addEventListener('click', async () => {
+         const btn = document.getElementById('update-check-btn');
+         const sub = document.getElementById('update-status-sub');
+         const installBtn = document.getElementById('update-install-btn');
+         btn.disabled = true;
+         btn.textContent = 'Checking…';
+         try {
+           const res = await fetch(`${apiBase}/system/update/check`, { method: 'POST' });
+           if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || 'Check failed');
+           updateInfo = await res.json();
+           if (updateInfo.available) {
+             sub.textContent = `Update available: v${updateInfo.latest_version}`;
+             installBtn.style.display = '';
+             const notes = document.getElementById('update-notes');
+             const parts = [];
+             if (updateInfo.release_notes) parts.push(String(updateInfo.release_notes).slice(0, 600));
+             if (updateInfo.release_url) parts.push(`Release page: ${updateInfo.release_url}`);
+             notes.textContent = parts.join('\\n\\n');
+           } else {
+             sub.textContent = `You're up to date (v${updateInfo.latest_version || updateInfo.current_version})`;
+             installBtn.style.display = 'none';
+             document.getElementById('update-notes').textContent = '';
+           }
+         } catch (err) {
+           sub.textContent = err.message;
+         } finally {
+           btn.disabled = false;
+           btn.textContent = 'Check for updates';
+         }
+       });
+
+       async function startUpdateInstall() {
+         const installBtn = document.getElementById('update-install-btn');
+         const checkBtn = document.getElementById('update-check-btn');
+         const progress = document.getElementById('update-progress');
+         installBtn.disabled = true;
+         checkBtn.disabled = true;
+         progress.style.display = '';
+         try { await fetch(`${apiBase}/system/update/install`, { method: 'POST' }); } catch (_) {}
+         if (updatePollTimer) clearInterval(updatePollTimer);
+         updatePollTimer = setInterval(pollUpdateStatus, 700);
+       }
+
+       async function pollUpdateStatus() {
+         const sub = document.getElementById('update-status-sub');
+         const bar = document.getElementById('update-dl-bar');
+         const pct = document.getElementById('update-dl-pct');
+         const label = document.getElementById('update-dl-label');
+         try {
+           const st = await (await fetch(`${apiBase}/system/update/status`)).json();
+           if (st.state === 'downloading') {
+             const p = Math.round((st.progress || 0) * 100);
+             bar.style.width = p + '%';
+             pct.textContent = p + '%';
+             label.textContent = `Downloading update… ${formatBytes(st.downloaded || 0)} / ${formatBytes(st.total || 0)}`;
+           } else if (st.state === 'installing') {
+             bar.style.width = '100%';
+             pct.textContent = '100%';
+             label.textContent = 'Installing update…';
+           } else if (st.state === 'restarting') {
+             bar.style.width = '100%';
+             pct.textContent = '100%';
+             label.textContent = 'Update installed — restarting DocFinder…';
+             sub.textContent = 'Update installed — DocFinder is restarting…';
+             clearInterval(updatePollTimer);
+             updatePollTimer = null;
+           } else if (st.state === 'error') {
+             label.textContent = st.error || st.message || 'Update failed';
+             sub.textContent = st.error || 'Update failed';
+             clearInterval(updatePollTimer);
+             updatePollTimer = null;
+             document.getElementById('update-check-btn').disabled = false;
+             document.getElementById('update-install-btn').disabled = false;
+           }
+         } catch (_) {
+           label.textContent = 'DocFinder is restarting…';
+           sub.textContent = 'Update installed — restarting DocFinder…';
+           clearInterval(updatePollTimer);
+           updatePollTimer = null;
+         }
+       }
+
+       document.getElementById('update-install-btn').addEventListener('click', startUpdateInstall);
+
+       async function loadSettingsTab() {
         try {
           const res = await fetch(`${apiBase}/settings`);
           const s = await res.json();
@@ -2745,11 +2984,24 @@
         updateChatButtonsVisibility();
         if (ragEnabled) {
           ragModelsSection.style.display = '';
-          loadRagModels();
+          await loadRagModels();
+          startRagPollIfBusy();
         } else {
           ragModelsSection.style.display = 'none';
+          stopRagPoll();
         }
       });
+
+      // Loads triggered after a render (auto-load of a downloaded model) leave the UI
+      // stuck on "Model ready" unless we re-check the status and start polling.
+      function startRagPollIfBusy() {
+        fetch(`${apiBase}/rag/download/status`)
+          .then(r => r.json())
+          .then(s => {
+            if (s.status === 'downloading' || s.status === 'loading') startRagPoll();
+          })
+          .catch(() => {});
+      }
 
       async function loadRagModels() {
         try {
@@ -2791,13 +3043,34 @@
               ${badges}
             `;
 
-            if (canRun && !isDownloading) {
+            // Selection stays possible even while another model downloads/loads:
+            // picking a card only saves the preference; a Download click during a
+            // running job is answered with already_running and re-offered after it.
+            if (canRun) {
               div.addEventListener('click', () => selectRagModel(m.name));
             }
             ragModelsList.appendChild(div);
 
             if (isSelected && canRun) ragSelectedModel = m.name;
           });
+
+          // Fallback: a saved model that is stale or cannot run on this machine
+          // must not leave the section without a selection - fall back to the
+          // recommended tier so the suggestion is always visible.
+          const selectedStillValid = ragModelsData.some(
+            x => x.name === ragSelectedModel && data.total_ram_mb >= x.ram_min_mb
+          );
+          if (!selectedStillValid) {
+            const rec = ragModelsData.find(
+              x => x.recommended && data.total_ram_mb >= x.ram_min_mb
+            );
+            if (rec) {
+              ragSelectedModel = rec.name;
+              ragModelsList.querySelectorAll('.model-card').forEach(c => {
+                c.classList.toggle('selected', c.dataset.model === rec.name);
+              });
+            }
+          }
 
           // If download is in progress, show progress bar and start polling
           if (isDownloading) {
@@ -2838,6 +3111,7 @@
             if (s.status !== 'ready' && s.status !== 'loading') {
               fetch(`${apiBase}/rag/download`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
             }
+            startRagPollIfBusy();
           });
         } else {
           ragStatusMsg.style.background = 'var(--primary-light)';
@@ -2873,7 +3147,7 @@
       }
 
       function startRagPoll() {
-        // Always restart — ensures fresh polling when returning to settings tab
+        // Always restart - ensures fresh polling when returning to settings tab
         stopRagPoll();
         ragDlProgress.style.display = '';
         ragStatusMsg.style.display = 'none';
@@ -3011,13 +3285,20 @@
       embeddingModelSelect.addEventListener('change', updateOllamaRows);
       llmBackendSelect.addEventListener('change', updateOllamaRows);
 
+      const modalityImageCb = document.getElementById('modality-image');
+      const modalityAudioCb = document.getElementById('modality-audio');
+
       document.getElementById('save-ollama-btn').addEventListener('click', async () => {
         const embOllama = embeddingBackendSelect.value === 'ollama';
+        const selectedModalities = ['text'];
+        if (modalityImageCb && modalityImageCb.checked) selectedModalities.push('image');
+        if (modalityAudioCb && modalityAudioCb.checked) selectedModalities.push('audio');
         const payload = {
           ollama_url: ollamaUrlInput.value.trim(),
           ollama_api_key: clearOllamaApiKey.checked ? '' : (ollamaApiKeyInput.value || null),
           embedding_backend: embeddingBackendSelect.value,
           embedding_model: embOllama ? embeddingModelSelect.value : '',
+          embedding_modalities: selectedModalities,
           llm_backend: llmBackendSelect.value,
           llm_model: llmBackendSelect.value === 'ollama' ? llmModelSelect.value : '',
         };
@@ -3033,7 +3314,7 @@
           ollamaApiKeyInput.value = '';
           clearOllamaApiKey.checked = false;
           ollamaApiKeyInput.placeholder = settings.has_ollama_api_key
-            ? 'Saved — blank keeps current key' : 'None';
+            ? 'Saved - blank keeps current key' : 'None';
           savedEmbeddingBackend = embeddingBackendSelect.value;
           savedEmbeddingModel = payload.embedding_model;
           settings.llm_model = payload.llm_model;
@@ -3096,11 +3377,14 @@
           ollamaUrlInput.value = settings.ollama_url || '';
           ollamaApiKeyInput.value = '';
           ollamaApiKeyInput.placeholder = settings.has_ollama_api_key
-            ? 'Saved — blank keeps current key' : 'None';
+            ? 'Saved - blank keeps current key' : 'None';
           embeddingBackendSelect.value = settings.embedding_backend === 'ollama' ? 'ollama' : 'local';
           llmBackendSelect.value = settings.llm_backend === 'ollama' ? 'ollama' : 'local';
           savedEmbeddingBackend = embeddingBackendSelect.value;
           savedEmbeddingModel = settings.embedding_model || '';
+          const activeMods = Array.isArray(settings.embedding_modalities) ? settings.embedding_modalities : ['text'];
+          if (modalityImageCb) modalityImageCb.checked = activeMods.includes('image');
+          if (modalityAudioCb) modalityAudioCb.checked = activeMods.includes('audio');
           updateOllamaRows();
           if (ollamaUrlInput.value.trim()) {
             ollamaTestBtn.click();
@@ -3136,6 +3420,7 @@
       // Load settings when switching to the tab
       document.querySelector('[data-tab="settings"]').addEventListener('click', loadSettingsTab);
       document.querySelector('[data-tab="settings"]').addEventListener('click', loadOllamaSettings);
+       document.querySelector('[data-tab="settings"]').addEventListener('click', initUpdatesCard);
 
       // ── Native folder picker (pywebview only) ────────────────────────────
       // The Browse button is hidden by default and shown only when running
@@ -3152,7 +3437,7 @@
               indexInput.focus();
             }
           } catch (err) {
-            // Dialog was cancelled or unavailable — silently ignore
+            // Dialog was cancelled or unavailable - silently ignore
           }
         });
       }
@@ -3287,7 +3572,7 @@
               </div>
             </div>`).join('');
           slResult.querySelectorAll('.sl-result-item').forEach(el => {
-            el.addEventListener('click', () => slOpen(el.dataset.path));
+            el.addEventListener('click', () => slOpen(slItems[parseInt(el.dataset.index)]));
             el.addEventListener('mouseenter', () => slSetActive(parseInt(el.dataset.index)));
           });
         }
@@ -3296,14 +3581,14 @@
           try {
             await fetch('/open', { method: 'POST',
               headers: {'Content-Type':'application/json'},
-              body: JSON.stringify({ path }) });
+              body: JSON.stringify({ path: (item && typeof item === 'object') ? item.path : item, page: ((item && item.metadata) || {}).page || null, line: (((item && item.metadata) || {}).line_start) || null, start_sec: (item && item.metadata && item.metadata.start_sec !== undefined) ? item.metadata.start_sec : null }) });
           } catch (_) {}
           hideSpotlightOverlay();
         }
 
         async function slSearch(q) {
           const trimmed = q.trim();
-          if (trimmed.length < 3) { slResult.innerHTML = ''; slItems = []; return; }
+          if (trimmed.length < 2) { slResult.innerHTML = ''; slItems = []; return; }
           slSpinner.classList.add('active');
           try {
             const res = await fetch('/search', { method: 'POST',
@@ -3312,7 +3597,7 @@
             const data = await res.json();
             if (res.ok) {
               // Apply same relevance threshold as the main app experience
-              const relevant = (data.results || []).filter(r => r.score >= 0.3);
+              const relevant = (data.results || []).filter(r => r.score >= 0.2);
               slRender(relevant);
             } else {
               slResult.innerHTML = `<div class="sl-empty">${escHtmlSl(data.detail||'Error')}</div>`;
@@ -3326,7 +3611,7 @@
           clearTimeout(slDebounce);
           const q = slInput.value.trim();
           if (q.length < 3) { slResult.innerHTML = ''; slItems = []; return; }
-          slDebounce = setTimeout(() => slSearch(slInput.value), 500);
+          slDebounce = setTimeout(() => slSearch(slInput.value), 250);
         });
 
         // Use document-level keydown so Escape works even if the input lost focus
@@ -3340,17 +3625,42 @@
             e.preventDefault(); slSetActive(slActive - 1);
             slResult.querySelectorAll('.sl-result-item')[slActive]?.scrollIntoView({block:'nearest'});
           } else if (e.key === 'Enter' && slActive >= 0 && slItems[slActive]) {
-            slOpen(slItems[slActive].path);
+            slOpen(slItems[slActive]);
           }
         });
 
         // Click backdrop to close
         overlay.addEventListener('click', e => { if (e.target === overlay) hideSpotlightOverlay(); });
 
-        // ⌥D shortcut within the webview (no pynput / no threading needed)
-        // Use e.code ('KeyD') because macOS Option+D produces '∂' in e.key
+        // Global shortcut (configured in Settings) within the webview
+        // Use e.code because macOS Option+key produces composed characters
+        let appHotkeyStr = '<alt>+d';
+        fetch(`${apiBase}/settings`).then(r => r.json()).then(s => { appHotkeyStr = s.hotkey || '<alt>+d'; }).catch(() => {});
+        function matchesAppHotkey(e) {
+          const parts = String(appHotkeyStr).split('+').map(p => p.trim());
+          let hasMod = false;
+          let keyPart = null;
+          for (const p of parts) {
+            if (p === '<cmd>')   { if (!e.metaKey)  return false; hasMod = true; }
+            else if (p === '<ctrl>')  { if (!e.ctrlKey)  return false; hasMod = true; }
+            else if (p === '<alt>')   { if (!e.altKey)   return false; hasMod = true; }
+            else if (p === '<shift>') { if (!e.shiftKey) return false; hasMod = true; }
+            else { keyPart = p.replace(/^<|>$/g, ''); }
+          }
+          if (!hasMod || !keyPart) return false;
+          const code = e.code || '';
+          const codeToKey = { 'Space': 'space', 'Enter': 'enter', 'NumpadEnter': 'enter', 'Tab': 'tab', 'ArrowUp': 'up', 'ArrowDown': 'down', 'ArrowLeft': 'left', 'ArrowRight': 'right' };
+          let pressed = codeToKey[code];
+          if (!pressed) {
+            const lm = code.match(/^Key([A-Z])$/);
+            if (lm) pressed = lm[1].toLowerCase();
+            else if (/^Digit[0-9]$/.test(code)) pressed = code.charAt(5);
+            else if (/^F([1-9]|1[0-2])$/.test(code)) pressed = code.toLowerCase();
+          }
+          return pressed === String(keyPart).toLowerCase();
+        }
         document.addEventListener('keydown', e => {
-          if (e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey && e.code === 'KeyD') {
+          if (matchesAppHotkey(e)) {
             e.preventDefault();
             toggleSpotlightOverlay();
           }

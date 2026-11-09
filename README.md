@@ -14,23 +14,23 @@
 <p align="center">
   <strong>Local-first semantic search for your documents.</strong><br>
   Supports PDF, Word, PowerPoint, OpenDocument, HTML, EPUB, Markdown, plain text, and more.<br>
-  Everything runs on your machine — no cloud, no accounts, complete privacy.
+  Everything runs on your machine - no cloud, no accounts, complete privacy.
 </p>
 
 <p align="center">
-  <img src="images/demo.gif" alt="DocFinder Demo" width="700">
+  <img src="images/demov2.gif" alt="DocFinder Demo" width="700">
 </p>                                                                        
 
 ## Features
 
-- **Semantic search** — find documents by meaning, not just keywords (PDF, DOCX, PPTX, ODT, HTML, EPUB + others)
-- **AI chat** — ask questions about any document and get precise answers, powered by local Qwen3.5 models (automatically selects the best model for your hardware)
-- **Bring your own models (Ollama)** — connect to a local or remote Ollama server and pick any embedding or chat model it serves
-- **100% privacy mode** — per-indexing-run checkbox: files marked private never leave your machine (local embedder required, remote LLMs blocked for chat)
-- **100% local** — your files never leave your machine
-- **GPU accelerated** — auto-detects Apple Silicon (Metal), NVIDIA (CUDA), AMD (ROCm)
-- **Cross-platform** — native apps for macOS, Windows, and Linux
-- **Global shortcut** (Experimental) — bring DocFinder to front from anywhere with a configurable hotkey
+- **Semantic search** - find documents by meaning, not just keywords (PDF, DOCX, PPTX, ODT, HTML, EPUB + others)
+- **AI chat** - ask questions about any document and get precise answers, powered by local Qwen3.5 models (automatically selects the best model for your hardware)
+- **Bring your own models (Ollama)** - connect to a local or remote Ollama server and pick any embedding or chat model it serves
+- **100% privacy mode** - per-indexing-run checkbox: files marked private never leave your machine (local embedder required, remote LLMs blocked for chat)
+- **100% local** - your files never leave your machine
+- **GPU accelerated** - auto-detects Apple Silicon (Metal), NVIDIA (CUDA), AMD (ROCm)
+- **Cross-platform** - native apps for macOS, Windows, and Linux
+- **Global shortcut** (Experimental) - bring DocFinder to front from anywhere with a configurable hotkey
 
 <p align="center">
   <img src="images/chat.png" alt="DocFinder Chat" width="700">
@@ -44,9 +44,9 @@
 | **Windows** | [DocFinder-Windows-Setup.exe](https://github.com/filippostanghellini/DocFinder/releases/latest) |
 | **Linux** | [DocFinder-Linux-x86_64.AppImage](https://github.com/filippostanghellini/DocFinder/releases/latest) |
 
-**macOS** — open the DMG, drag DocFinder to Applications, then right-click → **Open** on first launch (Gatekeeper warning — normal for unsigned open-source apps).
+**macOS** - open the DMG, drag DocFinder to Applications, then right-click → **Open** on first launch (Gatekeeper warning - normal for unsigned open-source apps).
 
-**Windows** — run the installer; if SmartScreen appears choose **More info → Run anyway**.
+**Windows** - run the installer; if SmartScreen appears choose **More info → Run anyway**.
 
 **Linux**
 ```bash
@@ -84,13 +84,13 @@ to any Ollama server and choose which models to use:
 
 - **Server URL** (e.g. `http://127.0.0.1:11434`) plus an optional API key for remote Ollama
   providers, with a one-click **Test connection** that lists the installed models
-- **Embedding model** — pick any embedding model served by Ollama; note that changing the
+- **Embedding model** - pick any embedding model served by Ollama; note that changing the
   embedding model invalidates the existing index, so use the **Re-index now** button afterwards
-- **Chat model** — pick any chat model served by Ollama for the AI Chat; applies immediately,
+- **Chat model** - pick any chat model served by Ollama for the AI Chat; applies immediately,
   no reindex needed
 
 Both choices are independent, so you can run a small embedding model and a larger chat LLM side
-by side on the same server. The server can be local or a VPS/remote Ollama provider — embeddings
+by side on the same server. The server can be local or a VPS/remote Ollama provider - embeddings
 and chat requests go over HTTP.
 
 <p align="center">
@@ -101,9 +101,9 @@ and chat requests go over HTTP.
 
 The **100% privacy** checkbox in the Index tab marks an indexing run as strictly local:
 
-- **Indexing** requires a local embedding model — the checkbox is disabled while a remote
+- **Indexing** requires a local embedding model - the checkbox is disabled while a remote
   Ollama server is configured
-- **AI chat** on privacy-marked documents refuses remote LLMs (Ollama on `localhost` is fine —
+- **AI chat** on privacy-marked documents refuses remote LLMs (Ollama on `localhost` is fine -
   data never leaves your machine); the built-in GGUF models are always allowed
 - Privacy-marked documents show a shield badge in the Documents tab, and re-indexing preserves
   the flag
